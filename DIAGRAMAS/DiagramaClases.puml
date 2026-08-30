@@ -1,6 +1,5 @@
 @startuml DiagramaClases - BDCAPAS
 
-!pragma layout smetana
 skinparam classAttributeIconSize 0
 skinparam packageStyle rectangle
 skinparam linetype ortho

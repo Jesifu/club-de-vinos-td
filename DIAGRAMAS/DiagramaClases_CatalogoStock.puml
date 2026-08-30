@@ -2,7 +2,6 @@
 
 title Diagrama de Clases — Gestión de Catálogo y Stock de Vinos
 
-!pragma layout smetana
 skinparam classAttributeIconSize 0
 skinparam packageStyle rectangle
 skinparam shadowing false
