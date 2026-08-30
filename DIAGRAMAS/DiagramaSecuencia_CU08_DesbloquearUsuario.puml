@@ -1,0 +1,97 @@
+@startuml DiagramaSecuencia_CU08_DesbloquearUsuario
+
+title CU-08 — Desbloquear Usuario — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador"       as A
+participant ":frmAdminUsuarios"    as FA #FEFECE
+participant ":UsuarioBLL"          as UB #E8F4E8
+participant ":SessionManager"      as SM #F4E8E8
+participant ":BitacoraBLL"         as BB #E8F4E8
+participant ":IntegridadBLL"       as IB #E8F4E8
+participant ":UsuarioHistorialBLL" as UH #E8F4E8
+database    ":DB"                  as DB #E8E8F4
+
+note over FA
+  Precondición: sesión activa,
+  permiso "Administrar usuarios".
+end note
+
+' ─────────────────────────────────────────
+' SELECCIÓN Y SOLICITUD
+' ─────────────────────────────────────────
+== 1. Selección y solicitud ==
+
+A -> FA : seleccionar usuario en la grilla\n+ click "Desbloquear seleccionado"
+
+opt 1a. ningún usuario seleccionado
+  FA --> A : "Seleccioná un usuario."
+  note right of FA : el caso de uso termina
+end
+
+' ─────────────────────────────────────────
+' VALIDACIÓN Y CONFIRMACIÓN
+' ─────────────────────────────────────────
+== 2. Validación y confirmación ==
+
+alt 3a. el usuario no está bloqueado
+  FA --> A : "El usuario no está bloqueado."
+  note right of FA : el caso de uso termina
+
+else el usuario está bloqueado (RN-01)
+  FA --> A : solicitar confirmación\n("¿Desbloquear al usuario 'X'?")
+
+  alt 5a. el administrador cancela
+    A --> FA : No
+    note right of FA : el caso de uso termina\n(no se realiza el desbloqueo)
+
+  else el administrador confirma
+    A --> FA : Sí
+
+    ' ─────────────────────────────────────────
+    ' DESBLOQUEO
+    ' ─────────────────────────────────────────
+    == 3. Desbloqueo ==
+
+    FA -> UB : Desbloquear(usuario)
+    activate UB
+
+    UB -> DB : USUARIO_DESBLOQUEAR(usuario)
+    note right of DB
+      BLOQUEADO = 0,
+      INTENTOS_FALLIDOS = 0
+      (RN-02)
+    end note
+
+    UB -> SM : getUsuario()
+    SM --> UB : administrador actual
+
+    UB -> BB : RegistrarAccion(admin,\n"DESBLOQUEO_USUARIO:" + usuario)
+    BB -> DB : insertar evento en BITACORA
+
+    UB -> IB : RecalcularIntegridadUsuarios()
+    IB -> DB : actualizar DVH / DVV
+
+    UB -> UH : RegistrarCambio(usuarioId, "DESBLOQUEO", admin)
+    UH -> DB : insertar snapshot en USUARIO_HISTORIAL
+    note right of UH : RN-03: queda registrado\nel admin que ejecutó la acción
+    deactivate UB
+
+    FA --> A : "Usuario desbloqueado."
+    FA -> DB : CargarUsuarios()\n(USUARIO_LISTAR_PAGINADO,\ncon búsqueda y paginado)
+    DB --> FA : página de usuarios
+    FA -> FA : refrescar grilla
+  end
+end
+
+@enduml

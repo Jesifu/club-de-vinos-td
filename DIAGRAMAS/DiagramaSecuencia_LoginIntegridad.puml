@@ -1,0 +1,210 @@
+@startuml DiagramaSecuencia_LoginIntegridad
+
+title Diagrama de Secuencia — Login + Verificación de Integridad
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 12
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.7
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       "Usuario"               as U
+participant "Program"               as P  #FEFECE
+participant "IntegridadBLL"         as IB #E8F4E8
+participant "IntegridadDAL"         as ID #E8E8F4
+participant "LogIn\n(Form)"         as L  #FEFECE
+participant "LoginBLL"              as LB #E8F4E8
+participant "UsuarioDAL"            as UD #E8E8F4
+participant "Hasher"                as H  #F4E8E8
+participant "SessionManager"        as SM #F4E8E8
+participant "UsuarioPerfilBLL"      as UP #E8F4E8
+participant "BitacoraBLL"           as BB #E8F4E8
+participant "IdiomaBLL"             as IDB #E8F4E8
+participant "IdiomaManager"         as IDM #F4E8E8
+participant "UsuarioHistorialBLL"   as UH #E8F4E8
+participant "frmRestaurar\nIntegridad" as FR #FEFECE
+participant "frmMenu"               as FM #FEFECE
+
+' ─────────────────────────────────────────
+' 1. INICIALIZACIÓN DE INTEGRIDAD
+' ─────────────────────────────────────────
+== 1. Inicialización (Program.Main) ==
+
+P -> IB : EstaInicializado()
+activate IB
+IB -> ID : ObtenerDVV("USUARIO")
+ID --> IB : Dictionary<col, int>
+IB --> P : bool
+deactivate IB
+
+opt no inicializado
+  P -> IB : RecalcularIntegridad()
+  activate IB
+  IB -> IB : RecalcularIntegridadUsuarios()
+  deactivate IB
+end
+
+P -> IB : VerificarIntegridad()
+activate IB
+IB -> ID : ListarUsuariosParaIntegridad()
+ID --> IB : DataTable
+loop por cada fila USUARIO
+  IB -> IB : Calcular DVH y comparar
+end
+IB -> ID : ObtenerDVV("USUARIO")
+ID --> IB : DVVs almacenados
+IB --> P : ResultadoIntegridad
+deactivate IB
+
+note right of P
+  Se guarda en
+  **Program.ResultadoIntegridad**
+  (no bloquea — el login siempre abre)
+end note
+
+P -> L : Application.Run(new LogIn())
+
+' ─────────────────────────────────────────
+' 2. AUTENTICACIÓN
+' ─────────────────────────────────────────
+== 2. Autenticación (btnIngresar_Click) ==
+
+U -> L : usuario + contraseña\n+ click Ingresar
+L -> LB : AutenticarUsuario(usuario, contrasena)
+activate LB
+LB -> UD : EstaBloqueado(usuario)
+UD --> LB : bool
+
+alt usuario ya bloqueado en DB
+  LB --> L : LoginResultado.UsuarioBloqueado
+else credenciales por validar
+  LB -> H : Hashear(contrasena)
+  H --> LB : hash
+  LB -> UD : ObtenerPorCredenciales(usuario, hash)
+  UD --> LB : USUARIO u (o null)
+
+  alt u != null  (credenciales válidas)
+    LB -> UD : ResetearIntentos(usuario)
+    LB -> SM : setUsuario(u)
+    LB -> UP : ObtenerPermisos(u.Id)
+    UP --> LB : List<string>
+    LB -> SM : setPermisos(permisos)
+    LB -> BB : RegistrarLogin(usuario)
+
+    opt u.IdiomaId.HasValue
+      LB -> IDB : ObtenerPorId(u.IdiomaId)
+      IDB --> LB : idioma
+      LB -> IDB : CargarTraducciones(idioma.Id)
+      IDB --> LB : traducciones
+      LB -> IDM : CambiarIdioma(idioma, traducciones)
+    end
+
+    LB --> L : LoginResultado.Exito
+  else u == null  (credenciales inválidas)
+    LB -> UD : IncrementarIntentos(usuario)
+    UD --> LB : quedoBloqueado : bool
+    LB -> BB : RegistrarAccion("LOGIN_FALLIDO")
+    alt quedoBloqueado
+      LB -> BB : RegistrarAccion("USUARIO_BLOQUEADO")
+      LB -> UD : ObtenerIdPorNombre(usuario)
+      UD --> LB : id
+      LB -> UH : RegistrarCambio(id, "BLOQUEO", "sistema")
+      LB --> L : LoginResultado.UsuarioBloqueado
+    else aún con intentos disponibles
+      LB --> L : LoginResultado.CredencialesInvalidas
+    end
+  end
+end
+deactivate LB
+
+' ─────────────────────────────────────────
+' 3. MANEJO DEL RESULTADO EN LogIn
+' ─────────────────────────────────────────
+== 3. Manejo del resultado ==
+
+alt resultado == Exito
+  L -> SM : getUsuario()
+  SM --> L : usuarioActual
+
+  alt ResultadoIntegridad inválido
+    L -> SM : TienePermiso("Administrar usuarios")
+    SM --> L : esAdmin
+
+    note right of L
+      suDataEstaIntegra =
+       !IdsUsuariosAfectados
+         .Contains(usuarioActual.Id)
+    end note
+
+    alt esAdmin && suDataEstaIntegra
+      L -> FR : new frmRestaurarIntegridad\n(ResultadoIntegridad).ShowDialog()
+      activate FR
+      FR -> P : GuardarLogIntegridad(errores)
+      note right of FR : log a integridad_error.log
+
+      alt admin elige "Recalcular y continuar"
+        FR -> IB : RecalcularIntegridadUsuarios()
+        FR --> L : DialogResult.OK
+      else admin elige "Restaurar desde historial"
+        loop por cada id en IdsUsuariosAfectados
+          FR -> UH : ObtenerHistorial(id)
+          UH --> FR : List<UsuarioHistorial>
+          opt tiene historial
+            note right of FR : alMenosUnoConHistorial = true
+            FR -> FR : frmHistorialUsuario.ShowDialog()
+            note right of FR
+              dentro: Rollback() →
+              recalcula integridad
+            end note
+          end
+        end
+
+        alt alMenosUnoConHistorial == true
+          FR -> IB : RecalcularIntegridadUsuarios()
+          FR --> L : DialogResult.OK
+        else alMenosUnoConHistorial == false
+          note right of FR
+            Limitación: ningún usuario afectado
+            tiene historial registrado. El
+            formulario permanece abierto (no se
+            recalcula integridad ni se cierra el
+            diálogo); solo queda disponible
+            "Recalcular y continuar".
+          end note
+        end
+      else admin cancela
+        FR --> L : DialogResult.Cancel
+        L -> SM : cerrarSesion()
+        L --> U : (vuelve al login)
+      end
+      deactivate FR
+    else no autorizado para restaurar
+      L --> U : MessageBox "Error del sistema"
+      L -> SM : cerrarSesion()
+    end
+
+  else ResultadoIntegridad OK
+    L -> IB : RecalcularIntegridadUsuarios()
+    note right of L
+      actualiza DVH tras
+      ResetearIntentos
+    end note
+  end
+
+  L --> U : MessageBox "Bienvenido"
+  L -> FM : new frmMenu().Show()
+  L -> L : this.Hide()
+
+else resultado == UsuarioBloqueado / CredencialesInvalidas
+  opt integridad OK
+    L -> IB : RecalcularIntegridadUsuarios()
+  end
+  L --> U : MessageBox de error
+end
+
+@enduml

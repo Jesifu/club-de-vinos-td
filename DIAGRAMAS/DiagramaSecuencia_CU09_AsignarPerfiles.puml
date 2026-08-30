@@ -1,0 +1,132 @@
+@startuml DiagramaSecuencia_CU09_AsignarPerfiles
+
+title CU-09 — Asignar Perfiles a Usuario — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador"       as A
+participant ":frmAdminUsuarios"    as FA #FEFECE
+participant ":frmAsignar\nPerfiles" as FP #FEFECE
+participant ":PerfilBLL"           as PB #E8F4E8
+participant ":UsuarioPerfilBLL"    as UP #E8F4E8
+participant ":IntegridadBLL"       as IB #E8F4E8
+participant ":SessionManager"      as SM #F4E8E8
+participant ":UsuarioHistorialBLL" as UH #E8F4E8
+database    ":DB"                  as DB #E8E8F4
+
+note over FA
+  Precondición: sesión activa,
+  permiso "Administrar usuarios",
+  el usuario existe y hay al
+  menos un rol en el sistema.
+end note
+
+' ─────────────────────────────────────────
+' APERTURA DEL FORMULARIO
+' ─────────────────────────────────────────
+== 1. Apertura del formulario ==
+
+A -> FA : seleccionar usuario en la grilla\n+ click "Modificar perfiles"
+
+opt 1a. ningún usuario seleccionado
+  FA --> A : "Seleccioná un usuario."
+  note right of FA : el caso de uso termina
+end
+
+FA -> FP : new frmAsignarPerfiles(usuario)\n.ShowDialog()
+activate FP
+
+' ─────────────────────────────────────────
+' CARGA DEL ÁRBOL DE ROLES
+' ─────────────────────────────────────────
+== 2. Carga del árbol de roles ==
+
+FP -> PB : ObtenerArbol()
+PB -> DB : ListarRoles() + ListarRolPermisos()
+DB --> PB : filas
+PB --> FP : List<NodoPermiso> (árbol de roles)
+note right of FP
+  Solo se muestran nodos
+  rama (roles), no las hojas
+  de permisos del catálogo
+  (RN-01).
+end note
+
+FP -> UP : ObtenerPerfilesAsignados(usuario.Id)
+UP -> DB : ListarPerfilesPorUsuario(usuario.Id)
+DB --> UP : List<int> asignados
+UP --> FP : asignados
+FP -> FP : marcar checks de los\nroles ya asignados
+
+' ─────────────────────────────────────────
+' EDICIÓN DE LA SELECCIÓN
+' ─────────────────────────────────────────
+== 3. Edición de la selección ==
+
+A -> FP : marcar / desmarcar roles\nen el árbol
+
+alt 6a. el administrador cierra sin guardar
+  A -> FP : click "Cerrar"
+  FP --> FA : (form cerrado)
+  deactivate FP
+  note right of FA : las asignaciones existentes\nno se modifican
+
+else el administrador guarda
+  A -> FP : click "Guardar"
+
+  ' ─────────────────────────────────────────
+  ' PERSISTENCIA DE LAS ASIGNACIONES
+  ' ─────────────────────────────────────────
+  == 4. Persistencia de las asignaciones ==
+
+  FP -> FP : recolectar IDs de roles\nmarcados (checkeados)
+  FP -> UP : GuardarAsignaciones(usuario.Id, idsSeleccionados)
+  activate UP
+
+  UP -> DB : BorrarTodos(usuario.Id)\n(USUARIO_PERFIL)
+  loop por cada id en idsSeleccionados
+    UP -> DB : Asignar(usuario.Id, id)
+  end
+  note right of DB
+    Reemplazo completo de
+    USUARIO_PERFIL — no es
+    una operación incremental
+    (RN-02).
+  end note
+
+  UP -> IB : RecalcularIntegridadUsuarios()
+  IB -> DB : actualizar DVH / DVV\n(PERFILES forma parte del DVH)
+
+  UP -> SM : getUsuario()
+  SM --> UP : administrador actual
+
+  UP -> UH : RegistrarCambio(usuario.Id, "ASIGNACION_PERFIL", admin)
+  UH -> DB : insertar snapshot en USUARIO_HISTORIAL
+
+  opt usuario.Id == administrador logueado
+    UP -> SM : setUsuario(usuarioActualizado)
+    UP -> SM : setPermisos(permisosActualizados)
+    note right of SM
+      Si el admin se reasigna
+      perfiles a sí mismo, su
+      sesión se refresca en
+      caliente (USUARIO y
+      permisos) para no forzar
+      un relogueo.
+    end note
+  end
+  deactivate UP
+
+  FP --> A : "Asignaciones guardadas."
+end
+
+@enduml

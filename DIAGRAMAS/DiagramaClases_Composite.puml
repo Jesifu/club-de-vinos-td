@@ -1,0 +1,113 @@
+@startuml DiagramaClases_Composite
+
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+hide empty members
+
+title Patrón Composite — Árbol de Roles y Permisos (BE)
+
+package "BE" #FEFECE {
+
+  abstract class NodoPermiso <<Component>> {
+    + Id : int
+    + Nombre : string
+    + PadreId : int?
+    + DVH : int
+    --
+    + {abstract} Agregar(nodo : NodoPermiso)
+    + {abstract} Quitar(nodo : NodoPermiso)
+    + {abstract} ObtenerHijos() : IList<NodoPermiso>
+    + {abstract} EsHoja() : bool
+    + ToString() : string
+  }
+
+  class Rol <<Composite>> {
+    + Protegido : bool
+    - _hijos : List<NodoPermiso>
+    --
+    + Agregar(nodo : NodoPermiso)
+    + Quitar(nodo : NodoPermiso)
+    + ObtenerHijos() : IList<NodoPermiso>
+    + EsHoja() : bool
+  }
+
+  class Permiso <<Leaf>> {
+    + Agregar(nodo : NodoPermiso)
+    + Quitar(nodo : NodoPermiso)
+    + ObtenerHijos() : IList<NodoPermiso>
+    + EsHoja() : bool
+  }
+
+  Rol --|> NodoPermiso
+  Permiso --|> NodoPermiso
+  Rol "1" o-- "0..*" NodoPermiso : _hijos
+}
+
+' ─────────────────────────────────────────
+' Comentarios sobre la implementación del patrón
+' ─────────────────────────────────────────
+
+note top of NodoPermiso
+  **Component** (abstracto): define la interfaz
+  común para hojas y ramas, de modo que el
+  cliente trate a ambas de manera uniforme
+  (""Agregar"", ""Quitar"", ""ObtenerHijos"", ""EsHoja"").
+  La persistencia está separada en dos tablas:
+  ""ROL"" (ramas) y ""PERMISO"" (hojas), sin
+  discriminador de tipo.
+end note
+
+note right of Rol
+  **Composite** (rama): representa un **rol**,
+  persistido en la tabla ""ROL"". Mantiene una
+  lista de hijos ""_hijos"" — que pueden ser otros
+  ""Rol"" (jerarquía de roles vía ""PadreId"") y/o
+  ""Permiso"" (permisos asignados al rol).
+  Implementa ""Agregar""/""Quitar"" operando sobre
+  esa lista.
+  ""Protegido=true"" marca al rol "Administrador":
+  no puede eliminarse ni quedar sin permisos
+  críticos (ver ""PerfilBLL.Eliminar"").
+end note
+
+note right of Permiso
+  **Leaf** (hoja): representa un **permiso**
+  del catálogo, persistido en la tabla
+  ""PERMISO"" (sin hijos).
+  ""Agregar""/""Quitar"" lanzan
+  ""InvalidOperationException"" porque una hoja
+  no puede contener nodos. ""ObtenerHijos()""
+  devuelve siempre una lista vacía y
+  ""EsHoja()"" devuelve ""true"".
+end note
+
+' ─────────────────────────────────────────
+' Cliente del árbol
+' ─────────────────────────────────────────
+
+class PerfilBLL <<BLL>>
+class frmPerfiles <<Form>>
+
+PerfilBLL ..> NodoPermiso : ObtenerArbol()\n: List<NodoPermiso>
+frmPerfiles ..> PerfilBLL : ObtenerArbol()
+
+note bottom of PerfilBLL
+  ""ObtenerArbol()"" arma el árbol en memoria:
+  primero crea todos los ""Rol"" (filas de la
+  tabla ""ROL"") y los enlaza por ""PadreId"";
+  luego, para cada fila de ""ROL_PERMISO"", crea
+  un ""Permiso"" y lo agrega (""Agregar()"") al
+  ""Rol"" correspondiente. El resultado es una
+  lista de raíces ""List<NodoPermiso>"".
+end note
+
+note bottom of frmPerfiles
+  Recorre el árbol recursivamente sin
+  distinguir el tipo concreto: solo usa
+  ""NodoPermiso.ObtenerHijos()"" y ""EsHoja()""
+  para decidir cómo mostrar cada nodo
+  (TreeView con prefijos "[Rol]" / "[Permiso]").
+end note
+
+@enduml

@@ -1,0 +1,104 @@
+@startuml DiagramaSecuencia_CU10_VerHistorial
+
+title CU-10 — Ver Historial de Usuario — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador"       as A
+participant ":frmAdminUsuarios"    as FA #FEFECE
+participant ":frmHistorial\nUsuario" as FH #FEFECE
+participant ":UsuarioHistorialBLL" as UH #E8F4E8
+database    ":DB"                  as DB #E8E8F4
+
+note over FA
+  Precondición: sesión activa,
+  permiso "Administrar usuarios",
+  el usuario a consultar existe.
+end note
+
+' ─────────────────────────────────────────
+' APERTURA DEL FORMULARIO
+' ─────────────────────────────────────────
+== 1. Apertura del formulario ==
+
+A -> FA : seleccionar usuario en la grilla\n+ click "Historial"
+
+opt 1a. ningún usuario seleccionado
+  FA --> A : "Seleccioná un usuario."
+  note right of FA : el caso de uso termina
+end
+
+FA -> FH : new frmHistorialUsuario(usuario)\n.ShowDialog()
+activate FH
+
+' ─────────────────────────────────────────
+' CARGA DEL HISTORIAL
+' ─────────────────────────────────────────
+== 2. Carga del historial ==
+
+FH -> UH : ObtenerHistorial(usuario.Id)
+UH -> DB : USUARIO_HISTORIAL_LISTAR(usuario.Id)
+DB --> UH : filas ordenadas por fecha
+UH --> FH : List<UsuarioHistorial>
+
+FH -> FH : dgvHistorial.DataSource = lista
+FH -> FH : ocultar columnas técnicas\n(Id, UsuarioId, UsuarioLogin)
+FH -> FH : ActualizarEncabezados()
+note right of FH
+  Fecha, Tipo, Rol, Nombre, Apellido,
+  Teléfono, Email, Bloqueado,
+  Intentos fallidos, Perfiles,
+  Realizado por, Versión origen
+end note
+FH -> FH : btnRollback.Enabled = false
+
+alt 3a. el usuario no tiene historial
+  FH --> A : grilla vacía,\nbotón Rollback deshabilitado
+
+else el usuario tiene historial
+  FH --> A : grilla con las entradas\ndel historial
+
+  ' ─────────────────────────────────────────
+  ' SELECCIÓN DE UNA ENTRADA
+  ' ─────────────────────────────────────────
+  == 3. Selección de una entrada ==
+
+  A -> FH : seleccionar una fila de la grilla
+  FH -> FH : dgvHistorial_SelectionChanged
+
+  alt la entrada es de tipo BAJA
+    FH -> FH : btnRollback.Enabled = false
+    note right of FH
+      RN-03: BAJA captura el último
+      estado conocido antes de eliminar
+      al usuario — no es restaurable.
+    end note
+  else otro tipo (ALTA, BLOQUEO, DESBLOQUEO,\nCAMBIO_CLAVE, ASIGNACION_PERFIL, ROLLBACK)
+    FH -> FH : btnRollback.Enabled = true
+    note right of FH
+      Habilita CU-11 — Restaurar
+      Usuario desde Historial.
+    end note
+  end
+end
+
+' ─────────────────────────────────────────
+' CIERRE
+' ─────────────────────────────────────────
+== 4. Cierre ==
+
+A -> FH : click "Cerrar"
+FH --> FA : (form cerrado)
+deactivate FH
+FA -> FA : CargarUsuarios()
+
+@enduml

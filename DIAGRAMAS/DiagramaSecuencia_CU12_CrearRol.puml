@@ -1,0 +1,81 @@
+@startuml DiagramaSecuencia_CU12_CrearRol
+
+title CU-12 — Crear Rol — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador"  as A
+participant ":frmPerfiles"    as FP #FEFECE
+participant ":PerfilBLL"      as PB #E8F4E8
+database    ":DB"             as DB #E8E8F4
+
+note over FP
+  Precondición: sesión activa,
+  permiso "Gestión de roles".
+end note
+
+' ─────────────────────────────────────────
+' SOLICITUD
+' ─────────────────────────────────────────
+== 1. Solicitud ==
+
+A -> FP : click "Agregar rol"
+FP --> A : InputBox "Nombre del rol:"
+A --> FP : ingresar nombre + Aceptar
+
+opt 3a. nombre vacío (o cancelado)
+  FP -> FP : return (no hace nada)
+  note right of FP : el caso de uso termina
+end
+
+FP -> FP : padreId = rol seleccionado\nen el árbol (o null si no hay\nselección o es un permiso)
+
+' ─────────────────────────────────────────
+' CREACIÓN DEL ROL
+' ─────────────────────────────────────────
+== 2. Creación del rol ==
+
+FP -> PB : AgregarRol(nombre, padreId)
+activate PB
+
+PB -> DB : Insertar(nombre, padreId)
+note right of DB
+  RN-02: el nuevo rol se crea
+  sin permisos asignados —
+  se asignan luego vía CU-15.
+  RN-03: PROTEGIDO = 0 por defecto.
+end note
+DB --> PB : nuevo Id
+PB --> FP : new Rol { Id, Nombre, PadreId }
+deactivate PB
+
+' ─────────────────────────────────────────
+' ACTUALIZACIÓN DEL ÁRBOL
+' ─────────────────────────────────────────
+== 3. Actualización del árbol ==
+
+FP -> PB : ObtenerArbol()
+PB -> DB : ListarRoles() + ListarRolPermisos()
+DB --> PB : filas
+PB --> FP : List<NodoPermiso> (árbol actualizado)
+FP -> FP : CargarArbol()\n(treePermisos.ExpandAll())
+FP --> A : árbol refrescado,\nmuestra el nuevo rol
+
+note over PB
+  RN-01: un rol no puede tener
+  como padre (directo o indirecto)
+  a sí mismo — validado por
+  GenerariaCiclo recorriendo la
+  cadena de padres en memoria.
+end note
+
+@enduml

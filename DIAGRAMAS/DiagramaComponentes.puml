@@ -1,0 +1,41 @@
+@startuml DiagramaComponentes - TP_IS
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam componentStyle uml2
+skinparam component {
+  BackgroundColor #FFCCCC-FFFFFF
+  BorderColor #000000
+  FontStyle bold
+  FontSize 13
+}
+skinparam ArrowColor #000000
+skinparam defaultTextAlignment left
+
+left to right direction
+scale 0.8
+
+frame "cmp Arquitectura de Componentes - TP_IS" {
+
+  component "BE (Entidades de Negocio)\n--\n+ USUARIO\n+ UsuarioHistorial\n+ Permiso\n+ Rol\n+ NodoPermiso\n+ IDIOMA\n+ CONTROL_IDIOMA\n+ BITACORA\n+ LoginResultado\n+ PaginaResultado<T>" as BE
+
+  component "CAPAS (Interfaz de Usuario)\n--\n+ LogIn\n+ frmMenu\n+ frmAdminUsuarios\n+ frmNuevoUsuario\n+ frmEditarUsuario\n+ frmContraseña\n+ frmAsignarPerfiles\n+ frmPerfiles\n+ frmIdiomas\n+ frmHistorialUsuario\n+ frmBitacora\n+ frmRestaurarIntegridad\n+ AppTheme\n+ IdiomaUIHelper\n+ MsgBox" as CAPAS
+
+  component "BLL (Logica del Negocio)\n--\n+ LoginBLL\n+ UsuarioBLL\n+ UsuarioPerfilBLL\n+ UsuarioHistorialBLL\n+ PerfilBLL\n+ IdiomaBLL\n+ IntegridadBLL\n+ BitacoraBLL" as BLL
+
+  component "SeguridadYServicios\n--\n+ SessionManager\n+ Hasher\n+ ValidadorContrasena\n+ CalculadorDVH\n+ IdiomaManager\n+ IObservadorIdioma" as SyS
+
+  component "DAL (Acceso a Datos)\n--\n+ Acceso\n+ UsuarioDAL\n+ UsuarioPerfilDAL\n+ UsuarioHistorialDAL\n+ PerfilDAL\n+ IdiomaDAL\n+ IntegridadDAL\n+ BitacoraDAL" as DAL
+
+  CAPAS -[dashed]left-> BLL
+  BLL -[dashed]left-> SyS
+  BLL -[dashed]left-> DAL
+  SyS -[hidden]left-> DAL
+
+  CAPAS -[dashed]up-> BE
+  BLL -[dashed]up-> BE
+  SyS -[dashed]up-> BE
+  DAL -[dashed]up-> BE
+}
+
+@enduml

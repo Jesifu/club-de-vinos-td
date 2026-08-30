@@ -1,0 +1,56 @@
+@startuml DiagramaSecuencia_CU03_CerrarSesion
+
+title CU-03 — Cerrar Sesión — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Usuario"        as U
+participant ":frmMenu"        as FM #FEFECE
+participant ":SessionManager" as SM #F4E8E8
+participant ":BitacoraBLL"    as BB #E8F4E8
+participant ":LogIn"          as L  #FEFECE
+database    ":DB"             as DB #E8E8F4
+
+note over FM
+  Precondición: sesión activa,
+  menú principal abierto.
+end note
+
+== 1. Solicitud de cierre ==
+
+U -> FM : click "Cerrar sesión"
+activate FM
+
+FM -> SM : getUsuario()
+SM --> FM : usuarioActual
+
+== 2. Registro y cierre de sesión ==
+
+FM -> BB : RegistrarLogout(usuario)
+BB -> DB : insertar evento LOGOUT en BITACORA
+
+FM -> SM : cerrarSesion()
+note right of SM
+  anula la instancia
+  para permitir
+  re-autenticación
+end note
+
+== 3. Vuelta al login ==
+
+FM -> L : new LogIn().Show()
+FM -> FM : this.Close()
+deactivate FM
+
+L --> U : formulario de login visible
+
+@enduml

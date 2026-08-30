@@ -1,0 +1,549 @@
+@startuml DiagramaClases - BDCAPAS
+
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+hide empty members
+scale 0.6
+
+' ─────────────────────────────────────────
+' CAPA BE
+' ─────────────────────────────────────────
+package "BE" #FEFECE {
+
+  enum LoginResultado {
+    Exito
+    CredencialesInvalidas
+    UsuarioBloqueado
+  }
+
+  class USUARIO {
+    + Id : int
+    + Usuario : string
+    + Contrasena : string
+    + IntentosFallidos : int
+    + Bloqueado : bool
+    + Rol : string
+    + RolId : int?
+    + RolNombre : string
+    + Nombre : string
+    + Apellido : string
+    + Telefono : string
+    + Email : string
+    + DVH : int
+    + IdiomaId : int?
+  }
+
+  class BITACORA {
+    + Id : int
+    + Usuario : string
+    + Accion : string
+    + Fecha : DateTime
+    + DVH : int
+  }
+
+  class IDIOMA {
+    + Id : int
+    + Nombre : string
+    + Habilitado : bool
+    + Predeterminado : bool
+    + ToString() : string
+  }
+
+  class CONTROL_IDIOMA {
+    + Id : int
+    + Clave : string
+    + TextoDefault : string
+    + TextoTraduccion : string
+  }
+
+  class UsuarioHistorial {
+    + Id : int
+    + UsuarioId : int
+    + UsuarioLogin : string
+    + Rol : string
+    + RolId : int?
+    + Bloqueado : bool
+    + IntentosFallidos : int
+    + Perfiles : string
+    + Nombre : string
+    + Apellido : string
+    + Telefono : string
+    + Email : string
+    + FechaCambio : DateTime
+    + RealizadoPor : string
+    + TipoCambio : string
+    + VersionOrigen : int?
+  }
+
+  class "PaginaResultado<T>" as PaginaResultado {
+    + Items : List<T>
+    + TotalFilas : int
+    + Pagina : int
+    + Tamanio : int
+    + TotalPaginas : int
+  }
+
+  abstract class NodoPermiso {
+    + Id : int
+    + Nombre : string
+    + PadreId : int?
+    + DVH : int
+    + {abstract} Agregar(n : NodoPermiso) : void
+    + {abstract} Quitar(n : NodoPermiso) : void
+    + {abstract} ObtenerHijos() : IList<NodoPermiso>
+    + {abstract} EsHoja() : bool
+    + ToString() : string
+  }
+
+  class Rol {
+    + Protegido : bool
+    - _hijos : List<NodoPermiso>
+    + Agregar(n : NodoPermiso) : void
+    + Quitar(n : NodoPermiso) : void
+    + ObtenerHijos() : IList<NodoPermiso>
+    + EsHoja() : bool
+  }
+
+  class Permiso {
+    + Agregar(n : NodoPermiso) : void
+    + Quitar(n : NodoPermiso) : void
+    + ObtenerHijos() : IList<NodoPermiso>
+    + EsHoja() : bool
+  }
+
+  NodoPermiso <|-- Rol
+  NodoPermiso <|-- Permiso
+  Rol "1" o-- "0..*" NodoPermiso : _hijos
+}
+
+' ─────────────────────────────────────────
+' CAPA SeguridadYServicios
+' ─────────────────────────────────────────
+package "SeguridadYServicios" #D5E8D4 {
+
+  interface IObservadorIdioma {
+    + ActualizarIdioma() : void
+  }
+
+  interface IEntidadVerificable {
+    + ObtenerAtributosParaDVH() : string[]
+  }
+
+  class Hasher <<static>> {
+    + {static} Hashear(texto : string) : string
+  }
+
+  class ValidadorContrasena <<static>> {
+    + {static} LargoMinimo : int = 6
+    + {static} ObtenerError(contrasena : string) : string
+  }
+
+  class CalculadorDVH <<static>> {
+    + {static} Calcular(atributos : string[]) : int
+    + {static} CalcularVertical(filas : List<string[]>, colIdx : int) : int
+  }
+
+  class SessionManager <<singleton>> {
+    - {static} _instance : SessionManager
+    - {static} _cerrojo : object
+    - _usuario : USUARIO
+    - _permisos : List<string>
+    + {static} getInstance() : SessionManager
+    + getUsuario() : USUARIO
+    + setUsuario(u : USUARIO) : void
+    + setPermisos(p : List<string>) : void
+    + TienePermiso(permiso : string) : bool
+    + EsAdmin() : bool
+    + cerrarSesion() : void
+  }
+
+  class IdiomaManager <<singleton>> {
+    - {static} _instance : IdiomaManager
+    - {static} _cerrojo : object
+    - _observers : List<IObservadorIdioma>
+    - _traducciones : Dictionary<string, string>
+    - _idiomaActivo : IDIOMA
+    + {static} getInstance() : IdiomaManager
+    + IdiomaActivo : IDIOMA
+    + Registrar(obs : IObservadorIdioma) : void
+    + Desregistrar(obs : IObservadorIdioma) : void
+    + CambiarIdioma(idioma : IDIOMA, trad : Dictionary<string,string>) : void
+    - Notificar() : void
+    + Traducir(clave : string) : string
+  }
+
+  IdiomaManager "1" --> "0..*" IObservadorIdioma : notifica >
+  SessionManager --> USUARIO : usa >
+}
+
+' ─────────────────────────────────────────
+' CAPA DAL
+' ─────────────────────────────────────────
+package "DAL" #DAE8FC {
+
+  class Acceso <<internal>> {
+    - conexion : SqlConnection
+    - transaccion : SqlTransaction
+    + Abrir() : void
+    + Cerrar() : void
+    + IniciarTx() : void
+    + ConfirmarTX() : void
+    + DeshacerTX() : void
+    + Escribir(sp : string, params : List<SqlParameter>?) : int
+    + Leer(sp : string, params : List<SqlParameter>?) : DataTable
+    + CrearParametro(nombre : string, valor : string) : SqlParameter
+    + CrearParametro(nombre : string, valor : int) : SqlParameter
+  }
+
+  class UsuarioDAL {
+    - _acceso : Acceso
+    + ObtenerPorCredenciales(u : string, p : string) : USUARIO
+    + CambiarContrasena(u : string, hash : string) : bool
+    + EstaBloqueado(u : string) : bool
+    + IncrementarIntentos(u : string) : bool
+    + ResetearIntentos(u : string) : void
+    + ListarTodos() : List<USUARIO>
+    + ListarPaginado(busqueda : string, pagina : int, tamanio : int) : PaginaResultado<USUARIO>
+    + Eliminar(id : int) : void
+    + Crear(usuario : string, passHash : string, rolId : int, nombre : string, apellido : string, telefono : string = null, email : string = null) : bool
+    + ObtenerPorId(id : int) : USUARIO
+    + ObtenerIdPorNombre(u : string) : int?
+    + AplicarEstado(id : int, rol : string, bloqueado : bool, intentosFallidos : int, rolId : int? = null) : void
+    + ActualizarDatos(id : int, nombre : string, apellido : string, telefono : string, email : string) : void
+    + ActualizarIdioma(id : int, idiomaId : int) : void
+    + Desbloquear(u : string) : void
+  }
+
+  class PerfilDAL {
+    - _acceso : Acceso
+    + ListarRoles() : List<NodoPermiso>
+    + ListarPermisosDisponibles() : List<Permiso>
+    + ListarRolPermisos() : List<Permiso>
+    + GuardarPermisosDeRol(rolId : int, permisoIds : List<int>) : void
+    + TieneUsuariosAsignados(rolId : int) : bool
+    + Insertar(nombre : string, padreId : int?) : int
+    + CambiarPadre(rolId : int, nuevoPadreId : int?) : void
+    + Eliminar(id : int) : void
+    + ListarParaCombo() : List<Rol>
+  }
+
+  class UsuarioPerfilDAL {
+    - _acceso : Acceso
+    + ListarPermisosDeUsuario(usuarioId : int) : List<string>
+    + ListarPerfilesPorUsuario(usuarioId : int) : List<int>
+    + BorrarTodos(usuarioId : int) : void
+    + Asignar(usuarioId : int, perfilId : int) : void
+  }
+
+  class BitacoraDAL {
+    - _acceso : Acceso
+    + Registrar(usuario : string, accion : string) : void
+    + Listar() : List<BITACORA>
+    + ListarPaginado(usuario : string, accion : string, fechaDesde : DateTime?, fechaHasta : DateTime?, pagina : int, tamanio : int) : PaginaResultado<BITACORA>
+    + ListarUsuariosDistinct() : List<string>
+    + ListarAccionesDistinct() : List<string>
+  }
+
+  class IntegridadDAL {
+    - _acceso : Acceso
+    + ListarUsuariosParaIntegridad() : DataTable
+    + ActualizarDVHUsuario(id : int, dvh : int) : void
+    + ObtenerDVV(tabla : string) : Dictionary<string, int>
+    + ActualizarDVV(tabla : string, columna : string, dvv : int) : void
+  }
+
+  class IdiomaDAL {
+    - _acceso : Acceso
+    + ListarTodos() : List<IDIOMA>
+    + ListarHabilitados() : List<IDIOMA>
+    + ObtenerPorId(id : int) : IDIOMA
+    + EstaEnUso(id : int) : bool
+    + Insertar(nombre : string, habilitado : bool) : int
+    + Renombrar(id : int, nombre : string) : void
+    + ActualizarEstado(id : int, habilitado : bool) : void
+    + Eliminar(id : int) : void
+    + RegistrarControl(clave : string, textoDefault : string) : void
+    + CargarTraducciones(idiomaId : int) : Dictionary<string, string>
+    + ListarControlesConTraduccion(idiomaId : int) : List<CONTROL_IDIOMA>
+    + GuardarTraduccion(idiomaId : int, controlId : int, texto : string) : void
+  }
+
+  class UsuarioHistorialDAL {
+    - _acceso : Acceso
+    + Insertar(h : UsuarioHistorial) : void
+    + ListarPorUsuario(usuarioId : int) : List<UsuarioHistorial>
+    + ListarPorUsuarioPaginado(usuarioId : int, pagina : int, tamanio : int) : PaginaResultado<UsuarioHistorial>
+    + ObtenerPorId(id : int) : UsuarioHistorial
+  }
+
+  UsuarioDAL --> Acceso
+  PerfilDAL --> Acceso
+  UsuarioPerfilDAL --> Acceso
+  BitacoraDAL --> Acceso
+  IntegridadDAL --> Acceso
+  IdiomaDAL --> Acceso
+  UsuarioHistorialDAL --> Acceso
+  UsuarioDAL --> PaginaResultado
+  BitacoraDAL --> PaginaResultado
+  UsuarioHistorialDAL --> PaginaResultado
+}
+
+' ─────────────────────────────────────────
+' CAPA BLL
+' ─────────────────────────────────────────
+package "BLL" #FFE6CC {
+
+  class ResultadoIntegridad {
+    + EsValido : bool
+    + Errores : List<string>
+    + IdsUsuariosAfectados : List<int>
+  }
+
+  class IntegridadBLL {
+    - {static} ColumnasUsuario : string[]
+    - _dal : IntegridadDAL
+    - _perfilDal : UsuarioPerfilDAL
+    - ExtraerAtributosUsuario(fila : DataRow, perfilesStr : string) : string[]
+    - ObtenerPerfilesStr(id : int) : string
+    - VerificarTabla(...) : void
+    - RecalcularTabla(...) : void
+    + VerificarIntegridad() : ResultadoIntegridad
+    + RecalcularIntegridadUsuarios() : void
+    + RecalcularIntegridad() : void
+    + EstaInicializado() : bool
+  }
+
+  class UsuarioBLL {
+    - _dal : UsuarioDAL
+    - _bitacora : BitacoraBLL
+    - _integridad : IntegridadBLL
+    - _historial : UsuarioHistorialBLL
+    + ObtenerPorId(id : int) : USUARIO
+    + VerificarContrasena(u : string, contrasena : string) : bool
+    + CambiarContrasena(u : string, nuevaContrasena : string) : bool
+    + ListarTodos() : List<USUARIO>
+    + ListarPaginado(busqueda : string, pagina : int, tamanio : int) : PaginaResultado<USUARIO>
+    + Eliminar(id : int) : void
+    + Crear(usuario : string, contrasena : string, rolId : int, nombre : string, apellido : string, telefono : string = null, email : string = null) : bool
+    + ActualizarDatos(id : int, nombre : string, apellido : string, telefono : string, email : string) : void
+    + ActualizarIdioma(id : int, idiomaId : int) : void
+    + Desbloquear(u : string) : void
+  }
+
+  class LoginBLL {
+    - _dal : UsuarioDAL
+    - _bitacora : BitacoraBLL
+    - _perfilBll : UsuarioPerfilBLL
+    - _historial : UsuarioHistorialBLL
+    + AutenticarUsuario(usuario : string, contrasena : string) : LoginResultado
+  }
+
+  class PerfilBLL {
+    - _dal : PerfilDAL
+    + ObtenerArbol() : List<NodoPermiso>
+    + ObtenerPermisosDisponibles() : List<Permiso>
+    + ListarRolesParaCombo() : List<Rol>
+    + ActualizarPermisosDeRol(rolId : int, permisoIds : List<int>) : void
+    + AgregarRol(nombre : string, padreId : int?) : NodoPermiso
+    + CambiarPadre(rolId : int, nuevoPadreId : int?) : void
+    + Eliminar(id : int) : void
+    - GenerariaCiclo(rolId : int, candidatoPadreId : int, todos : List<NodoPermiso>) : bool
+    - EsAncestroDelPadreActual(padreActualId : int?, candidatoPadreId : int, todos : List<NodoPermiso>) : bool
+  }
+
+  class UsuarioPerfilBLL {
+    - _dal : UsuarioPerfilDAL
+    - _usuarioDal : UsuarioDAL
+    - _integridad : IntegridadBLL
+    - _historial : UsuarioHistorialBLL
+    + ObtenerPermisos(usuarioId : int) : List<string>
+    + ObtenerPerfilesAsignados(usuarioId : int) : List<int>
+    + GuardarAsignaciones(usuarioId : int, perfilIds : List<int>) : void
+  }
+
+  class BitacoraBLL {
+    - _dal : BitacoraDAL
+    + RegistrarLogin(usuario : string) : void
+    + RegistrarLogout(usuario : string) : void
+    + RegistrarAccion(usuario : string, accion : string) : void
+    + Listar() : List<BITACORA>
+    + ListarPaginado(usuario : string, accion : string, fechaDesde : DateTime?, fechaHasta : DateTime?, pagina : int, tamanio : int) : PaginaResultado<BITACORA>
+    + ListarUsuariosDistinct() : List<string>
+    + ListarAccionesDistinct() : List<string>
+  }
+
+  class IdiomaBLL {
+    - _dal : IdiomaDAL
+    + ListarTodos() : List<IDIOMA>
+    + ListarHabilitados() : List<IDIOMA>
+    + ObtenerPorId(id : int) : IDIOMA
+    + EstaEnUso(id : int) : bool
+    + Crear(nombre : string, habilitado : bool) : IDIOMA
+    + Renombrar(id : int, nombre : string) : void
+    + ActualizarEstado(id : int, habilitado : bool) : void
+    + Eliminar(id : int) : void
+    + RegistrarControl(clave : string, textoDefault : string) : void
+    + CargarTraducciones(idiomaId : int) : Dictionary<string, string>
+    + ListarControlesConTraduccion(idiomaId : int) : List<CONTROL_IDIOMA>
+    + GuardarTraduccion(idiomaId : int, controlId : int, texto : string) : void
+  }
+
+  class UsuarioHistorialBLL {
+    - _dal : UsuarioHistorialDAL
+    - _usuarioDal : UsuarioDAL
+    - _perfilDal : UsuarioPerfilDAL
+    - ParsearPerfiles(perfilesStr : string) : List<int>
+    + RegistrarCambio(usuarioId : int, tipo : string, realizadoPor : string, versionOrigen : int?) : void
+    + ObtenerHistorial(usuarioId : int) : List<UsuarioHistorial>
+    + ObtenerHistorialPaginado(usuarioId : int, pagina : int, tamanio : int) : PaginaResultado<UsuarioHistorial>
+    + Rollback(historialId : int, realizadoPor : string) : void
+  }
+
+  IntegridadBLL --> IntegridadDAL
+  IntegridadBLL --> UsuarioPerfilDAL
+  UsuarioBLL --> UsuarioDAL
+  UsuarioBLL --> BitacoraBLL
+  UsuarioBLL --> IntegridadBLL
+  UsuarioBLL --> UsuarioHistorialBLL
+  LoginBLL --> UsuarioDAL
+  LoginBLL --> BitacoraBLL
+  LoginBLL --> UsuarioPerfilBLL
+  LoginBLL --> UsuarioHistorialBLL
+  LoginBLL --> IdiomaBLL
+  LoginBLL --> IdiomaManager
+  PerfilBLL --> PerfilDAL
+  UsuarioPerfilBLL --> UsuarioPerfilDAL
+  UsuarioPerfilBLL --> UsuarioDAL
+  UsuarioPerfilBLL --> IntegridadBLL
+  UsuarioPerfilBLL --> UsuarioHistorialBLL
+  BitacoraBLL --> BitacoraDAL
+  IdiomaBLL --> IdiomaDAL
+  UsuarioHistorialBLL --> UsuarioHistorialDAL
+  UsuarioHistorialBLL --> UsuarioDAL
+  UsuarioHistorialBLL --> UsuarioPerfilDAL
+  UsuarioHistorialBLL --> IntegridadBLL
+  LoginBLL --> LoginResultado
+  UsuarioBLL --> PaginaResultado
+  BitacoraBLL --> PaginaResultado
+  UsuarioHistorialBLL --> PaginaResultado
+}
+
+' ─────────────────────────────────────────
+' CAPA CAPAS (presentacion)
+' ─────────────────────────────────────────
+package "CAPAS" #F8CECC {
+
+  class IdiomaUIHelper <<static>> {
+    + {static} AgregarSelector(form : Form) : void
+  }
+
+  together {
+    class LogIn {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmMenu {
+      - _menuItems : Dictionary<string, ToolStripItem>
+      - _menuDefaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmAdminUsuarios {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
+    }
+    class frmNuevoUsuario {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmEditarUsuario {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmContraseña {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+  }
+
+  together {
+    class frmHistorialUsuario {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
+    }
+    class frmBitacora {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
+    }
+    class frmPerfiles {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmAsignarPerfiles {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmIdiomas {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
+    }
+  }
+
+  class frmRestaurarIntegridad {
+    - _resultado : ResultadoIntegridad
+    - _usuarioBll : UsuarioBLL
+    - _historialBll : UsuarioHistorialBLL
+  }
+
+  IObservadorIdioma <|.. LogIn
+  IObservadorIdioma <|.. frmMenu
+  IObservadorIdioma <|.. frmAdminUsuarios
+  IObservadorIdioma <|.. frmNuevoUsuario
+  IObservadorIdioma <|.. frmEditarUsuario
+  IObservadorIdioma <|.. frmContraseña
+  IObservadorIdioma <|.. frmHistorialUsuario
+  IObservadorIdioma <|.. frmBitacora
+  IObservadorIdioma <|.. frmPerfiles
+  IObservadorIdioma <|.. frmAsignarPerfiles
+  IObservadorIdioma <|.. frmIdiomas
+}
+
+' ─────────────────────────────────────────
+' Dependencias entre capas
+' ─────────────────────────────────────────
+LogIn --> LoginBLL
+LogIn --> IntegridadBLL
+LogIn --> SessionManager
+frmAdminUsuarios --> UsuarioBLL
+frmNuevoUsuario --> PerfilBLL
+frmContraseña --> UsuarioBLL
+frmBitacora --> BitacoraBLL
+frmPerfiles --> PerfilBLL
+frmAsignarPerfiles --> UsuarioPerfilBLL
+frmAsignarPerfiles --> PerfilBLL
+frmIdiomas --> IdiomaBLL
+frmHistorialUsuario --> UsuarioHistorialBLL
+frmRestaurarIntegridad --> IntegridadBLL
+frmRestaurarIntegridad --> UsuarioBLL
+frmRestaurarIntegridad --> UsuarioHistorialBLL
+frmMenu --> SessionManager
+frmMenu --> IdiomaManager
+frmMenu --> IdiomaBLL
+frmMenu --> UsuarioBLL
+frmMenu --> BitacoraBLL
+
+@enduml

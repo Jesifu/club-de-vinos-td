@@ -1,0 +1,110 @@
+@startuml DiagramaSecuencia_CU05_CambiarIdioma
+
+title CU-05 — Cambiar Idioma — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Usuario"             as U
+participant ":FormularioActual"    as F  #FEFECE
+participant ":IdiomaBLL"           as IB #E8F4E8
+participant ":IdiomaManager"       as IM #F4E8E8
+participant ":OtroFormulario\nAbierto" as F2 #FEFECE
+participant ":UsuarioBLL"          as UB #E8F4E8
+database    ":DB"                  as DB #E8E8F4
+
+note over F
+  Precondición: usuario autenticado.
+  El combo de idiomas fue agregado por
+  IdiomaUIHelper.AgregarSelector() al
+  cargar el formulario, listando solo
+  idiomas habilitados (RN-01).
+end note
+
+' ─────────────────────────────────────────
+' SELECCIÓN DE IDIOMA
+' ─────────────────────────────────────────
+== 1. Selección de idioma ==
+
+U -> F : desplegar combo de idiomas\n+ seleccionar un idioma
+
+opt 2a. el idioma seleccionado es el mismo que el activo
+  note right of F
+    El ComboBox no dispara
+    SelectedIndexChanged
+    (no hay cambio de índice).
+    El caso de uso termina aquí.
+  end note
+end
+
+' ─────────────────────────────────────────
+' CARGA DE TRADUCCIONES
+' ─────────────────────────────────────────
+== 2. Carga de traducciones ==
+
+F -> IB : CargarTraducciones(idioma.Id)
+IB -> DB : SELECT clave, texto\nde CONTROL_IDIOMA / TRADUCCION
+DB --> IB : filas
+IB --> F : Dictionary<clave, texto>
+
+' ─────────────────────────────────────────
+' ACTUALIZACIÓN DEL IDIOMA ACTIVO
+' ─────────────────────────────────────────
+== 3. Actualización del idioma activo ==
+
+F -> IM : CambiarIdioma(idioma, traducciones)
+activate IM
+IM -> IM : _idiomaActivo = idioma\n_traducciones = traducciones
+
+' ─────────────────────────────────────────
+' NOTIFICACIÓN A LOS OBSERVADORES
+' ─────────────────────────────────────────
+== 4. Notificación a los formularios registrados ==
+
+loop por cada formulario registrado (incluye F)
+  IM -> F2 : ActualizarIdioma()
+  activate F2
+
+  loop por cada control en _controles
+    F2 -> IM : Traducir(clave)
+    IM --> F2 : texto / null
+    F2 -> F2 : control.Text = texto\n?? _defaults[clave]\n(RN-03)
+  end
+
+  opt el formulario tiene DataGridView
+    F2 -> F2 : ActualizarEncabezados()
+  end
+
+  deactivate F2
+end
+deactivate IM
+
+' ─────────────────────────────────────────
+' PERSISTENCIA DE LA PREFERENCIA DE IDIOMA
+' ─────────────────────────────────────────
+== 5. Persistencia de la preferencia del usuario ==
+
+opt hay un usuario logueado
+  F -> UB : ActualizarIdioma(usuario.Id, idioma.Id)
+  activate UB
+  UB -> DB : USUARIO_ACTUALIZAR_IDIOMA
+  deactivate UB
+
+  note right of F
+    RN-04: el selector de idioma del
+    formulario de login (pre-autenticación)
+    no persiste la preferencia porque
+    todavía no hay sesión activa
+    (SessionManager sin usuario).
+  end note
+end
+
+@enduml

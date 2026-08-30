@@ -1,0 +1,1470 @@
+﻿USE [BDCAPAS]
+GO
+
+-- ============================================================
+-- TABLAS
+-- ============================================================
+
+IF OBJECT_ID('dbo.USUARIO', 'U') IS NULL
+CREATE TABLE [dbo].[USUARIO] (
+    [ID]                INT          IDENTITY(1,1) NOT NULL,
+    [USUARIO]           VARCHAR(50)  NULL,
+    [PASS]              VARCHAR(64)  NULL,
+    [INTENTOS_FALLIDOS] INT          NOT NULL DEFAULT 0,
+    [BLOQUEADO]         BIT          NOT NULL DEFAULT 0,
+    [ROL]               VARCHAR(20)  NOT NULL DEFAULT 'usuario',
+    [DVH]               INT          NOT NULL DEFAULT 0,
+    CONSTRAINT PK_USUARIO PRIMARY KEY ([ID])
+)
+GO
+IF COL_LENGTH('dbo.USUARIO','NOMBRE') IS NULL
+    ALTER TABLE [dbo].[USUARIO] ADD [NOMBRE] VARCHAR(50) NULL
+IF COL_LENGTH('dbo.USUARIO','APELLIDO') IS NULL
+    ALTER TABLE [dbo].[USUARIO] ADD [APELLIDO] VARCHAR(50) NULL
+GO
+
+IF OBJECT_ID('dbo.NODO_PERMISO', 'U') IS NULL
+CREATE TABLE [dbo].[NODO_PERMISO] (
+    [ID]        INT          IDENTITY(1,1) NOT NULL,
+    [NOMBRE]    VARCHAR(100) NOT NULL,
+    [TIPO]      VARCHAR(10)  NOT NULL,  -- 'PERFIL' | 'PERMISO'
+    [PADRE_ID]  INT          NULL,
+    [PROTEGIDO] BIT          NOT NULL DEFAULT 0,
+    CONSTRAINT PK_NODO_PERMISO PRIMARY KEY ([ID])
+)
+GO
+IF COL_LENGTH('dbo.NODO_PERMISO','PROTEGIDO') IS NULL
+    ALTER TABLE [dbo].[NODO_PERMISO] ADD [PROTEGIDO] BIT NOT NULL DEFAULT 0
+GO
+
+IF OBJECT_ID('dbo.ROL_PERMISO', 'U') IS NULL
+CREATE TABLE [dbo].[ROL_PERMISO] (
+    [ROL_ID]     INT NOT NULL,
+    [PERMISO_ID] INT NOT NULL,
+    CONSTRAINT PK_ROL_PERMISO     PRIMARY KEY ([ROL_ID], [PERMISO_ID]),
+    CONSTRAINT FK_ROLPERM_ROL     FOREIGN KEY ([ROL_ID])     REFERENCES [dbo].[NODO_PERMISO]([ID]),
+    CONSTRAINT FK_ROLPERM_PERMISO FOREIGN KEY ([PERMISO_ID]) REFERENCES [dbo].[NODO_PERMISO]([ID])
+)
+GO
+
+IF OBJECT_ID('dbo.USUARIO_PERFIL', 'U') IS NULL
+CREATE TABLE [dbo].[USUARIO_PERFIL] (
+    [USUARIO_ID] INT NOT NULL,
+    [PERFIL_ID]  INT NOT NULL,
+    CONSTRAINT PK_USUARIO_PERFIL PRIMARY KEY ([USUARIO_ID], [PERFIL_ID])
+)
+GO
+
+IF OBJECT_ID('dbo.BITACORA', 'U') IS NULL
+CREATE TABLE [dbo].[BITACORA] (
+    [ID]      INT          IDENTITY(1,1) NOT NULL,
+    [USUARIO] VARCHAR(50)  NULL,
+    [ACCION]  VARCHAR(50)  NULL,
+    [FECHA]   DATETIME     NULL,
+    CONSTRAINT PK_BITACORA PRIMARY KEY ([ID])
+)
+GO
+
+IF OBJECT_ID('dbo.IDIOMA', 'U') IS NULL
+CREATE TABLE [dbo].[IDIOMA] (
+    [ID]            INT         IDENTITY(1,1) NOT NULL,
+    [NOMBRE]        VARCHAR(50) NOT NULL,
+    [HABILITADO]    BIT         NOT NULL DEFAULT 1,
+    [PREDETERMINADO] BIT        NOT NULL DEFAULT 0,
+    CONSTRAINT PK_IDIOMA PRIMARY KEY ([ID])
+)
+GO
+IF COL_LENGTH('dbo.IDIOMA','PREDETERMINADO') IS NULL
+    ALTER TABLE [dbo].[IDIOMA] ADD [PREDETERMINADO] BIT NOT NULL DEFAULT 0
+GO
+
+IF COL_LENGTH('dbo.USUARIO','IDIOMA_ID') IS NULL
+    ALTER TABLE [dbo].[USUARIO] ADD [IDIOMA_ID] INT NULL
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_USUARIO_IDIOMA')
+    ALTER TABLE [dbo].[USUARIO] ADD CONSTRAINT FK_USUARIO_IDIOMA FOREIGN KEY ([IDIOMA_ID]) REFERENCES [dbo].[IDIOMA]([ID])
+GO
+
+IF OBJECT_ID('dbo.CONTROL_IDIOMA', 'U') IS NULL
+CREATE TABLE [dbo].[CONTROL_IDIOMA] (
+    [ID]            INT          IDENTITY(1,1) NOT NULL,
+    [CLAVE]         VARCHAR(100) NOT NULL UNIQUE,
+    [TEXTO_DEFAULT] VARCHAR(200) NOT NULL,
+    CONSTRAINT PK_CONTROL_IDIOMA PRIMARY KEY ([ID])
+)
+GO
+
+IF OBJECT_ID('dbo.TRADUCCION', 'U') IS NULL
+CREATE TABLE [dbo].[TRADUCCION] (
+    [IDIOMA_ID]  INT          NOT NULL,
+    [CONTROL_ID] INT          NOT NULL,
+    [TEXTO]      VARCHAR(200) NOT NULL,
+    CONSTRAINT PK_TRADUCCION        PRIMARY KEY ([IDIOMA_ID], [CONTROL_ID]),
+    CONSTRAINT FK_TRAD_IDIOMA       FOREIGN KEY ([IDIOMA_ID])  REFERENCES [dbo].[IDIOMA]([ID]),
+    CONSTRAINT FK_TRAD_CONTROL      FOREIGN KEY ([CONTROL_ID]) REFERENCES [dbo].[CONTROL_IDIOMA]([ID])
+)
+GO
+
+IF OBJECT_ID('dbo.USUARIO_HISTORIAL', 'U') IS NULL
+CREATE TABLE [dbo].[USUARIO_HISTORIAL] (
+    [ID]                INT          IDENTITY(1,1) NOT NULL,
+    [USUARIO_ID]        INT          NOT NULL,
+    [USUARIO_LOGIN]     VARCHAR(50)  NOT NULL,
+    [ROL]               VARCHAR(20)  NOT NULL,
+    [BLOQUEADO]         BIT          NOT NULL,
+    [INTENTOS_FALLIDOS] INT          NOT NULL,
+    [PERFILES]          VARCHAR(500) NOT NULL,
+    [FECHA_CAMBIO]      DATETIME     NOT NULL DEFAULT GETDATE(),
+    [REALIZADO_POR]     VARCHAR(50)  NOT NULL,
+    [TIPO_CAMBIO]       VARCHAR(25)  NOT NULL,
+    [VERSION_ORIGEN]    INT          NULL,
+    CONSTRAINT PK_USUARIO_HISTORIAL PRIMARY KEY ([ID])
+    -- Sin FK hacia USUARIO: el historial sobrevive a la baja del usuario
+)
+GO
+IF COL_LENGTH('dbo.USUARIO_HISTORIAL','NOMBRE') IS NULL
+    ALTER TABLE [dbo].[USUARIO_HISTORIAL] ADD [NOMBRE] VARCHAR(50) NULL
+IF COL_LENGTH('dbo.USUARIO_HISTORIAL','APELLIDO') IS NULL
+    ALTER TABLE [dbo].[USUARIO_HISTORIAL] ADD [APELLIDO] VARCHAR(50) NULL
+GO
+
+IF OBJECT_ID('dbo.DIGITO_VERIFICADOR_VERTICAL', 'U') IS NULL
+CREATE TABLE [dbo].[DIGITO_VERIFICADOR_VERTICAL] (
+    [TABLA]   VARCHAR(50) NOT NULL,
+    [COLUMNA] VARCHAR(50) NOT NULL,
+    [DVV]     INT         NOT NULL DEFAULT 0,
+    CONSTRAINT PK_DVV PRIMARY KEY ([TABLA], [COLUMNA])
+)
+GO
+
+-- ============================================================
+-- STORED PROCEDURES — USUARIO
+-- ============================================================
+
+IF OBJECT_ID('dbo.USUARIO_LOGIN', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_LOGIN]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_LOGIN]
+    @usuario VARCHAR(64),
+    @pass    VARCHAR(64)
+AS
+    SELECT ID, USUARIO, ROL, IDIOMA_ID
+    FROM USUARIO
+    WHERE USUARIO = @usuario AND PASS = @pass
+GO
+
+IF OBJECT_ID('dbo.USUARIO_CREAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_CREAR]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_CREAR]
+    @usuario  VARCHAR(50),
+    @pass     VARCHAR(64),
+    @rol      VARCHAR(20),
+    @nombre   VARCHAR(50) = NULL,
+    @apellido VARCHAR(50) = NULL
+AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM USUARIO WHERE USUARIO = @usuario)
+    BEGIN
+        SELECT 0 AS OK
+        RETURN
+    END
+    INSERT INTO USUARIO (USUARIO, PASS, ROL, NOMBRE, APELLIDO) VALUES (@usuario, @pass, @rol, @nombre, @apellido)
+    SELECT 1 AS OK
+END
+GO
+
+IF OBJECT_ID('dbo.USUARIO_LISTAR_TODOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_LISTAR_TODOS]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_LISTAR_TODOS]
+AS
+    SELECT ID, USUARIO, ROL, BLOQUEADO, NOMBRE, APELLIDO FROM USUARIO ORDER BY USUARIO
+GO
+
+IF OBJECT_ID('dbo.USUARIO_ELIMINAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_ELIMINAR]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_ELIMINAR]
+    @id INT
+AS
+BEGIN
+    DELETE FROM USUARIO_PERFIL WHERE USUARIO_ID = @id
+    DELETE FROM USUARIO         WHERE ID         = @id
+END
+GO
+
+IF OBJECT_ID('dbo.USUARIO_OBTENER_POR_ID', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_OBTENER_POR_ID]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_OBTENER_POR_ID]
+    @id INT
+AS
+    SELECT ID, USUARIO, ROL, INTENTOS_FALLIDOS, BLOQUEADO, NOMBRE, APELLIDO
+    FROM USUARIO WHERE ID = @id
+GO
+
+IF OBJECT_ID('dbo.USUARIO_ACTUALIZAR_DATOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_ACTUALIZAR_DATOS]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_ACTUALIZAR_DATOS]
+    @id       INT,
+    @nombre   VARCHAR(50),
+    @apellido VARCHAR(50)
+AS
+    UPDATE USUARIO SET NOMBRE = @nombre, APELLIDO = @apellido WHERE ID = @id
+GO
+
+IF OBJECT_ID('dbo.USUARIO_ACTUALIZAR_IDIOMA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_ACTUALIZAR_IDIOMA]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_ACTUALIZAR_IDIOMA]
+    @id        INT,
+    @idioma_id INT
+AS
+    UPDATE USUARIO SET IDIOMA_ID = @idioma_id WHERE ID = @id
+GO
+
+IF OBJECT_ID('dbo.USUARIO_OBTENER_ID_POR_NOMBRE', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_OBTENER_ID_POR_NOMBRE]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_OBTENER_ID_POR_NOMBRE]
+    @usuario VARCHAR(50)
+AS
+    SELECT ID FROM USUARIO WHERE USUARIO = @usuario
+GO
+
+IF OBJECT_ID('dbo.USUARIO_CAMBIAR_PASS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_CAMBIAR_PASS]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_CAMBIAR_PASS]
+    @usuario VARCHAR(50),
+    @pass    VARCHAR(64)
+AS
+    UPDATE USUARIO SET PASS = @pass WHERE USUARIO = @usuario
+GO
+
+IF OBJECT_ID('dbo.USUARIO_VERIFICAR_BLOQUEO', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_VERIFICAR_BLOQUEO]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_VERIFICAR_BLOQUEO]
+    @usuario VARCHAR(50)
+AS
+    SELECT BLOQUEADO FROM USUARIO WHERE USUARIO = @usuario
+GO
+
+IF OBJECT_ID('dbo.USUARIO_INCREMENTAR_INTENTOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_INCREMENTAR_INTENTOS]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_INCREMENTAR_INTENTOS]
+    @usuario VARCHAR(50)
+AS
+BEGIN
+    UPDATE USUARIO
+    SET INTENTOS_FALLIDOS = INTENTOS_FALLIDOS + 1,
+        BLOQUEADO = CASE WHEN INTENTOS_FALLIDOS + 1 >= 3 THEN 1 ELSE BLOQUEADO END
+    WHERE USUARIO = @usuario
+
+    SELECT BLOQUEADO FROM USUARIO WHERE USUARIO = @usuario
+END
+GO
+
+IF OBJECT_ID('dbo.USUARIO_RESETEAR_INTENTOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_RESETEAR_INTENTOS]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_RESETEAR_INTENTOS]
+    @usuario VARCHAR(50)
+AS
+    UPDATE USUARIO SET INTENTOS_FALLIDOS = 0 WHERE USUARIO = @usuario
+GO
+
+IF OBJECT_ID('dbo.USUARIO_DESBLOQUEAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_DESBLOQUEAR]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_DESBLOQUEAR]
+    @usuario VARCHAR(50)
+AS
+    UPDATE USUARIO SET BLOQUEADO = 0, INTENTOS_FALLIDOS = 0 WHERE USUARIO = @usuario
+GO
+
+IF OBJECT_ID('dbo.USUARIO_APLICAR_ESTADO', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_APLICAR_ESTADO]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_APLICAR_ESTADO]
+    @id                INT,
+    @rol               VARCHAR(20),
+    @bloqueado         BIT,
+    @intentos_fallidos INT
+AS
+    UPDATE USUARIO
+    SET ROL = @rol, BLOQUEADO = @bloqueado, INTENTOS_FALLIDOS = @intentos_fallidos
+    WHERE ID = @id
+GO
+
+IF OBJECT_ID('dbo.USUARIO_LISTAR_PARA_INTEGRIDAD', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_LISTAR_PARA_INTEGRIDAD]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_LISTAR_PARA_INTEGRIDAD]
+AS
+    SELECT ID, USUARIO, PASS, INTENTOS_FALLIDOS, BLOQUEADO, ROL, DVH
+    FROM USUARIO ORDER BY ID
+GO
+
+IF OBJECT_ID('dbo.USUARIO_ACTUALIZAR_DVH', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_ACTUALIZAR_DVH]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_ACTUALIZAR_DVH]
+    @id  INT,
+    @dvh INT
+AS
+    UPDATE USUARIO SET DVH = @dvh WHERE ID = @id
+GO
+
+-- ============================================================
+-- STORED PROCEDURES — NODO_PERMISO / PERFIL
+-- ============================================================
+
+IF OBJECT_ID('dbo.PERFIL_LISTAR_TODOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PERFIL_LISTAR_TODOS]
+GO
+CREATE PROCEDURE [dbo].[PERFIL_LISTAR_TODOS]
+AS
+    SELECT ID, NOMBRE, TIPO, PADRE_ID, PROTEGIDO
+    FROM NODO_PERMISO
+    WHERE TIPO = 'PERFIL'
+    ORDER BY ID
+GO
+
+IF OBJECT_ID('dbo.PERFIL_TIENE_USUARIOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PERFIL_TIENE_USUARIOS]
+GO
+CREATE PROCEDURE [dbo].[PERFIL_TIENE_USUARIOS]
+    @rol_id INT
+AS
+BEGIN
+    DECLARE @ids TABLE (ID INT)
+    ;WITH Descendientes AS (
+        SELECT ID FROM NODO_PERMISO WHERE ID = @rol_id AND TIPO = 'PERFIL'
+        UNION ALL
+        SELECT np.ID FROM NODO_PERMISO np
+            INNER JOIN Descendientes d ON np.PADRE_ID = d.ID
+        WHERE np.TIPO = 'PERFIL'
+    )
+    INSERT INTO @ids SELECT ID FROM Descendientes
+    SELECT COUNT(*) AS TOTAL FROM USUARIO_PERFIL WHERE PERFIL_ID IN (SELECT ID FROM @ids)
+END
+GO
+
+IF OBJECT_ID('dbo.PERMISO_LISTAR_TODOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PERMISO_LISTAR_TODOS]
+GO
+CREATE PROCEDURE [dbo].[PERMISO_LISTAR_TODOS]
+AS
+    SELECT ID, NOMBRE, TIPO, PADRE_ID
+    FROM NODO_PERMISO
+    WHERE TIPO = 'PERMISO' AND PADRE_ID IS NULL
+    ORDER BY NOMBRE
+GO
+
+IF OBJECT_ID('dbo.PERFIL_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PERFIL_INSERTAR]
+GO
+CREATE PROCEDURE [dbo].[PERFIL_INSERTAR]
+    @nombre   VARCHAR(100),
+    @tipo     VARCHAR(10),
+    @padre_id INT = NULL
+AS
+BEGIN
+    INSERT INTO NODO_PERMISO (NOMBRE, TIPO, PADRE_ID) VALUES (@nombre, @tipo, @padre_id)
+    SELECT SCOPE_IDENTITY() AS ID
+END
+GO
+
+IF OBJECT_ID('dbo.PERFIL_ELIMINAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PERFIL_ELIMINAR]
+GO
+CREATE PROCEDURE [dbo].[PERFIL_ELIMINAR]
+    @id INT
+AS
+BEGIN
+    DECLARE @ids TABLE (ID INT)
+    ;WITH Descendientes AS (
+        SELECT ID FROM NODO_PERMISO WHERE ID = @id
+        UNION ALL
+        SELECT np.ID FROM NODO_PERMISO np
+            INNER JOIN Descendientes d ON np.PADRE_ID = d.ID
+    )
+    INSERT INTO @ids SELECT ID FROM Descendientes
+
+    DELETE FROM USUARIO_PERFIL WHERE PERFIL_ID  IN (SELECT ID FROM @ids)
+    DELETE FROM ROL_PERMISO    WHERE ROL_ID      IN (SELECT ID FROM @ids)
+    DELETE FROM NODO_PERMISO   WHERE ID          IN (SELECT ID FROM @ids)
+END
+GO
+
+-- ============================================================
+-- STORED PROCEDURES — ROL_PERMISO
+-- ============================================================
+
+IF OBJECT_ID('dbo.ROL_PERMISO_LISTAR_TODOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[ROL_PERMISO_LISTAR_TODOS]
+GO
+CREATE PROCEDURE [dbo].[ROL_PERMISO_LISTAR_TODOS]
+AS
+    SELECT rp.ROL_ID, rp.PERMISO_ID, np.NOMBRE
+    FROM ROL_PERMISO rp
+    JOIN NODO_PERMISO np ON np.ID = rp.PERMISO_ID
+GO
+
+IF OBJECT_ID('dbo.ROL_PERMISO_LISTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[ROL_PERMISO_LISTAR]
+GO
+CREATE PROCEDURE [dbo].[ROL_PERMISO_LISTAR]
+    @rol_id INT
+AS
+    SELECT PERMISO_ID FROM ROL_PERMISO WHERE ROL_ID = @rol_id
+GO
+
+IF OBJECT_ID('dbo.ROL_PERMISO_LIMPIAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[ROL_PERMISO_LIMPIAR]
+GO
+CREATE PROCEDURE [dbo].[ROL_PERMISO_LIMPIAR]
+    @rol_id INT
+AS
+    DELETE FROM ROL_PERMISO WHERE ROL_ID = @rol_id
+GO
+
+IF OBJECT_ID('dbo.ROL_PERMISO_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[ROL_PERMISO_INSERTAR]
+GO
+CREATE PROCEDURE [dbo].[ROL_PERMISO_INSERTAR]
+    @rol_id     INT,
+    @permiso_id INT
+AS
+    IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rol_id AND PERMISO_ID = @permiso_id)
+        INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rol_id, @permiso_id)
+GO
+
+-- ============================================================
+-- STORED PROCEDURES — USUARIO_PERFIL
+-- ============================================================
+
+IF OBJECT_ID('dbo.USUARIO_PERFIL_LISTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_PERFIL_LISTAR]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_PERFIL_LISTAR]
+    @usuario_id INT
+AS
+    SELECT PERFIL_ID FROM USUARIO_PERFIL WHERE USUARIO_ID = @usuario_id
+GO
+
+IF OBJECT_ID('dbo.USUARIO_PERFIL_BORRAR_TODOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_PERFIL_BORRAR_TODOS]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_PERFIL_BORRAR_TODOS]
+    @usuario_id INT
+AS
+    DELETE FROM USUARIO_PERFIL WHERE USUARIO_ID = @usuario_id
+GO
+
+IF OBJECT_ID('dbo.USUARIO_PERFIL_ASIGNAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_PERFIL_ASIGNAR]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_PERFIL_ASIGNAR]
+    @usuario_id INT,
+    @perfil_id  INT
+AS
+    INSERT INTO USUARIO_PERFIL (USUARIO_ID, PERFIL_ID) VALUES (@usuario_id, @perfil_id)
+GO
+
+IF OBJECT_ID('dbo.USUARIO_PERMISOS_LISTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_PERMISOS_LISTAR]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_PERMISOS_LISTAR]
+    @usuario_id INT
+AS
+BEGIN
+    ;WITH Herencia AS (
+        SELECT PERFIL_ID AS ROL_ID
+        FROM USUARIO_PERFIL
+        WHERE USUARIO_ID = @usuario_id
+
+        UNION ALL
+
+        SELECT np.PADRE_ID
+        FROM NODO_PERMISO np
+        INNER JOIN Herencia h ON np.ID = h.ROL_ID
+        WHERE np.PADRE_ID IS NOT NULL
+    )
+    SELECT DISTINCT np.NOMBRE
+    FROM Herencia h
+    JOIN ROL_PERMISO  rp ON rp.ROL_ID = h.ROL_ID
+    JOIN NODO_PERMISO np ON np.ID     = rp.PERMISO_ID
+END
+GO
+
+IF OBJECT_ID('dbo.PERFIL_CAMBIAR_PADRE', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PERFIL_CAMBIAR_PADRE]
+GO
+CREATE PROCEDURE [dbo].[PERFIL_CAMBIAR_PADRE]
+    @id       INT,
+    @padre_id INT = NULL
+AS
+    UPDATE NODO_PERMISO SET PADRE_ID = @padre_id WHERE ID = @id
+GO
+
+-- ============================================================
+-- STORED PROCEDURES — BITACORA
+-- ============================================================
+
+IF OBJECT_ID('dbo.BITACORA_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[BITACORA_INSERTAR]
+GO
+CREATE PROCEDURE [dbo].[BITACORA_INSERTAR]
+    @usuario VARCHAR(50),
+    @accion  VARCHAR(50)
+AS
+    INSERT INTO BITACORA (USUARIO, ACCION, FECHA) VALUES (@usuario, @accion, GETDATE())
+GO
+
+IF OBJECT_ID('dbo.BITACORA_LISTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[BITACORA_LISTAR]
+GO
+CREATE PROCEDURE [dbo].[BITACORA_LISTAR]
+AS
+    SELECT ID, USUARIO, ACCION, FECHA FROM BITACORA ORDER BY FECHA DESC
+GO
+
+-- ============================================================
+-- STORED PROCEDURES — IDIOMA
+-- ============================================================
+
+IF OBJECT_ID('dbo.IDIOMA_LISTAR_TODOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[IDIOMA_LISTAR_TODOS]
+GO
+CREATE PROCEDURE [dbo].[IDIOMA_LISTAR_TODOS]
+AS
+    SELECT ID, NOMBRE, HABILITADO, PREDETERMINADO FROM IDIOMA ORDER BY NOMBRE
+GO
+
+IF OBJECT_ID('dbo.IDIOMA_LISTAR_HABILITADOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[IDIOMA_LISTAR_HABILITADOS]
+GO
+CREATE PROCEDURE [dbo].[IDIOMA_LISTAR_HABILITADOS]
+AS
+    SELECT ID, NOMBRE, HABILITADO, PREDETERMINADO FROM IDIOMA WHERE HABILITADO = 1 ORDER BY NOMBRE
+GO
+
+IF OBJECT_ID('dbo.IDIOMA_OBTENER_POR_ID', 'P') IS NOT NULL DROP PROCEDURE [dbo].[IDIOMA_OBTENER_POR_ID]
+GO
+CREATE PROCEDURE [dbo].[IDIOMA_OBTENER_POR_ID]
+    @id INT
+AS
+    SELECT ID, NOMBRE, HABILITADO, PREDETERMINADO FROM IDIOMA WHERE ID = @id
+GO
+
+IF OBJECT_ID('dbo.IDIOMA_ESTA_EN_USO', 'P') IS NOT NULL DROP PROCEDURE [dbo].[IDIOMA_ESTA_EN_USO]
+GO
+CREATE PROCEDURE [dbo].[IDIOMA_ESTA_EN_USO]
+    @id INT
+AS
+    SELECT COUNT(*) AS TOTAL FROM USUARIO WHERE IDIOMA_ID = @id
+GO
+
+IF OBJECT_ID('dbo.IDIOMA_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[IDIOMA_INSERTAR]
+GO
+CREATE PROCEDURE [dbo].[IDIOMA_INSERTAR]
+    @nombre     VARCHAR(50),
+    @habilitado BIT
+AS
+BEGIN
+    INSERT INTO IDIOMA (NOMBRE, HABILITADO) VALUES (@nombre, @habilitado)
+    SELECT SCOPE_IDENTITY() AS ID
+END
+GO
+
+IF OBJECT_ID('dbo.IDIOMA_RENOMBRAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[IDIOMA_RENOMBRAR]
+GO
+CREATE PROCEDURE [dbo].[IDIOMA_RENOMBRAR]
+    @id     INT,
+    @nombre NVARCHAR(100)
+AS
+    UPDATE IDIOMA SET NOMBRE = @nombre WHERE ID = @id
+GO
+
+IF OBJECT_ID('dbo.IDIOMA_ACTUALIZAR_ESTADO', 'P') IS NOT NULL DROP PROCEDURE [dbo].[IDIOMA_ACTUALIZAR_ESTADO]
+GO
+CREATE PROCEDURE [dbo].[IDIOMA_ACTUALIZAR_ESTADO]
+    @id         INT,
+    @habilitado BIT
+AS
+    UPDATE IDIOMA SET HABILITADO = @habilitado WHERE ID = @id
+GO
+
+IF OBJECT_ID('dbo.IDIOMA_ELIMINAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[IDIOMA_ELIMINAR]
+GO
+CREATE PROCEDURE [dbo].[IDIOMA_ELIMINAR]
+    @id INT
+AS
+BEGIN
+    DELETE FROM TRADUCCION WHERE IDIOMA_ID = @id
+    DELETE FROM IDIOMA      WHERE ID       = @id
+END
+GO
+
+-- ============================================================
+-- STORED PROCEDURES — CONTROL_IDIOMA
+-- ============================================================
+
+IF OBJECT_ID('dbo.CONTROL_LISTAR_TODOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[CONTROL_LISTAR_TODOS]
+GO
+CREATE PROCEDURE [dbo].[CONTROL_LISTAR_TODOS]
+AS
+    SELECT ID, CLAVE, TEXTO_DEFAULT FROM CONTROL_IDIOMA ORDER BY CLAVE
+GO
+
+IF OBJECT_ID('dbo.CONTROL_REGISTRAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[CONTROL_REGISTRAR]
+GO
+CREATE PROCEDURE [dbo].[CONTROL_REGISTRAR]
+    @clave         VARCHAR(100),
+    @texto_default VARCHAR(200)
+AS
+    IF NOT EXISTS (SELECT 1 FROM CONTROL_IDIOMA WHERE CLAVE = @clave)
+        INSERT INTO CONTROL_IDIOMA (CLAVE, TEXTO_DEFAULT) VALUES (@clave, @texto_default)
+GO
+
+-- ============================================================
+-- STORED PROCEDURES — TRADUCCION
+-- ============================================================
+
+IF OBJECT_ID('dbo.TRADUCCION_LISTAR_POR_IDIOMA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[TRADUCCION_LISTAR_POR_IDIOMA]
+GO
+CREATE PROCEDURE [dbo].[TRADUCCION_LISTAR_POR_IDIOMA]
+    @idioma_id INT
+AS
+    SELECT ci.CLAVE, t.TEXTO
+    FROM CONTROL_IDIOMA ci
+    LEFT JOIN TRADUCCION t ON t.CONTROL_ID = ci.ID AND t.IDIOMA_ID = @idioma_id
+    WHERE t.TEXTO IS NOT NULL
+GO
+
+IF OBJECT_ID('dbo.TRADUCCION_GUARDAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[TRADUCCION_GUARDAR]
+GO
+CREATE PROCEDURE [dbo].[TRADUCCION_GUARDAR]
+    @idioma_id  INT,
+    @control_id INT,
+    @texto      VARCHAR(200)
+AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM TRADUCCION WHERE IDIOMA_ID = @idioma_id AND CONTROL_ID = @control_id)
+        UPDATE TRADUCCION SET TEXTO = @texto
+        WHERE IDIOMA_ID = @idioma_id AND CONTROL_ID = @control_id
+    ELSE
+        INSERT INTO TRADUCCION (IDIOMA_ID, CONTROL_ID, TEXTO) VALUES (@idioma_id, @control_id, @texto)
+END
+GO
+
+IF OBJECT_ID('dbo.TRADUCCION_LISTAR_CONTROLES', 'P') IS NOT NULL DROP PROCEDURE [dbo].[TRADUCCION_LISTAR_CONTROLES]
+GO
+CREATE PROCEDURE [dbo].[TRADUCCION_LISTAR_CONTROLES]
+    @idioma_id INT
+AS
+    SELECT ci.ID, ci.CLAVE, ci.TEXTO_DEFAULT,
+           ISNULL(t.TEXTO, '') AS TEXTO_TRADUCCION
+    FROM CONTROL_IDIOMA ci
+    LEFT JOIN TRADUCCION t ON t.CONTROL_ID = ci.ID AND t.IDIOMA_ID = @idioma_id
+    ORDER BY ci.CLAVE
+GO
+
+-- ============================================================
+-- STORED PROCEDURES — USUARIO_HISTORIAL
+-- ============================================================
+
+IF OBJECT_ID('dbo.USUARIO_HISTORIAL_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_HISTORIAL_INSERTAR]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_HISTORIAL_INSERTAR]
+    @usuario_id        INT,
+    @usuario_login     VARCHAR(50),
+    @rol               VARCHAR(20),
+    @bloqueado         BIT,
+    @intentos_fallidos INT,
+    @perfiles          VARCHAR(500),
+    @realizado_por     VARCHAR(50),
+    @tipo_cambio       VARCHAR(25),
+    @version_origen    INT,
+    @nombre            VARCHAR(50) = NULL,
+    @apellido          VARCHAR(50) = NULL
+AS
+    INSERT INTO USUARIO_HISTORIAL
+        (USUARIO_ID, USUARIO_LOGIN, ROL, BLOQUEADO, INTENTOS_FALLIDOS,
+         PERFILES, REALIZADO_POR, TIPO_CAMBIO, VERSION_ORIGEN, NOMBRE, APELLIDO)
+    VALUES
+        (@usuario_id, @usuario_login, @rol, @bloqueado, @intentos_fallidos,
+         @perfiles, @realizado_por, @tipo_cambio, @version_origen, @nombre, @apellido)
+GO
+
+IF OBJECT_ID('dbo.USUARIO_HISTORIAL_LISTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_HISTORIAL_LISTAR]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_HISTORIAL_LISTAR]
+    @usuario_id INT
+AS
+    SELECT ID, USUARIO_ID, USUARIO_LOGIN, ROL, BLOQUEADO, INTENTOS_FALLIDOS,
+           PERFILES, FECHA_CAMBIO, REALIZADO_POR, TIPO_CAMBIO, VERSION_ORIGEN, NOMBRE, APELLIDO
+    FROM USUARIO_HISTORIAL
+    WHERE USUARIO_ID = @usuario_id
+    ORDER BY ID DESC
+GO
+
+IF OBJECT_ID('dbo.USUARIO_HISTORIAL_OBTENER', 'P') IS NOT NULL DROP PROCEDURE [dbo].[USUARIO_HISTORIAL_OBTENER]
+GO
+CREATE PROCEDURE [dbo].[USUARIO_HISTORIAL_OBTENER]
+    @id INT
+AS
+    SELECT ID, USUARIO_ID, USUARIO_LOGIN, ROL, BLOQUEADO, INTENTOS_FALLIDOS,
+           PERFILES, FECHA_CAMBIO, REALIZADO_POR, TIPO_CAMBIO, VERSION_ORIGEN, NOMBRE, APELLIDO
+    FROM USUARIO_HISTORIAL WHERE ID = @id
+GO
+
+-- ============================================================
+-- STORED PROCEDURES — DIGITO_VERIFICADOR_VERTICAL
+-- ============================================================
+
+IF OBJECT_ID('dbo.DVV_LISTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[DVV_LISTAR]
+GO
+CREATE PROCEDURE [dbo].[DVV_LISTAR]
+    @tabla VARCHAR(50)
+AS
+    SELECT COLUMNA, DVV FROM DIGITO_VERIFICADOR_VERTICAL WHERE TABLA = @tabla
+GO
+
+IF OBJECT_ID('dbo.DVV_ACTUALIZAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[DVV_ACTUALIZAR]
+GO
+CREATE PROCEDURE [dbo].[DVV_ACTUALIZAR]
+    @tabla   VARCHAR(50),
+    @columna VARCHAR(50),
+    @dvv     INT
+AS
+BEGIN
+    IF EXISTS (SELECT 1 FROM DIGITO_VERIFICADOR_VERTICAL WHERE TABLA = @tabla AND COLUMNA = @columna)
+        UPDATE DIGITO_VERIFICADOR_VERTICAL SET DVV = @dvv WHERE TABLA = @tabla AND COLUMNA = @columna
+    ELSE
+        INSERT INTO DIGITO_VERIFICADOR_VERTICAL (TABLA, COLUMNA, DVV) VALUES (@tabla, @columna, @dvv)
+END
+GO
+
+-- ============================================================
+-- DATOS INICIALES
+-- ============================================================
+
+-- Usuario admin (pass: 1234 hasheado SHA-256)
+IF NOT EXISTS (SELECT 1 FROM USUARIO WHERE USUARIO = 'admin')
+    INSERT INTO USUARIO (USUARIO, PASS, ROL)
+    VALUES ('admin', '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', 'admin')
+GO
+
+-- Idiomas base
+IF NOT EXISTS (SELECT 1 FROM IDIOMA WHERE NOMBRE = 'Español')
+    INSERT INTO IDIOMA (NOMBRE, HABILITADO) VALUES ('Español', 1)
+IF NOT EXISTS (SELECT 1 FROM IDIOMA WHERE NOMBRE = 'Inglés')
+    INSERT INTO IDIOMA (NOMBRE, HABILITADO) VALUES ('Inglés',  1)
+GO
+
+UPDATE IDIOMA SET PREDETERMINADO = 1 WHERE NOMBRE = 'Español'
+GO
+
+-- Catálogo de permisos (PADRE_ID = NULL, nunca se crean ni eliminan desde la UI)
+IF NOT EXISTS (SELECT 1 FROM NODO_PERMISO WHERE NOMBRE = 'Ver bitácora'        AND TIPO = 'PERMISO' AND PADRE_ID IS NULL)
+    INSERT INTO NODO_PERMISO (NOMBRE, TIPO, PADRE_ID) VALUES ('Ver bitácora',        'PERMISO', NULL)
+IF NOT EXISTS (SELECT 1 FROM NODO_PERMISO WHERE NOMBRE = 'Administrar usuarios' AND TIPO = 'PERMISO' AND PADRE_ID IS NULL)
+    INSERT INTO NODO_PERMISO (NOMBRE, TIPO, PADRE_ID) VALUES ('Administrar usuarios', 'PERMISO', NULL)
+IF NOT EXISTS (SELECT 1 FROM NODO_PERMISO WHERE NOMBRE = 'Gestión de roles'     AND TIPO = 'PERMISO' AND PADRE_ID IS NULL)
+    INSERT INTO NODO_PERMISO (NOMBRE, TIPO, PADRE_ID) VALUES ('Gestión de roles',     'PERMISO', NULL)
+IF NOT EXISTS (SELECT 1 FROM NODO_PERMISO WHERE NOMBRE = 'Gestión de idiomas'   AND TIPO = 'PERMISO' AND PADRE_ID IS NULL)
+    INSERT INTO NODO_PERMISO (NOMBRE, TIPO, PADRE_ID) VALUES ('Gestión de idiomas',   'PERMISO', NULL)
+IF NOT EXISTS (SELECT 1 FROM NODO_PERMISO WHERE NOMBRE = 'Cambiar contraseña'   AND TIPO = 'PERMISO' AND PADRE_ID IS NULL)
+    INSERT INTO NODO_PERMISO (NOMBRE, TIPO, PADRE_ID) VALUES ('Cambiar contraseña',   'PERMISO', NULL)
+GO
+
+-- Roles base (Administrador es de sistema y no puede eliminarse desde la UI)
+IF NOT EXISTS (SELECT 1 FROM NODO_PERMISO WHERE NOMBRE = 'Administrador' AND TIPO = 'PERFIL' AND PADRE_ID IS NULL)
+    INSERT INTO NODO_PERMISO (NOMBRE, TIPO, PADRE_ID, PROTEGIDO) VALUES ('Administrador', 'PERFIL', NULL, 1)
+ELSE
+    UPDATE NODO_PERMISO SET PROTEGIDO = 1 WHERE NOMBRE = 'Administrador' AND TIPO = 'PERFIL' AND PADRE_ID IS NULL
+IF NOT EXISTS (SELECT 1 FROM NODO_PERMISO WHERE NOMBRE = 'Usuario'       AND TIPO = 'PERFIL' AND PADRE_ID IS NULL)
+    INSERT INTO NODO_PERMISO (NOMBRE, TIPO, PADRE_ID) VALUES ('Usuario', 'PERFIL', NULL)
+GO
+
+-- ROL_PERMISO: Administrador recibe todos los permisos del catálogo
+DECLARE @rolAdminId INT = (SELECT ID FROM NODO_PERMISO WHERE NOMBRE = 'Administrador' AND TIPO = 'PERFIL' AND PADRE_ID IS NULL)
+INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID)
+SELECT @rolAdminId, ID FROM NODO_PERMISO
+WHERE TIPO = 'PERMISO' AND PADRE_ID IS NULL
+  AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminId AND PERMISO_ID = NODO_PERMISO.ID)
+GO
+
+-- ROL_PERMISO: Usuario recibe solo Cambiar contraseña
+DECLARE @rolUsuarioId       INT = (SELECT ID FROM NODO_PERMISO WHERE NOMBRE = 'Usuario'           AND TIPO = 'PERFIL'  AND PADRE_ID IS NULL)
+DECLARE @permCambiarPassId  INT = (SELECT ID FROM NODO_PERMISO WHERE NOMBRE = 'Cambiar contraseña' AND TIPO = 'PERMISO' AND PADRE_ID IS NULL)
+IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolUsuarioId AND PERMISO_ID = @permCambiarPassId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolUsuarioId, @permCambiarPassId)
+GO
+
+-- USUARIO_PERFIL: asignar admin al rol Administrador
+DECLARE @adminUserId   INT = (SELECT TOP 1 ID FROM USUARIO      WHERE USUARIO = 'admin')
+DECLARE @adminPerfilId INT = (SELECT TOP 1 ID FROM NODO_PERMISO WHERE NOMBRE  = 'Administrador' AND TIPO = 'PERFIL' AND PADRE_ID IS NULL)
+IF NOT EXISTS (SELECT 1 FROM USUARIO_PERFIL WHERE USUARIO_ID = @adminUserId AND PERFIL_ID = @adminPerfilId)
+    INSERT INTO USUARIO_PERFIL (USUARIO_ID, PERFIL_ID) VALUES (@adminUserId, @adminPerfilId)
+GO
+
+-- ============================================================
+-- CONTROLES DE IDIOMA (idempotente: CONTROL_REGISTRAR ignora duplicados)
+-- ============================================================
+
+-- LogIn
+EXEC CONTROL_REGISTRAR 'LogIn',         'Iniciar Sesión'
+EXEC CONTROL_REGISTRAR 'lblUsuario',    'Usuario'
+EXEC CONTROL_REGISTRAR 'lblContrasena', 'Contraseña'
+EXEC CONTROL_REGISTRAR 'btnIngresar',   'Ingresar'
+GO
+
+-- frmMenu
+EXEC CONTROL_REGISTRAR 'usuarioToolStripMenuItem',            'Usuario'
+EXEC CONTROL_REGISTRAR 'cerrarSesionToolStripMenuItem',       'Cerrar Sesión'
+EXEC CONTROL_REGISTRAR 'configuraciónToolStripMenuItem',      'Configuración'
+EXEC CONTROL_REGISTRAR 'cambiarContraseñaToolStripMenuItem',  'Cambiar Contraseña'
+EXEC CONTROL_REGISTRAR 'bitacoraToolStripMenuItem',           'Bitácora'
+EXEC CONTROL_REGISTRAR 'administracionToolStripMenuItem',     'Administración'
+EXEC CONTROL_REGISTRAR 'usuariosBloqueadosToolStripMenuItem', 'Gestión de usuarios'
+EXEC CONTROL_REGISTRAR 'perfilesToolStripMenuItem',           'Perfiles y Permisos'
+EXEC CONTROL_REGISTRAR 'idiomasToolStripMenuItem',            'Gestión de idiomas'
+GO
+
+-- frmAdminUsuarios
+EXEC CONTROL_REGISTRAR 'frmAdminUsuarios',        'Administración de usuarios'
+EXEC CONTROL_REGISTRAR 'lblTitulo_AdminUsuarios', 'Gestión de usuarios'
+EXEC CONTROL_REGISTRAR 'btnNuevo',                'Nuevo usuario'
+EXEC CONTROL_REGISTRAR 'btnModificarPerfiles',    'Modificar perfiles'
+EXEC CONTROL_REGISTRAR 'btnDesbloquear',          'Desbloquear seleccionado'
+EXEC CONTROL_REGISTRAR 'btnEliminar',             'Eliminar'
+EXEC CONTROL_REGISTRAR 'btnRefrescar',            'Refrescar'
+EXEC CONTROL_REGISTRAR 'btnCerrar',               'Cerrar'
+EXEC CONTROL_REGISTRAR 'btnHistorial',            'Ver historial'
+EXEC CONTROL_REGISTRAR 'btnEditarDatos',          'Editar datos'
+GO
+
+-- frmNuevoUsuario
+EXEC CONTROL_REGISTRAR 'frmNuevoUsuario', 'Nuevo usuario'
+EXEC CONTROL_REGISTRAR 'lblNombre',       'Usuario:'
+EXEC CONTROL_REGISTRAR 'lblNombrePersona','Nombre:'
+EXEC CONTROL_REGISTRAR 'lblApellido',     'Apellido:'
+EXEC CONTROL_REGISTRAR 'lblRol',          'Rol:'
+EXEC CONTROL_REGISTRAR 'btnAceptar',      'Crear'
+EXEC CONTROL_REGISTRAR 'btnCancelar',     'Cancelar'
+GO
+
+-- frmEditarUsuario
+EXEC CONTROL_REGISTRAR 'frmEditarUsuario', 'Editar datos'
+GO
+
+-- frmContraseña
+EXEC CONTROL_REGISTRAR 'frmContraseña',  'Cambiar Contraseña'
+EXEC CONTROL_REGISTRAR 'label1',         'Contraseña Actual:'
+EXEC CONTROL_REGISTRAR 'label2',         'Nueva Contraseña:'
+EXEC CONTROL_REGISTRAR 'label3',         'Confirmar Contraseña:'
+EXEC CONTROL_REGISTRAR 'label4',         '- 6 o más caracteres / 1 MAYÚSCULA / 1 número'
+EXEC CONTROL_REGISTRAR 'label5',         'Cambiar Contraseña'
+EXEC CONTROL_REGISTRAR 'btnContinuar',   'Continuar'
+EXEC CONTROL_REGISTRAR 'button1',        'Cancelar'
+GO
+
+-- frmBitacora
+EXEC CONTROL_REGISTRAR 'frmBitacora',           'Bitácora'
+EXEC CONTROL_REGISTRAR 'lblTitulo_Bitacora',    'Bitácora del Sistema'
+EXEC CONTROL_REGISTRAR 'lblAccion',             'Acción:'
+EXEC CONTROL_REGISTRAR 'lblDesde',              'Desde:'
+EXEC CONTROL_REGISTRAR 'lblHasta',              'Hasta:'
+EXEC CONTROL_REGISTRAR 'btnFiltrar',            'Filtrar'
+EXEC CONTROL_REGISTRAR 'btnLimpiar',            'Limpiar'
+GO
+
+-- frmPerfiles
+EXEC CONTROL_REGISTRAR 'frmPerfiles',      'Gestión de Roles y Permisos'
+EXEC CONTROL_REGISTRAR 'lblSeleccionado',  'Seleccioná un nodo'
+EXEC CONTROL_REGISTRAR 'btnAgregarRol',    'Agregar Rol'
+EXEC CONTROL_REGISTRAR 'btnGuardar',       'Guardar'
+EXEC CONTROL_REGISTRAR 'prefijo_Rol',      '[Rol] '
+EXEC CONTROL_REGISTRAR 'prefijo_Permiso',  '[Permiso] '
+GO
+
+-- frmAsignarPerfiles
+EXEC CONTROL_REGISTRAR 'frmAsignarPerfiles', 'Asignar roles al usuario'
+GO
+
+-- frmIdiomas
+EXEC CONTROL_REGISTRAR 'frmIdiomas',             'Gestión de idiomas'
+EXEC CONTROL_REGISTRAR 'lblIdiomas',             'Idiomas'
+EXEC CONTROL_REGISTRAR 'btnAgregarIdioma',       'Agregar idioma'
+EXEC CONTROL_REGISTRAR 'btnRenombrar',           'Renombrar idioma'
+EXEC CONTROL_REGISTRAR 'btnToggleHabilitado',    'Habilitar/Deshabilitar'
+EXEC CONTROL_REGISTRAR 'btnEliminarIdioma',      'Eliminar idioma'
+EXEC CONTROL_REGISTRAR 'lblTraducciones',        'Traducciones del idioma seleccionado'
+EXEC CONTROL_REGISTRAR 'btnGuardarTraducciones', 'Guardar traducciones'
+GO
+
+-- frmHistorialUsuario
+EXEC CONTROL_REGISTRAR 'frmHistorialUsuario',         'Historial de usuario'
+EXEC CONTROL_REGISTRAR 'lblTitulo_HistorialUsuarios', 'Historial de cambios'
+EXEC CONTROL_REGISTRAR 'btnRollback',                 'Restaurar versión'
+GO
+
+-- Cabeceras de DataGridView
+EXEC CONTROL_REGISTRAR 'colhdr_Id',              'ID'
+EXEC CONTROL_REGISTRAR 'colhdr_Usuario',         'Usuario'
+EXEC CONTROL_REGISTRAR 'colhdr_NombrePersona',   'Nombre'
+EXEC CONTROL_REGISTRAR 'colhdr_Apellido',        'Apellido'
+EXEC CONTROL_REGISTRAR 'colhdr_Rol',             'Rol'
+EXEC CONTROL_REGISTRAR 'colhdr_Bloqueado',       'Bloqueado'
+EXEC CONTROL_REGISTRAR 'colhdr_Accion',          'Acción'
+EXEC CONTROL_REGISTRAR 'colhdr_Fecha',           'Fecha y Hora'
+EXEC CONTROL_REGISTRAR 'colhdr_Nombre',          'Idioma'
+EXEC CONTROL_REGISTRAR 'colhdr_Habilitado',      'Habilitado'
+EXEC CONTROL_REGISTRAR 'colhdr_Clave',           'Clave'
+EXEC CONTROL_REGISTRAR 'colhdr_TextoDefault',    'Texto por defecto'
+EXEC CONTROL_REGISTRAR 'colhdr_TextoTraduccion', 'Traducción'
+EXEC CONTROL_REGISTRAR 'colhdr_FechaCambio',     'Fecha'
+EXEC CONTROL_REGISTRAR 'colhdr_TipoCambio',      'Tipo'
+EXEC CONTROL_REGISTRAR 'colhdr_IntentosFallidos','Intentos'
+EXEC CONTROL_REGISTRAR 'colhdr_Perfiles',        'Perfiles'
+EXEC CONTROL_REGISTRAR 'colhdr_RealizadoPor',    'Realizado por'
+EXEC CONTROL_REGISTRAR 'colhdr_VersionOrigen',   'Versión origen'
+GO
+
+-- ============================================================
+-- TRADUCCIONES — ESPAÑOL
+-- ============================================================
+
+DECLARE @espId INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @cide  INT
+
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'LogIn')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Iniciar Sesión'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblUsuario')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Usuario'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblContrasena')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Contraseña'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnIngresar')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Ingresar'
+
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'usuarioToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Usuario'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'cerrarSesionToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Cerrar Sesión'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'configuraciónToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Configuración'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'cambiarContraseñaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Cambiar Contraseña'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'bitacoraToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Bitácora'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'administracionToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Administración'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'usuariosBloqueadosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Gestión de usuarios'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'perfilesToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Perfiles y Permisos'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'idiomasToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Gestión de idiomas'
+
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAdminUsuarios')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Administración de usuarios'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AdminUsuarios')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Gestión de usuarios'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnNuevo')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Nuevo usuario'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnModificarPerfiles')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Modificar perfiles'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnDesbloquear')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Desbloquear seleccionado'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnEliminar')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Eliminar'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRefrescar')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Refrescar'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnCerrar')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Cerrar'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnHistorial')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Ver historial'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnEditarDatos')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Editar datos'
+
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmNuevoUsuario')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Nuevo usuario'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblNombre')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Usuario:'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblNombrePersona')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Nombre:'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblApellido')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Apellido:'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblRol')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Rol:'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAceptar')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Crear'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnCancelar')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Cancelar'
+
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmEditarUsuario')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Editar datos'
+
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmContraseña')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Cambiar Contraseña'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label1')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Contraseña Actual:'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label2')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Nueva Contraseña:'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label3')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Confirmar Contraseña:'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label4')
+EXEC TRADUCCION_GUARDAR @espId, @cide, '- 6 o más caracteres / 1 MAYÚSCULA / 1 número'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label5')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Cambiar Contraseña'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnContinuar')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Continuar'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'button1')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Cancelar'
+
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmBitacora')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Bitácora'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_Bitacora')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Bitácora del Sistema'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAccion')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Acción:'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblDesde')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Desde:'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblHasta')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Hasta:'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnFiltrar')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Filtrar'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnLimpiar')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Limpiar'
+
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmPerfiles')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Gestión de Roles y Permisos'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblSeleccionado')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Seleccioná un nodo'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAgregarRol')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Agregar Rol'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardar')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Guardar'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'prefijo_Rol')
+EXEC TRADUCCION_GUARDAR @espId, @cide, '[Rol] '
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'prefijo_Permiso')
+EXEC TRADUCCION_GUARDAR @espId, @cide, '[Permiso] '
+
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAsignarPerfiles')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Asignar roles al usuario'
+
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmIdiomas')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Gestión de idiomas'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblIdiomas')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Idiomas'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAgregarIdioma')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Agregar idioma'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRenombrar')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Renombrar idioma'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnToggleHabilitado')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Habilitar/Deshabilitar'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnEliminarIdioma')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Eliminar idioma'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTraducciones')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Traducciones del idioma seleccionado'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarTraducciones')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Guardar traducciones'
+
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmHistorialUsuario')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Historial de usuario'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_HistorialUsuarios')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Historial de cambios'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRollback')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Restaurar versión'
+
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Id')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'ID'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Usuario')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Usuario'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_NombrePersona')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Nombre'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Apellido')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Apellido'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Rol')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Rol'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Bloqueado')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Bloqueado'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Accion')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Acción'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Fecha')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Fecha y Hora'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Nombre')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Idioma'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Habilitado')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Habilitado'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Clave')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Clave'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TextoDefault')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Texto por defecto'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TextoTraduccion')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Traducción'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaCambio')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Fecha'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TipoCambio')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Tipo'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_IntentosFallidos')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Intentos'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Perfiles')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Perfiles'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_RealizadoPor')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Realizado por'
+SET @cide = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_VersionOrigen')
+EXEC TRADUCCION_GUARDAR @espId, @cide, 'Versión origen'
+GO
+
+-- ============================================================
+-- TRADUCCIONES — INGLÉS
+-- ============================================================
+
+DECLARE @ingId INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @cidi  INT
+
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'LogIn')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Log In'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblUsuario')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Username'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblContrasena')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Password'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnIngresar')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Login'
+
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'usuarioToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'User'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'cerrarSesionToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Log Out'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'configuraciónToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Settings'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'cambiarContraseñaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Change Password'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'bitacoraToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Audit Log'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'administracionToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Administration'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'usuariosBloqueadosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'User Management'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'perfilesToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Profiles & Permissions'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'idiomasToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Language Management'
+
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAdminUsuarios')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'User Administration'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AdminUsuarios')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'User Management'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnNuevo')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'New User'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnModificarPerfiles')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Modify Profiles'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnDesbloquear')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Unlock Selected'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnEliminar')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Delete'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRefrescar')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Refresh'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnCerrar')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Close'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnHistorial')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'View History'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnEditarDatos')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Edit Data'
+
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmNuevoUsuario')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'New User'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblNombre')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Username:'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblNombrePersona')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'First Name:'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblApellido')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Last Name:'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblRol')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Role:'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAceptar')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Create'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnCancelar')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Cancel'
+
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmEditarUsuario')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Edit Data'
+
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmContraseña')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Change Password'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label1')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Current Password:'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label2')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'New Password:'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label3')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Confirm Password:'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label4')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, '- 6 or more characters / 1 UPPERCASE / 1 number'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label5')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Change Password'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnContinuar')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Continue'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'button1')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Cancel'
+
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmBitacora')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Audit Log'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_Bitacora')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Audit Log'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAccion')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Action:'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblDesde')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'From:'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblHasta')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'To:'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnFiltrar')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Filter'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnLimpiar')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Clear'
+
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmPerfiles')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Roles & Permissions'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblSeleccionado')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Select a node'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAgregarRol')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Add Role'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardar')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Save'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'prefijo_Rol')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, '[Role] '
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'prefijo_Permiso')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, '[Permission] '
+
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAsignarPerfiles')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Edit User Roles'
+
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmIdiomas')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Language Management'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblIdiomas')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Languages'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAgregarIdioma')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Add Language'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRenombrar')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Rename Language'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnToggleHabilitado')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Enable/Disable'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnEliminarIdioma')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Delete Language'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTraducciones')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Translations for selected language'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarTraducciones')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Save Translations'
+
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmHistorialUsuario')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'User History'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_HistorialUsuarios')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Change History'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRollback')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Restore Version'
+
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Id')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'ID'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Usuario')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Username'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_NombrePersona')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'First Name'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Apellido')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Last Name'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Rol')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Role'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Bloqueado')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Blocked'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Accion')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Action'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Fecha')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Date & Time'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Nombre')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Language'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Habilitado')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Enabled'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Clave')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Key'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TextoDefault')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Default Text'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TextoTraduccion')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Translation'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaCambio')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Date'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TipoCambio')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Type'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_IntentosFallidos')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Failed Attempts'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Perfiles')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Profiles'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_RealizadoPor')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Done By'
+SET @cidi = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_VersionOrigen')
+EXEC TRADUCCION_GUARDAR @ingId, @cidi, 'Source Version'
+GO
+
+-- ============================================================
+-- TRADUCCIONES — PORTUGUÉS
+-- ============================================================
+
+DECLARE @ptId INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cidp INT
+
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'LogIn')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Iniciar Sessão'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblUsuario')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Usuário'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblContrasena')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Senha'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnIngresar')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Entrar'
+
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'usuarioToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Usuário'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'cerrarSesionToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Sair'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'configuraciónToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Configurações'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'cambiarContraseñaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Alterar Senha'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'bitacoraToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Auditoria'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'administracionToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Administração'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'usuariosBloqueadosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Gestão de usuários'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'perfilesToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Perfis e Permissões'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'idiomasToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Gestão de idiomas'
+
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAdminUsuarios')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Administração de usuários'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AdminUsuarios')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Gestão de usuários'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnNuevo')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Novo usuário'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnModificarPerfiles')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Modificar perfis'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnDesbloquear')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Desbloquear selecionado'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnEliminar')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Excluir'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRefrescar')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Atualizar'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnCerrar')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Fechar'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnHistorial')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Ver histórico'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnEditarDatos')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Editar dados'
+
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmNuevoUsuario')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Novo usuário'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblNombre')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Usuário:'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblNombrePersona')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Nome:'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblApellido')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Sobrenome:'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblRol')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Perfil:'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAceptar')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Criar'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnCancelar')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Cancelar'
+
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmEditarUsuario')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Editar dados'
+
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmContraseña')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Alterar Senha'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label1')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Senha Atual:'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label2')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Nova Senha:'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label3')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Confirmar Senha:'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label4')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, '- 6 ou mais caracteres / 1 MAIÚSCULA / 1 número'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'label5')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Alterar Senha'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnContinuar')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Continuar'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'button1')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Cancelar'
+
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmBitacora')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Auditoria'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_Bitacora')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Auditoria do Sistema'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAccion')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Ação:'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblDesde')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'De:'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblHasta')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Até:'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnFiltrar')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Filtrar'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnLimpiar')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Limpar'
+
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmPerfiles')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Gestão de Funções e Permissões'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblSeleccionado')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Selecione um nó'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAgregarRol')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Adicionar Função'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardar')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Salvar'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'prefijo_Rol')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, '[Função] '
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'prefijo_Permiso')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, '[Permissão] '
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'prefijo_Perfil')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, '[Perfil] '
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAgregarPerfil')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Adicionar Perfil'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAgregarPermiso')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Adicionar Permissão'
+
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAsignarPerfiles')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Modificar perfis do usuário'
+
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmIdiomas')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Gestão de idiomas'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblIdiomas')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Idiomas'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAgregarIdioma')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Adicionar idioma'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRenombrar')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Renomear idioma'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnToggleHabilitado')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Habilitar/Desabilitar'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnEliminarIdioma')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Excluir idioma'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTraducciones')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Traduções do idioma selecionado'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarTraducciones')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Salvar traduções'
+
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmHistorialUsuario')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Histórico do usuário'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_HistorialUsuarios')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Histórico de alterações'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRollback')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Restaurar versão'
+
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Id')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'ID'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Usuario')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Usuário'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_NombrePersona')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Nome'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Apellido')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Sobrenome'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Rol')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Perfil'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Bloqueado')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Bloqueado'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Accion')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Ação'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Fecha')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Data e Hora'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Nombre')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Idioma'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Habilitado')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Habilitado'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Clave')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Chave'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TextoDefault')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Texto padrão'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TextoTraduccion')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Tradução'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaCambio')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Data'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TipoCambio')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Tipo'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_IntentosFallidos')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Tentativas'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Perfiles')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Perfis'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_RealizadoPor')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Realizado por'
+SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_VersionOrigen')
+EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Versão origem'
+GO

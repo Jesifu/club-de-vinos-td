@@ -1,0 +1,128 @@
+@startuml DiagramaSecuencia_CU02_RestaurarIntegridad
+
+title CU-02 — Restaurar Integridad del Sistema — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador"              as A
+participant ":LogIn"                      as L  #FEFECE
+participant ":frmRestaurar\nIntegridad"   as FR #FEFECE
+participant ":Program"                    as P  #FEFECE
+participant ":IntegridadBLL"              as IB #E8F4E8
+participant ":UsuarioBLL"                 as UB #E8F4E8
+participant ":frmHistorial\nUsuario"      as FH #FEFECE
+participant ":UsuarioHistorialBLL"        as UH #E8F4E8
+participant ":SessionManager"             as SM #F4E8E8
+database    ":DB"                         as DB #E8E8F4
+
+note over L, FR
+  Precondición: login exitoso (CU-01),
+  integridad inválida y el administrador
+  no figura en IdsUsuariosAfectados.
+end note
+
+' ─────────────────────────────────────────
+' APERTURA DEL FORMULARIO
+' ─────────────────────────────────────────
+== 1. Apertura del formulario ==
+
+L -> FR : new frmRestaurarIntegridad(resultado)\n.ShowDialog()
+activate FR
+
+FR --> A : mostrar detalle de errores
+FR -> P : GuardarLogIntegridad(errores)
+note right of P
+  escribe a
+  integridad_error.log
+end note
+FR -> FR : habilitar btnRestaurar si\nIdsUsuariosAfectados > 0
+
+' ─────────────────────────────────────────
+' DECISIÓN DEL ADMINISTRADOR
+' ─────────────────────────────────────────
+== 2. Decisión del administrador ==
+
+alt admin elige "Recalcular y continuar"
+  A -> FR : click Recalcular
+  FR -> IB : RecalcularIntegridadUsuarios()
+  IB -> DB : actualizar DVH / DVV
+  FR --> L : DialogResult.OK
+
+else 4a. admin elige "Restaurar desde historial"
+  A -> FR : click Restaurar
+  loop por cada id en IdsUsuariosAfectados
+    FR -> UB : ObtenerPorId(id)
+    UB --> FR : usuario
+
+    FR -> UH : ObtenerHistorial(id)
+    UH --> FR : List<UsuarioHistorial>
+
+    alt 4a.i. el usuario tiene historial
+      FR -> FH : new frmHistorialUsuario(usuario)\n.ShowDialog()
+      activate FH
+      A -> FH : seleccionar versión\n+ click Rollback
+      note right of FH
+        las entradas de tipo BAJA no
+        tienen el botón Rollback habilitado
+        (sel.TipoCambio != "BAJA")
+      end note
+
+      alt 2a. entrada seleccionada es de tipo ROLLBACK
+        FH --> A : "No se puede restaurar una versión\nque ya es un rollback"\n(Operación no permitida)
+      else entrada restaurable
+        FH --> A : solicitar confirmación
+        A --> FH : confirmar
+        FH -> UH : Rollback(historialId, admin)
+        UH -> DB : aplicar estado del snapshot\n+ reasignar perfiles\n+ restaurar Nombre/Apellido/\nTelefono/Email\n+ registrar ROLLBACK
+        UH -> IB : RecalcularIntegridadUsuarios()
+        IB -> DB : actualizar DVH / DVV
+        opt usuario restaurado == admin logueado
+          UH -> SM : setUsuario(usuarioActualizado)\n+ setPermisos(permisosActualizados)
+          note right of SM
+            refresco en caliente: no hace
+            falta desloguearse y volver
+            a entrar
+          end note
+        end
+      end
+      FH --> FR : (form cerrado)
+      deactivate FH
+
+    else usuario sin historial
+      FR --> A : "Usuario X sin historial.\nUse Recalcular y continuar."
+    end
+  end
+
+  opt al menos un usuario tenía historial
+    FR -> IB : RecalcularIntegridadUsuarios()
+    IB -> DB : actualizar DVH / DVV
+  end
+  FR --> L : DialogResult.OK
+
+else 4b. admin elige Cancelar
+  A -> FR : click Cancelar
+  FR --> L : DialogResult.Cancel
+  L -> SM : cerrarSesion()
+  L --> A : volver al login
+end
+deactivate FR
+
+' ─────────────────────────────────────────
+' CONTINUACIÓN
+' ─────────────────────────────────────────
+== 3. Continuación ==
+
+opt DialogResult == OK
+  L -> L : continuar flujo de CU-01\n(paso 11 — abrir frmMenu)
+end
+
+@enduml

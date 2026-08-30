@@ -1,0 +1,113 @@
+@startuml DiagramaSecuencia_CU04_CambiarContrasena
+
+title CU-04 — Cambiar Contraseña — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Usuario"                as U
+participant ":frmContraseña"          as FC #FEFECE
+participant ":UsuarioBLL"             as UB #E8F4E8
+participant ":ValidadorContrasena"    as VC #F4E8E8
+participant ":SessionManager"         as SM #F4E8E8
+participant ":BitacoraBLL"            as BB #E8F4E8
+participant ":UsuarioHistorialBLL"    as UH #E8F4E8
+participant ":IntegridadBLL"          as IB #E8F4E8
+database    ":DB"                     as DB #E8E8F4
+
+note over FC
+  Precondición: sesión activa,
+  permiso "Cambiar contraseña".
+end note
+
+' ─────────────────────────────────────────
+' INGRESO DE DATOS
+' ─────────────────────────────────────────
+== 1. Ingreso de datos ==
+
+U -> FC : ingresar contraseña actual,\nnueva contraseña y confirmación\n+ click Continuar
+activate FC
+
+' ─────────────────────────────────────────
+' VALIDACIONES LOCALES
+' ─────────────────────────────────────────
+== 2. Validaciones locales ==
+
+opt 3a. algún campo vacío
+  FC --> U : "Completá todos los campos."
+  note right of FC : el flujo aborta y\nvuelve al paso 1
+end
+
+opt 4a. la nueva contraseña no coincide con la confirmación
+  FC --> U : "Las contraseñas no coinciden."
+  note right of FC : el flujo aborta y\nvuelve al paso 1
+end
+
+FC -> VC : ObtenerError(nuevaPass)
+VC --> FC : mensaje de error / null
+
+opt 5a. la nueva contraseña no cumple las reglas de fortaleza
+  FC --> U : detalle del incumplimiento\n(mín. 6 caracteres, 1 mayúscula, 1 dígito)
+  note right of FC : el flujo aborta y\nvuelve al paso 1
+end
+
+' ─────────────────────────────────────────
+' VERIFICACIÓN DE LA CONTRASEÑA ACTUAL
+' ─────────────────────────────────────────
+== 3. Verificación de la contraseña actual ==
+
+FC -> SM : getUsuario()
+SM --> FC : usuarioActual
+
+FC -> UB : VerificarContrasena(usuario, passActual)
+UB -> DB : hash(passActual) == PASS almacenado ?
+DB --> UB : resultado
+UB --> FC : true / false
+
+opt 6a. la contraseña actual es incorrecta
+  FC --> U : "La contraseña actual es incorrecta."
+  note right of FC : el flujo aborta y\nvuelve al paso 1
+end
+
+' ─────────────────────────────────────────
+' ACTUALIZACIÓN DE LA CONTRASEÑA
+' ─────────────────────────────────────────
+== 4. Actualización de la contraseña ==
+
+FC -> UB : CambiarContrasena(usuario, nuevaPass)
+activate UB
+
+UB -> DB : UPDATE USUARIO\nSET PASS = hash(nuevaPass)
+DB --> UB : filas afectadas
+
+alt 7a. error al persistir el cambio
+  UB --> FC : false
+  FC --> U : "Error al cambiar la contraseña."
+  note right of FC : el flujo aborta y\nvuelve al paso 1
+
+else cambio aplicado correctamente
+  UB -> BB : RegistrarAccion(usuario, "CAMBIO_CONTRASENA")
+  BB -> DB : insertar evento en BITACORA
+
+  UB -> IB : RecalcularIntegridadUsuarios()
+  IB -> DB : actualizar DVH / DVV
+
+  UB -> UH : RegistrarCambio(usuarioId, "CAMBIO_CLAVE", usuario)
+  UH -> DB : insertar snapshot en USUARIO_HISTORIAL
+
+  UB --> FC : true
+  FC --> U : "Contraseña cambiada exitosamente."
+  FC -> FC : this.Close()
+end
+deactivate UB
+deactivate FC
+
+@enduml

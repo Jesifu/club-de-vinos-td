@@ -1,0 +1,112 @@
+@startuml DiagramaSecuencia_CU06_CrearUsuario
+
+title CU-06 — Crear Usuario — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador"       as A
+participant ":frmAdminUsuarios"    as FA #FEFECE
+participant ":frmNuevoUsuario"     as FN #FEFECE
+participant ":PerfilBLL"           as PB #E8F4E8
+participant ":UsuarioBLL"          as UB #E8F4E8
+participant ":Hasher"              as H  #F4E8E8
+participant ":IntegridadBLL"       as IB #E8F4E8
+participant ":SessionManager"      as SM #F4E8E8
+participant ":UsuarioHistorialBLL" as UH #E8F4E8
+database    ":DB"                  as DB #E8E8F4
+
+note over FA
+  Precondición: sesión activa,
+  permiso "Administrar usuarios".
+end note
+
+' ─────────────────────────────────────────
+' APERTURA DEL FORMULARIO
+' ─────────────────────────────────────────
+== 1. Apertura del formulario ==
+
+A -> FA : click "Nuevo"
+FA -> FN : new frmNuevoUsuario()\n.ShowDialog()
+activate FN
+
+FN -> PB : ListarRolesParaCombo()
+PB -> DB : ROL_LISTAR_PARA_COMBO
+DB --> PB : filas de ROL
+PB --> FN : List<Rol>
+FN -> FN : cboRol.DataSource = roles\n(combo poblado dinámicamente)
+
+' ─────────────────────────────────────────
+' INGRESO DE DATOS
+' ─────────────────────────────────────────
+== 2. Ingreso de datos ==
+
+A -> FN : ingresar nombre de usuario, contraseña,\nnombre, apellido, teléfono (opcional),\nemail (opcional) y seleccionar rol\n+ click Aceptar
+
+opt 3a. nombre o contraseña vacíos
+  FN --> A : "Ingresá un nombre de usuario." /\n"Ingresá una contraseña."
+  note right of FN : el flujo vuelve al paso 3\n(el formulario sigue abierto)
+end
+
+opt 3b. no se seleccionó ningún rol
+  FN --> A : "Seleccioná un rol."
+  note right of FN : el flujo vuelve al paso 3\n(el formulario sigue abierto)
+end
+
+alt 4a. el administrador cancela
+  FN --> FA : DialogResult.Cancel
+  deactivate FN
+  note right of FA : no se crea ningún registro\n(fin del caso de uso)
+
+else el administrador acepta
+  FN -> FN : DialogResult = OK
+  FN --> FA : (form cerrado)
+  deactivate FN
+
+  ' ─────────────────────────────────────────
+  ' ALTA DEL USUARIO
+  ' ─────────────────────────────────────────
+  == 3. Alta del usuario ==
+
+  FA -> UB : Crear(usuario, contrasena, rolId,\nnombre, apellido, telefono, email)
+  activate UB
+
+  UB -> H : Hashear(contrasena)
+  H --> UB : hash SHA-256
+
+  UB -> DB : USUARIO_CREAR(usuario, hash, rolId,\nnombre, apellido, telefono, email)\nINTENTOS_FALLIDOS = 0, BLOQUEADO = 0
+  DB --> UB : OK = 1 / 0
+
+  alt 7a. el nombre de usuario ya existe (OK = 0)
+    UB --> FA : false
+    FA --> A : "El nombre de usuario ya existe."
+    note right of FA : el flujo vuelve al paso 3
+
+  else alta exitosa (OK = 1)
+    UB -> IB : RecalcularIntegridadUsuarios()
+    IB -> DB : actualizar DVH / DVV
+
+    UB -> SM : getUsuario()
+    SM --> UB : administrador actual
+
+    UB -> UH : RegistrarCambio(usuarioId, "ALTA", admin)
+    UH -> DB : insertar snapshot en USUARIO_HISTORIAL
+
+    UB --> FA : true
+    FA --> A : "Usuario creado correctamente."
+    FA -> DB : CargarUsuarios()\n(USUARIO_LISTAR_PAGINADO,\nsegún _busquedaActual / _paginaActual)
+    DB --> FA : página de usuarios
+    FA -> FA : refrescar grilla
+  end
+  deactivate UB
+end
+
+@enduml

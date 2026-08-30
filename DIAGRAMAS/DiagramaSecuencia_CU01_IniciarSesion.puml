@@ -1,0 +1,117 @@
+@startuml DiagramaSecuencia_CU01_IniciarSesion
+
+title CU-01 — Iniciar Sesión — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Usuario"                as U
+participant ":LogIn"                  as L  #FEFECE
+participant ":LoginBLL"               as LB #E8F4E8
+participant ":SessionManager"         as SM #F4E8E8
+participant ":IdiomaBLL"              as IDB #E8F4E8
+participant ":IdiomaManager"          as IDM #F4E8E8
+participant ":IntegridadBLL"          as IB #E8F4E8
+participant ":frmRestaurar\nIntegridad" as FR #FEFECE
+participant ":frmMenu"                as FM #FEFECE
+database    ":DB"                     as DB #E8E8F4
+
+' ─────────────────────────────────────────
+' SOLICITUD DE AUTENTICACIÓN
+' ─────────────────────────────────────────
+== 1. Solicitud de autenticación ==
+
+U -> L : ingresar usuario y contraseña\n+ click Ingresar
+
+opt 3a. algún campo vacío
+  L --> U : "Completá usuario y contraseña"
+  note right of L : el flujo aborta y\nvuelve al paso 1
+end
+
+L -> LB : AutenticarUsuario(usuario, contrasena)
+activate LB
+
+LB -> DB : consultar estado del usuario\n(bloqueo y credenciales)
+DB --> LB : datos
+
+alt 4a / 5a / 5b — autenticación fallida
+  LB -> DB : actualizar intentos\n+ registrar LOGIN_FALLIDO
+  opt 5b. se alcanzó el límite
+    LB -> DB : bloquear usuario\n+ registrar USUARIO_BLOQUEADO\n+ registrar BLOQUEO en historial
+  end
+  LB --> L : UsuarioBloqueado /\nCredencialesInvalidas
+
+else flujo normal — credenciales válidas
+  LB -> DB : resetear intentos fallidos
+  LB -> DB : cargar permisos del usuario
+  DB --> LB : permisos
+  LB -> SM : setUsuario(u)\n+ setPermisos(permisos)
+  LB -> DB : registrar LOGIN en bitácora
+
+  opt u.IdiomaId.HasValue
+    LB -> IDB : ObtenerPorId(u.IdiomaId)
+    IDB --> LB : idioma
+    LB -> IDB : CargarTraducciones(idioma.Id)
+    IDB --> LB : traducciones
+    LB -> IDM : CambiarIdioma(idioma, traducciones)
+  end
+
+  LB --> L : Exito
+end
+deactivate LB
+
+' ─────────────────────────────────────────
+' EVALUACIÓN DE INTEGRIDAD Y APERTURA DEL MENÚ
+' ─────────────────────────────────────────
+== 2. Evaluación de integridad y resultado ==
+
+alt resultado == Éxito
+
+  alt 9a. integridad inválida — admin habilitado para restaurar
+    L -> FR : abrir frmRestaurarIntegridad(resultado)
+    activate FR
+    FR -> IB : RecalcularIntegridadUsuarios()\nó Restaurar desde historial
+    IB -> DB : actualizar DVH / DVV
+    FR --> L : DialogResult (OK / Cancel)
+    deactivate FR
+
+    alt admin cancela
+      L -> SM : cerrarSesion()
+      L --> U : vuelve al login
+      note right of L : el caso de uso termina
+    else admin confirma (DialogResult.OK)
+      L --> U : "Bienvenido"
+      L -> FM : abrir menú principal
+      L -> L : ocultar formulario de login
+    end
+
+  else 9b. integridad inválida — usuario NO habilitado
+    L --> U : "Error del sistema. Comuníquese con el administrador."
+    L -> SM : cerrarSesion()
+    note right of L : el caso de uso termina
+
+  else integridad OK
+    L -> IB : RecalcularIntegridadUsuarios()
+    IB -> DB : actualizar DVH / DVV
+    L --> U : "Bienvenido"
+    L -> FM : abrir menú principal
+    L -> L : ocultar formulario de login
+  end
+
+else resultado == fallido (4a / 5a / 5b)
+  opt integridad OK
+    L -> IB : RecalcularIntegridadUsuarios()
+    IB -> DB : actualizar DVH / DVV
+  end
+  L --> U : mensaje de error correspondiente
+end
+
+@enduml

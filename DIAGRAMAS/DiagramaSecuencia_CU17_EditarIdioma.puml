@@ -1,0 +1,92 @@
+@startuml DiagramaSecuencia_CU17_EditarIdioma
+
+title CU-17 — Editar Idioma (renombrar o habilitar/deshabilitar) — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador" as A
+participant ":frmIdiomas"    as FI #FEFECE
+participant ":IdiomaBLL"     as IB #E8F4E8
+database    ":DB"            as DB #E8E8F4
+
+note over FI
+  Precondición: sesión activa,
+  permiso "Gestión de idiomas",
+  existe al menos un idioma.
+end note
+
+' ─────────────────────────────────────────
+' SELECCIÓN
+' ─────────────────────────────────────────
+== 1. Selección ==
+
+A -> FI : seleccionar un idioma en la grilla
+FI -> FI : dgvIdiomas_SelectionChanged\n→ _idiomaSeleccionado
+
+A -> FI : click "Renombrar" o\n"Habilitar/Deshabilitar"
+
+opt 1a. ningún idioma seleccionado
+  FI --> A : "Seleccioná un idioma." (Aviso)
+  note right of FI : el caso de uso termina
+end
+
+alt acción = Renombrar
+
+  ' ─────────────────────────────────────────
+  ' RENOMBRAR
+  ' ─────────────────────────────────────────
+  == 2a. Renombrar ==
+
+  FI --> A : InputBox "Nuevo nombre:"\n(valor actual precargado)
+  A --> FI : ingresar nuevo nombre + Aceptar
+
+  opt 3a. nuevo nombre vacío o igual al actual
+    FI -> FI : return (no hace nada)
+    note right of FI : el caso de uso termina\nsin modificar el idioma
+  end
+
+  FI -> IB : Renombrar(id, nuevoNombre)
+  IB -> DB : UPDATE IDIOMA SET NOMBRE = nuevoNombre\nWHERE ID = id
+
+else acción = Habilitar/Deshabilitar
+
+  ' ─────────────────────────────────────────
+  ' ALTERNAR ESTADO
+  ' ─────────────────────────────────────────
+  == 2b. Alternar estado ==
+
+  FI -> IB : ActualizarEstado(id, !habilitadoActual)
+  IB -> DB : UPDATE IDIOMA SET HABILITADO = !habilitadoActual\nWHERE ID = id
+
+  note right of IB
+    RN-01: solo los idiomas
+    habilitados aparecen en el
+    selector de los formularios.
+    RN-02: deshabilitar no borra
+    las traducciones — el idioma
+    puede rehabilitarse sin pérdida.
+  end note
+end
+
+' ─────────────────────────────────────────
+' ACTUALIZACIÓN DE LA GRILLA
+' ─────────────────────────────────────────
+== 3. Actualización de la grilla ==
+
+FI -> IB : ListarTodos()
+IB -> DB : SELECT * FROM IDIOMA
+DB --> IB : filas
+IB --> FI : List<IDIOMA>
+FI -> FI : dgvIdiomas.DataSource = idiomas
+FI --> A : grilla refrescada con\nel nuevo nombre / estado
+
+@enduml

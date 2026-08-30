@@ -1,0 +1,105 @@
+@startuml DiagramaSecuencia_CU15_AsignarPermisosRol
+
+title CU-15 — Asignar Permisos a Rol — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador"  as A
+participant ":frmPerfiles"    as FP #FEFECE
+participant ":PerfilBLL"      as PB #E8F4E8
+database    ":DB"             as DB #E8E8F4
+
+note over FP
+  Precondición: sesión activa,
+  permiso "Gestión de roles",
+  el rol seleccionado existe.
+end note
+
+' ─────────────────────────────────────────
+' SELECCIÓN DEL ROL
+' ─────────────────────────────────────────
+== 1. Selección del rol ==
+
+A -> FP : seleccionar un nodo en el árbol
+FP -> FP : treePermisos_AfterSelect
+
+alt 1a. el nodo seleccionado es un permiso (no un rol)
+  FP -> FP : panelPermisos.Visible = false
+  note right of FP
+    El caso de uso no puede
+    ejecutarse sobre permisos
+    del catálogo.
+  end note
+
+else el nodo seleccionado es un rol
+  FP -> FP : panelPermisos.Visible = true
+  FP -> FP : PopularCheckPermisos(rol)
+  note right of FP
+    Recorre rol.ObtenerHijos() y
+    marca como asignados (check)
+    los hijos que son hojas
+    (permisos del catálogo).
+
+    Para cada permiso del catálogo:
+    marcado = asignados.Contains(p.Id)
+  end note
+  FP --> A : lista de permisos del\ncatálogo con checks
+
+  ' ─────────────────────────────────────────
+  ' EDICIÓN Y GUARDADO
+  ' ─────────────────────────────────────────
+  == 2. Edición y guardado ==
+
+  A -> FP : marcar / desmarcar permisos\n+ click "Guardar"
+
+  FP -> FP : recolectar IDs de permisos\nmarcados (seleccionados)
+  FP -> PB : ActualizarPermisosDeRol(rol.Id, seleccionados)
+  PB -> DB : GuardarPermisosDeRol(rol.Id, seleccionados)
+  note right of DB
+    RN-03: transacción —
+    LIMPIAR (DELETE ROL_PERMISO
+    WHERE ROL_ID = rol.Id)
+    + N × INSERTAR.
+    RN-02: reemplazo completo,
+    no incremental.
+  end note
+
+  ' ─────────────────────────────────────────
+  ' ACTUALIZACIÓN DEL ÁRBOL
+  ' ─────────────────────────────────────────
+  == 3. Actualización del árbol ==
+
+  FP -> PB : ObtenerArbol()
+  PB -> DB : ListarRoles() + ListarRolPermisos()
+  DB --> PB : filas
+  PB --> FP : List<NodoPermiso> (árbol actualizado)
+  FP -> FP : CargarArbol()
+  FP -> FP : BuscarNodo(rol.Id)\n→ mantener selección sobre el rol
+  FP --> A : árbol refrescado — los\npermisos asignados quedan\nvisibles como hijos del rol
+end
+
+note over PB
+  RN-01: el catálogo de permisos
+  es estático ("Administrar usuarios",
+  "Gestión de roles", "Gestión de
+  idiomas", "Ver bitácora", "Cambiar
+  contraseña") — no se crea ni se
+  elimina desde la UI.
+
+  Los permisos efectivos de un
+  usuario combinan los roles
+  asignados (USUARIO_PERFIL) con
+  los permisos de cada rol
+  (ROL_PERMISO).
+end note
+
+@enduml

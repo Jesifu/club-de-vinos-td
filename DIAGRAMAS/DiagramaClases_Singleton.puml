@@ -1,0 +1,108 @@
+@startuml DiagramaClases_Singleton
+
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+hide empty members
+
+title Patrón Singleton — SessionManager e IdiomaManager (SeguridadYServicios)
+
+package "SeguridadYServicios" #F4E8E8 {
+
+  class SessionManager <<Singleton>> {
+    - {static} _instance : SessionManager
+    - {static} _cerrojo : object
+    - _usuario : USUARIO
+    - _permisos : List<string>
+    --
+    - SessionManager()
+    + {static} getInstance() : SessionManager
+    + getUsuario() : USUARIO
+    + setUsuario(usuario : USUARIO)
+    + setPermisos(permisos : List<string>)
+    + TienePermiso(nombre : string) : bool
+    + EsAdmin() : bool
+    + cerrarSesion()
+  }
+
+  class IdiomaManager <<Singleton>> {
+    - {static} _instance : IdiomaManager
+    - {static} _cerrojo : object
+    - _observers : List<IObservadorIdioma>
+    - _traducciones : Dictionary<string,string>
+    - _idiomaActivo : IDIOMA
+    --
+    - IdiomaManager()
+    + {static} getInstance() : IdiomaManager
+    + Registrar(obs : IObservadorIdioma)
+    + Desregistrar(obs : IObservadorIdioma)
+    + CambiarIdioma(idioma : IDIOMA, traducciones : Dictionary)
+    + Traducir(clave : string) : string
+  }
+}
+
+' ─────────────────────────────────────────
+' Comentarios sobre la implementación del patrón
+' ─────────────────────────────────────────
+
+note top of SessionManager
+  **Constructor privado** (""private SessionManager()"")
+  Impide instanciar la clase con ""new"" desde
+  fuera de ella misma: la única forma de obtener
+  un objeto es a través de ""getInstance()"".
+end note
+
+note top of IdiomaManager
+  Misma estructura que ""SessionManager"":
+  constructor privado + campo estático
+  + ""getInstance()"" con double-checked locking.
+end note
+
+note as N_instance
+  Campo estático ""_instance"":
+  guarda la única instancia de la clase,
+  compartida por toda la aplicación
+  (una sola sesión / un solo idioma activo a la vez).
+end note
+SessionManager .. N_instance
+IdiomaManager .. N_instance
+
+note as N_dcl
+  **Double-checked locking** en ""getInstance()"":
+    1) si ""_instance == null"" se entra al ""lock"";
+    2) dentro del ""lock"" se vuelve a chequear null
+       (otro hilo pudo haberla creado mientras
+       se esperaba el lock);
+    3) recién ahí se crea la instancia.
+  Evita instancias duplicadas en escenarios
+  multi-hilo sin pagar el costo del ""lock""
+  en cada llamada posterior.
+end note
+SessionManager .. N_dcl
+IdiomaManager .. N_dcl
+
+note bottom of SessionManager
+  Particularidad de este Singleton: ""cerrarSesion()""
+  pone ""_instance"" en ""null"", por lo que el
+  próximo ""getInstance()"" crea una instancia
+  nueva (singleton "reseteable" entre sesiones).
+end note
+
+' ─────────────────────────────────────────
+' Clientes (uso del singleton)
+' ─────────────────────────────────────────
+
+class "LogIn" as LogIn <<Form>>
+class "frmMenu / demás Forms" as OtrosForms <<Form>>
+
+LogIn ..> SessionManager : getInstance()\n.setUsuario() / .setPermisos()
+OtrosForms ..> SessionManager : getInstance()\n.TienePermiso() / .EsAdmin()
+OtrosForms ..> IdiomaManager : getInstance()\n.Registrar(this) / .Traducir()
+
+note bottom of OtrosForms
+  Cualquier ""Form"" accede a la misma instancia
+  de ""SessionManager"" / ""IdiomaManager"" llamando
+  a ""getInstance()"" — nunca con ""new"".
+end note
+
+@enduml

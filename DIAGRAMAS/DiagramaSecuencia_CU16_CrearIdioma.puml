@@ -1,0 +1,71 @@
+@startuml DiagramaSecuencia_CU16_CrearIdioma
+
+title CU-16 — Crear Idioma — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador" as A
+participant ":frmIdiomas"    as FI #FEFECE
+participant ":IdiomaBLL"     as IB #E8F4E8
+database    ":DB"            as DB #E8E8F4
+
+note over FI
+  Precondición: sesión activa,
+  permiso "Gestión de idiomas".
+end note
+
+' ─────────────────────────────────────────
+' SOLICITUD
+' ─────────────────────────────────────────
+== 1. Solicitud ==
+
+A -> FI : click "Agregar idioma"
+FI --> A : InputBox "Nombre del nuevo idioma:"
+A --> FI : ingresar nombre + Aceptar
+
+opt 3a. nombre vacío (o cancelado)
+  FI -> FI : return (no hace nada)
+  note right of FI : el caso de uso termina
+end
+
+' ─────────────────────────────────────────
+' CREACIÓN
+' ─────────────────────────────────────────
+== 2. Creación ==
+
+FI -> IB : Crear(nombre, habilitado: false)
+IB -> DB : Insertar(nombre, habilitado)\n(tabla IDIOMA)
+DB --> IB : nuevo Id
+IB --> FI : new IDIOMA { Id, Nombre,\nHabilitado = false }
+
+note right of IB
+  RN-01: el idioma nace
+  deshabilitado — no aparece
+  en los combos hasta que se
+  lo habilite (CU-17) y se
+  cargue al menos una
+  traducción (CU-19).
+end note
+
+' ─────────────────────────────────────────
+' ACTUALIZACIÓN DE LA GRILLA
+' ─────────────────────────────────────────
+== 3. Actualización de la grilla ==
+
+FI -> IB : ListarTodos()
+IB -> DB : SELECT * FROM IDIOMA
+DB --> IB : filas
+IB --> FI : List<IDIOMA>
+FI -> FI : dgvIdiomas.DataSource = idiomas
+FI --> A : grilla refrescada con el\nnuevo idioma (deshabilitado)
+
+@enduml

@@ -1,0 +1,102 @@
+@startuml DiagramaClases_Observer
+
+!pragma layout smetana
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+hide empty members
+
+title Patrón Observer — Cambio de idioma (SeguridadYServicios / CAPAS)
+
+package "SeguridadYServicios" #F4E8E8 {
+
+  interface IObservadorIdioma <<Observer>> {
+    + ActualizarIdioma()
+  }
+
+  class IdiomaManager <<Subject, Singleton>> {
+    - _observers : List<IObservadorIdioma>
+    - _traducciones : Dictionary<string,string>
+    - _idiomaActivo : IDIOMA
+    --
+    + Registrar(obs : IObservadorIdioma)
+    + Desregistrar(obs : IObservadorIdioma)
+    + CambiarIdioma(idioma : IDIOMA, traducciones : Dictionary)
+    - Notificar()
+    + Traducir(clave : string) : string
+  }
+}
+
+package "CAPAS" #FEFECE {
+
+  class "frmMenu / LogIn / etc." as FormConcreto <<ConcreteObserver, Form>> {
+    - _controles : Dictionary<string,Control>
+    - _defaults : Dictionary<string,string>
+    --
+    + ActualizarIdioma()
+    - ActualizarEncabezados()
+  }
+}
+
+IdiomaManager "1" o-- "0..*" IObservadorIdioma : _observers
+FormConcreto ..|> IObservadorIdioma
+
+' ─────────────────────────────────────────
+' Comentarios sobre la implementación del patrón
+' ─────────────────────────────────────────
+
+note top of IdiomaManager
+  **Subject**: mantiene la lista de observadores
+  registrados (""_observers"") y el estado que les
+  interesa (""_traducciones"" del idioma activo).
+  ""Registrar""/""Desregistrar"" agregan o quitan
+  un Form de la lista. Es además un **Singleton**
+  (ver diagrama dedicado), por lo que toda la
+  aplicación comparte la misma lista de
+  observadores.
+end note
+
+note top of IObservadorIdioma
+  **Observer**: interfaz mínima que deben
+  implementar los Forms para recibir el
+  aviso de cambio de idioma. Un solo método,
+  ""ActualizarIdioma()"", sin parámetros: cada
+  Form vuelve a leer ""IdiomaManager.Traducir()""
+  para refrescar sus controles.
+end note
+
+note bottom of FormConcreto
+  **ConcreteObserver**: cada Form que debe
+  reaccionar al cambio de idioma:
+  - en ""Load"": ""IdiomaManager.getInstance()
+    .Registrar(this)"" y luego ""ActualizarIdioma()""
+    (para aplicar el idioma activo al abrir).
+  - en ""FormClosed"": ""...Desregistrar(this)""
+    para no quedar referenciado tras cerrarse.
+  ""ActualizarIdioma()"" recorre ""_controles"" y
+  aplica ""Traducir(clave) ?? _defaults[clave]"".
+  Si el Form tiene ""DataGridView"", también llama
+  ""ActualizarEncabezados()"" (los encabezados de
+  columna no están en ""Controls"").
+end note
+
+note as N_notificar
+  ""Notificar()"" (privado) recorre una **copia**
+  de ""_observers"" e invoca ""ActualizarIdioma()""
+  en cada uno. Se llama al final de
+  ""CambiarIdioma()"", una vez actualizados
+  ""_idiomaActivo"" y ""_traducciones"".
+end note
+IdiomaManager .. N_notificar
+
+note as N_flujo
+  **Flujo disparador** (no forma parte del
+  patrón, pero da contexto): el usuario elige
+  un idioma en el selector agregado por
+  ""IdiomaUIHelper.AgregarSelector(form)"" → CAPAS
+  llama ""IdiomaBLL.CargarTraducciones(idiomaId)""
+  → pasa el diccionario a
+  ""IdiomaManager.CambiarIdioma(idioma, dict)"".
+end note
+IdiomaManager .. N_flujo
+
+@enduml

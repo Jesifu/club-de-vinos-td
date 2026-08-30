@@ -1,0 +1,166 @@
+@startuml DiagramaSecuencia_CU11_RestaurarUsuarioHistorial
+
+title CU-11 — Restaurar Usuario desde Historial (Rollback) — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador"       as A
+participant ":frmHistorial\nUsuario" as FH #FEFECE
+participant ":SessionManager"      as SM #F4E8E8
+participant ":UsuarioHistorialBLL" as UH #E8F4E8
+participant ":IntegridadBLL"       as IB #E8F4E8
+database    ":DB"                  as DB #E8E8F4
+
+note over FH
+  Precondición: dentro de CU-10,
+  con una entrada del historial
+  seleccionada cuyo TipoCambio
+  no es BAJA (botón Rollback
+  habilitado por CU-10).
+end note
+
+' ─────────────────────────────────────────
+' SOLICITUD
+' ─────────────────────────────────────────
+== 1. Solicitud ==
+
+A -> FH : click "Rollback"
+
+opt 2a. la entrada seleccionada es de tipo ROLLBACK
+  FH --> A : "No se puede restaurar una versión\nque ya es un rollback."\n("Operación no permitida")
+  note right of FH
+    RN-04: las entradas ROLLBACK
+    no son restaurables (evita
+    cadenas de rollbacks
+    recursivos). Validación en UI,
+    antes de pedir confirmación.
+  end note
+  note right of FH : el caso de uso termina
+end
+
+' ─────────────────────────────────────────
+' CONFIRMACIÓN
+' ─────────────────────────────────────────
+== 2. Confirmación ==
+
+FH --> A : solicitar confirmación\n("¿Restaurar el estado del usuario 'X'\na la versión del dd/MM/yyyy HH:mm?\nTipo de cambio registrado: ...\nNota: la contraseña NO se restaurará.")
+
+alt 4a. el administrador cancela
+  A --> FH : No
+  note right of FH : el caso de uso termina\n(no se aplica ningún cambio)
+
+else el administrador confirma
+  A --> FH : Sí
+
+  ' ─────────────────────────────────────────
+  ' RESTAURACIÓN
+  ' ─────────────────────────────────────────
+  == 3. Restauración ==
+
+  FH -> SM : getUsuario()
+  SM --> FH : administrador actual
+
+  FH -> UH : Rollback(historialId, admin)
+  activate UH
+
+  UH -> DB : ObtenerPorId(historialId)
+  DB --> UH : snapshot
+
+  alt EX-01. snapshot no encontrado
+    UH --> FH : throw InvalidOperationException\n("Versión histórica no encontrada.")
+    FH --> A : MessageBox de error
+
+  else snapshot encontrado
+
+    alt EX-02. snapshot.TipoCambio == "ROLLBACK"\n(defensa en profundidad)
+      UH --> FH : throw InvalidOperationException\n("No se puede restaurar una versión\nque ya es un rollback.")
+      FH --> A : MessageBox de error
+      note right of UH
+        RN-04: validación de respaldo
+        en la capa de negocio, por si
+        se invoca Rollback() sin pasar
+        por la UI.
+      end note
+
+    else snapshot restaurable
+      UH -> DB : AplicarEstado(usuarioId,\nsnapshot.Rol, snapshot.Bloqueado,\nsnapshot.IntentosFallidos, snapshot.RolId)
+      note right of DB
+        RN-02: la contraseña (PASS)
+        nunca se restaura — no se
+        almacena en el historial.
+      end note
+
+      UH -> DB : BorrarTodos(usuarioId)\n(USUARIO_PERFIL)
+      loop por cada perfil del snapshot
+        UH -> DB : Asignar(usuarioId, perfilId)
+      end
+
+      UH -> DB : ActualizarDatos(usuarioId,\nsnapshot.Nombre, snapshot.Apellido,\nsnapshot.Telefono, snapshot.Email)
+      note right of DB
+        RN-05: los campos personales
+        (Nombre, Apellido, Teléfono,
+        Email) también se restauran
+        desde el snapshot histórico.
+      end note
+
+      UH -> UH : RegistrarCambio(usuarioId,\n"ROLLBACK", admin, historialId)
+      UH -> DB : insertar snapshot en USUARIO_HISTORIAL\n(VersionOrigen = historialId)
+      note right of DB
+        RN-03: cada rollback genera
+        una entrada nueva; los
+        snapshots anteriores nunca
+        se borran.
+      end note
+
+      UH -> IB : RecalcularIntegridadUsuarios()
+      IB -> DB : actualizar DVH / DVV
+
+      opt el rollback afecta al usuario de la sesión activa
+        UH -> SM : getUsuario()
+        SM --> UH : usuarioSesion
+
+        alt usuarioSesion != null\nAND usuarioSesion.Id == snapshot.UsuarioId
+          UH -> DB : ObtenerPorId(usuarioId)
+          DB --> UH : usuarioActualizado
+          UH -> SM : setUsuario(usuarioActualizado)
+
+          UH -> DB : ListarPermisosDeUsuario(usuarioId)
+          DB --> UH : permisos actualizados
+          UH -> SM : setPermisos(permisosActualizados)
+
+          note right of SM
+            RN-06: si el rollback afecta al
+            propio administrador logueado,
+            su SessionManager se refresca
+            en caliente (usuario y permisos)
+            para que no haga falta
+            desloguearse y volver a entrar.
+          end note
+        end
+      end
+
+      deactivate UH
+
+      FH --> A : "Estado restaurado correctamente."
+      FH -> FH : CargarHistorial()\n(refresca la grilla)
+    end
+  end
+end
+
+note over UH, DB
+  Relación «include» en CU-02 — Restaurar
+  Integridad: se invoca este flujo para cada
+  usuario afectado al elegir "Restaurar
+  desde historial".
+end note
+
+@enduml
