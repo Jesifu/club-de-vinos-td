@@ -1,0 +1,76 @@
+@startuml DiagramaSecuencia_CU22_RegistrarMovimientoStock
+
+title CU-22 — Registrar Movimiento de Stock — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam ParticipantPadding 14
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+actor       ":Usuario"            as U
+participant ":frmMovimientoStock" as FM #FEFECE
+participant ":StockBLL"           as SB #E8F4E8
+database    ":DB"                 as DB #E8E8F4
+
+note over FM
+  Precondición: sesión activa,
+  permiso "Gestionar catálogo de vinos".
+end note
+
+== 1. Entrada de stock por compra a bodega/proveedor ==
+
+U -> FM : abrir "Movimiento de stock" + seleccionar vino
+activate FM
+FM -> SB : ObtenerStockActual(vinoId)
+SB -> DB : STOCK_ACTUAL(vinoId)\n(SUM(Entrada) - SUM(Salida))
+DB --> SB : cantidad actual
+SB --> FM : int
+FM -> FM : mostrar stock actual
+
+U -> FM : ingresar tipo = Entrada, cantidad,\nmotivo (compra), referencia + click Registrar
+
+opt 2a. cantidad menor o igual a cero
+  FM --> U : "La cantidad debe ser mayor a cero."
+  note right of FM : el flujo vuelve al paso 2
+end
+
+FM -> SB : RegistrarEntrada(movimiento)
+activate SB
+SB -> DB : MOVIMIENTO_STOCK_INSERTAR(vinoId, "Entrada",\ncantidad, motivo, responsable, referencia)
+DB --> SB : OK
+SB --> FM : true
+deactivate SB
+FM --> U : "Entrada registrada. Stock actualizado."
+FM -> SB : ObtenerStockActual(vinoId)
+SB -> DB : STOCK_ACTUAL(vinoId)
+DB --> SB : nueva cantidad
+SB --> FM : int
+FM -> FM : refrescar stock actual en pantalla
+deactivate FM
+
+== 2. Salida de stock por pedido (flujo alternativo) ==
+
+U -> FM : seleccionar vino, tipo = Salida,\ncantidad, motivo (pedido) + click Registrar
+activate FM
+FM -> SB : RegistrarSalida(movimiento)
+activate SB
+SB -> DB : STOCK_ACTUAL(vinoId)
+DB --> SB : cantidad actual
+
+alt 5a. stock resultante menor a cero (RN-03)
+  SB --> FM : InvalidOperationException("Stock insuficiente")
+  FM --> U : "No hay stock suficiente para esta salida."
+  note right of FM : el flujo vuelve al paso 4,\nno se registra el movimiento
+else stock suficiente
+  SB -> DB : MOVIMIENTO_STOCK_INSERTAR(vinoId, "Salida",\ncantidad, motivo, responsable, referencia)
+  DB --> SB : OK
+  SB --> FM : true
+  deactivate SB
+  FM --> U : "Salida registrada. Stock actualizado."
+  deactivate FM
+end
+
+@enduml

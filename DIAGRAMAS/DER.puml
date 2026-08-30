@@ -100,6 +100,56 @@ entity DIGITO_VERIFICADOR_VERTICAL {
   DVV : INT
 }
 
+' ─────────────────────────────────────────
+' Dominio: catálogo y stock de vinos
+' (change: gestion-catalogo-stock-vinos)
+' ─────────────────────────────────────────
+
+entity BODEGA {
+  * ID : INT <<PK>>
+  --
+  NOMBRE : VARCHAR(100) <<unique>>
+  PAIS : VARCHAR(50)
+  REGION : VARCHAR(50) <<nullable>>
+  HABILITADO : BIT
+}
+
+entity VINO {
+  * ID : INT <<PK>>
+  --
+  CODIGO : VARCHAR(20) <<unique>>
+  NOMBRE : VARCHAR(100)
+  BODEGA_ID : INT <<FK>>
+  VARIETAL : VARCHAR(50)
+  ANIADA : INT
+  PRECIO : DECIMAL(10,2)
+  STOCK_MINIMO : INT
+  ESTADO : VARCHAR(15)
+  MARIDAJE : VARCHAR(200) <<nullable>>
+  PUNTAJE : INT <<nullable>>
+  CREADO_POR : INT <<FK>>
+  FECHA_ALTA : DATETIME
+  AUTORIZADO_POR : INT <<FK, nullable>>
+  FECHA_AUTORIZACION : DATETIME <<nullable>>
+  BAJA_SOLICITADA_POR : INT <<FK, nullable>>
+  FECHA_SOLICITUD_BAJA : DATETIME <<nullable>>
+  DESCONTINUADO_POR : INT <<FK, nullable>>
+  FECHA_DESCONTINUACION : DATETIME <<nullable>>
+}
+
+entity MOVIMIENTO_STOCK {
+  * ID : INT <<PK>>
+  --
+  VINO_ID : INT <<FK>>
+  FECHA : DATETIME
+  TIPO : VARCHAR(10)
+  CANTIDAD : INT
+  MOTIVO : VARCHAR(100)
+  RESPONSABLE : VARCHAR(50)
+  REFERENCIA_TIPO : VARCHAR(20) <<nullable>>
+  REFERENCIA_ID : INT <<nullable>>
+}
+
 ' Relaciones con FK real
 USUARIO        ||--o{ USUARIO_PERFIL  : "tiene >"
 ROL            ||--o{ USUARIO_PERFIL  : "< rol asignado a"
@@ -112,5 +162,29 @@ IDIOMA         ||--o{ TRADUCCION      : "tiene >"
 CONTROL_IDIOMA ||--o{ TRADUCCION      : "< traduce"
 
 USUARIO        ..o{ USUARIO_HISTORIAL : "referencia logica >"
+
+' Dominio: catálogo y stock de vinos
+BODEGA  ||--o{ VINO             : "BODEGA_ID >"
+VINO    ||--o{ MOVIMIENTO_STOCK : "VINO_ID >"
+USUARIO ||--o{ VINO             : "CREADO_POR >"
+USUARIO ||--o{ VINO             : "AUTORIZADO_POR >"
+USUARIO ||--o{ VINO             : "BAJA_SOLICITADA_POR >"
+USUARIO ||--o{ VINO             : "DESCONTINUADO_POR >"
+
+note bottom of VINO
+  Invariante de aplicación (no de esquema):
+  AUTORIZADO_POR <> CREADO_POR — se valida en VinoBLL.
+  Vino visible/vendible ⇔ AUTORIZADO_POR IS NOT NULL
+  AND ESTADO = 'Activo'.
+end note
+
+note bottom of PERMISO
+  +2 filas nuevas (dominio catálogo de vinos):
+  "Gestionar catálogo de vinos", "Autorizar catálogo de vinos".
+end note
+
+note bottom of ROL
+  +1 fila nueva: "Encargado de Compras/Bodega" (PROTEGIDO = 0).
+end note
 
 @enduml

@@ -84,6 +84,64 @@ package "BE" #FEFECE {
     + TotalPaginas : int
   }
 
+  ' ── Dominio: catálogo y stock de vinos (gestion-catalogo-stock-vinos) ──
+  enum EstadoVino {
+    Activo
+    Descontinuado
+  }
+
+  enum TipoMovimiento {
+    Entrada
+    Salida
+  }
+
+  class Vino {
+    + Id : int
+    + Codigo : string
+    + Nombre : string
+    + BodegaId : int
+    + Varietal : string
+    + Aniada : int
+    + Precio : decimal
+    + StockMinimo : int
+    + Estado : EstadoVino
+    + Maridaje : string
+    + Puntaje : int?
+    + CreadoPor : int
+    + FechaAlta : DateTime
+    + AutorizadoPor : int?
+    + FechaAutorizacion : DateTime?
+    + BajaSolicitadaPor : int?
+    + FechaSolicitudBaja : DateTime?
+    + DescontinuadoPor : int?
+    + FechaDescontinuacion : DateTime?
+  }
+
+  class Bodega {
+    + Id : int
+    + Nombre : string
+    + Pais : string
+    + Region : string
+    + Habilitado : bool
+  }
+
+  class MovimientoStock {
+    + Id : int
+    + VinoId : int
+    + Fecha : DateTime
+    + Tipo : TipoMovimiento
+    + Cantidad : int
+    + Motivo : string
+    + Responsable : string
+    + ReferenciaTipo : string
+    + ReferenciaId : int?
+  }
+
+  Vino --> EstadoVino
+  Vino --> Bodega : BodegaId >
+  MovimientoStock --> TipoMovimiento
+  MovimientoStock --> Vino : VinoId >
+
   abstract class NodoPermiso {
     + Id : int
     + Nombre : string
@@ -277,6 +335,34 @@ package "DAL" #DAE8FC {
     + ObtenerPorId(id : int) : UsuarioHistorial
   }
 
+  ' ── Dominio: catálogo y stock de vinos ──
+  class VinoDAL {
+    - _acceso : Acceso
+    + Insertar(vino : Vino) : int
+    + ExisteCodigo(codigo : string) : bool
+    + Autorizar(vinoId : int, administradorId : int) : void
+    + SolicitarBaja(vinoId : int, solicitanteId : int) : void
+    + AutorizarBaja(vinoId : int, administradorId : int) : void
+    + ListarPublicados() : List<Vino>
+    + ListarPendientes() : List<Vino>
+    + ListarPendientesDeBaja() : List<Vino>
+    + ObtenerPorId(id : int) : Vino
+  }
+
+  class BodegaDAL {
+    - _acceso : Acceso
+    + ListarHabilitadas() : List<Bodega>
+    + Insertar(bodega : Bodega) : int
+  }
+
+  class StockDAL {
+    - _acceso : Acceso
+    + Insertar(mov : MovimientoStock) : void
+    + ObtenerStockActual(vinoId : int) : int
+    + ListarPorVino(vinoId : int) : List<MovimientoStock>
+    + ListarBajoStockMinimo() : List<Vino>
+  }
+
   UsuarioDAL --> Acceso
   PerfilDAL --> Acceso
   UsuarioPerfilDAL --> Acceso
@@ -287,6 +373,9 @@ package "DAL" #DAE8FC {
   UsuarioDAL --> PaginaResultado
   BitacoraDAL --> PaginaResultado
   UsuarioHistorialDAL --> PaginaResultado
+  VinoDAL --> Acceso
+  BodegaDAL --> Acceso
+  StockDAL --> Acceso
 }
 
 ' ─────────────────────────────────────────
@@ -400,6 +489,33 @@ package "BLL" #FFE6CC {
     + Rollback(historialId : int, realizadoPor : string) : void
   }
 
+  ' ── Dominio: catálogo y stock de vinos ──
+  class VinoBLL {
+    - _dal : VinoDAL
+    + Proponer(vino : Vino) : bool
+    + Autorizar(vinoId : int, administradorId : int) : void
+    + SolicitarBaja(vinoId : int, solicitanteId : int) : void
+    + AutorizarBaja(vinoId : int, administradorId : int) : void
+    + ListarCatalogoPublicado() : List<Vino>
+    + ListarPendientes() : List<Vino>
+    + ListarPendientesDeBaja() : List<Vino>
+  }
+
+  class BodegaBLL {
+    - _dal : BodegaDAL
+    + ListarHabilitadas() : List<Bodega>
+    + Crear(bodega : Bodega) : int
+  }
+
+  class StockBLL {
+    - _dal : StockDAL
+    + RegistrarEntrada(mov : MovimientoStock) : void
+    + RegistrarSalida(mov : MovimientoStock) : void
+    + ObtenerStockActual(vinoId : int) : int
+    + ListarKardex(vinoId : int) : List<MovimientoStock>
+    + ListarBajoStockMinimo() : List<Vino>
+  }
+
   IntegridadBLL --> IntegridadDAL
   IntegridadBLL --> UsuarioPerfilDAL
   UsuarioBLL --> UsuarioDAL
@@ -427,6 +543,9 @@ package "BLL" #FFE6CC {
   UsuarioBLL --> PaginaResultado
   BitacoraBLL --> PaginaResultado
   UsuarioHistorialBLL --> PaginaResultado
+  VinoBLL --> VinoDAL
+  BodegaBLL --> BodegaDAL
+  StockBLL --> StockDAL
 }
 
 ' ─────────────────────────────────────────
@@ -509,6 +628,40 @@ package "CAPAS" #F8CECC {
     - _historialBll : UsuarioHistorialBLL
   }
 
+  ' ── Dominio: catálogo y stock de vinos ──
+  together {
+    class frmCatalogoVinos {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmNuevoVino {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmAutorizarVinos {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmMovimientoStock {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmKardexVino {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmAlertaStockMinimo {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+  }
+
   IObservadorIdioma <|.. LogIn
   IObservadorIdioma <|.. frmMenu
   IObservadorIdioma <|.. frmAdminUsuarios
@@ -520,6 +673,12 @@ package "CAPAS" #F8CECC {
   IObservadorIdioma <|.. frmPerfiles
   IObservadorIdioma <|.. frmAsignarPerfiles
   IObservadorIdioma <|.. frmIdiomas
+  IObservadorIdioma <|.. frmCatalogoVinos
+  IObservadorIdioma <|.. frmNuevoVino
+  IObservadorIdioma <|.. frmAutorizarVinos
+  IObservadorIdioma <|.. frmMovimientoStock
+  IObservadorIdioma <|.. frmKardexVino
+  IObservadorIdioma <|.. frmAlertaStockMinimo
 }
 
 ' ─────────────────────────────────────────
@@ -545,5 +704,14 @@ frmMenu --> IdiomaManager
 frmMenu --> IdiomaBLL
 frmMenu --> UsuarioBLL
 frmMenu --> BitacoraBLL
+
+' Dominio: catálogo y stock de vinos
+frmCatalogoVinos    --> VinoBLL
+frmNuevoVino         --> VinoBLL
+frmNuevoVino         --> BodegaBLL
+frmAutorizarVinos    --> VinoBLL
+frmMovimientoStock   --> StockBLL
+frmKardexVino        --> StockBLL
+frmAlertaStockMinimo --> StockBLL
 
 @enduml

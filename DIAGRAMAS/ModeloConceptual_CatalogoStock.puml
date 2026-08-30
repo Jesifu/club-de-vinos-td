@@ -1,0 +1,56 @@
+@startuml ModeloConceptual_CatalogoStock
+
+title Modelo Conceptual — Catálogo y Stock de Vinos
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam classAttributeIconSize 0
+hide circle
+hide methods
+
+class Bodega {
+  Nombre
+  País
+  Región
+}
+
+class Vino {
+  Código
+  Nombre
+  Varietal
+  Añada
+  Precio
+  Stock mínimo
+  Estado (Activo / Descontinuado)
+}
+
+class "Movimiento de Stock" as MovimientoStock {
+  Fecha
+  Tipo (Entrada / Salida)
+  Cantidad
+  Motivo
+}
+
+class Usuario {
+  Nombre de usuario
+}
+
+Bodega "1" -- "0..*" Vino             : produce >
+Vino   "1" -- "0..*" MovimientoStock  : registra movimientos de >
+Usuario "1" -- "0..*" Vino            : propone alta / autoriza / descontinúa >
+
+note right of Vino
+  Un vino visible en el catálogo requiere
+  autorización de un Administrador distinto
+  de quien propuso el alta (separación de
+  funciones entre roles de negocio).
+end note
+
+note bottom of MovimientoStock
+  El stock actual de un vino es un valor
+  derivado: no se almacena directamente,
+  se calcula a partir del historial de
+  movimientos de entrada y salida.
+end note
+
+@enduml

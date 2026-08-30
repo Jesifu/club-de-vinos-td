@@ -1,0 +1,53 @@
+@startuml DiagramaActividad_CatalogoStock
+
+title Proceso de negocio — Gestión de Catálogo y Stock de Vinos
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam activity {
+  BackgroundColor #FEFECE
+  BorderColor #33342E
+}
+skinparam partition {
+  BorderColor #666666
+  FontStyle bold
+}
+scale 0.8
+
+|Bodega/Proveedor|
+start
+:Despachar Mercadería;
+
+|Encargado de Depósito|
+:Recepcionar Mercadería;
+:Verificar Remito;
+:Registrar Ingreso de Stock;
+:Validar Stock Mínimo;
+
+|Encargado de Compras|
+:Actualizar Legajo de Bodega;
+
+if (¿El vino recibido es nuevo\nen el catálogo?) then (sí)
+  :Proponer Alta de Vino;
+else (no)
+endif
+
+if (¿Corresponde retirar algún vino\ndel catálogo?) then (sí)
+  :Solicitar Descontinuación de Vino;
+else (no)
+endif
+
+|Administrador|
+if (¿Hay una propuesta de alta\npendiente?) then (sí)
+  :Autorizar Publicación de Vino;
+else (no)
+endif
+
+if (¿Hay una solicitud de\ndescontinuación pendiente?) then (sí)
+  :Autorizar Descontinuación de Vino;
+else (no)
+endif
+
+stop
+
+@enduml
