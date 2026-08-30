@@ -3,6 +3,7 @@
 !pragma layout smetana
 skinparam classAttributeIconSize 0
 skinparam packageStyle rectangle
+skinparam linetype ortho
 hide empty members
 scale 0.6
 

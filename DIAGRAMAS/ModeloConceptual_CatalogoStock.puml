@@ -5,6 +5,7 @@ title Modelo Conceptual — Catálogo y Stock de Vinos
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam classAttributeIconSize 0
+skinparam linetype ortho
 hide circle
 hide methods
 
