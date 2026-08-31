@@ -1,0 +1,52 @@
+@startuml DiagramaSecuencia_CU22_AutorizarAltaVino
+
+title CU-22 — Autorizar Alta de Vino — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+actor       ":Administrador"     as A
+participant ":frmAutorizarVinos" as FA #FEFECE
+participant ":VinoBLL"           as VB #E8F4E8
+database    ":DB"                as DB #E8E8F4
+
+note over FA
+  Precondición: sesión activa,
+  permiso "Autorizar catálogo de vinos",
+  existe al menos un vino con AUTORIZADO_POR nulo.
+end note
+
+A -> FA : abrir "Vinos pendientes de autorización"
+activate FA
+FA -> VB : ListarPendientes()
+VB -> DB : VINO_LISTAR_PENDIENTES
+DB --> VB : filas con AUTORIZADO_POR IS NULL
+VB --> FA : List<Vino>
+FA -> FA : refrescar grilla
+
+A -> FA : seleccionar vino + click "Autorizar"
+FA -> VB : Autorizar(vinoId, administradorId)
+activate VB
+
+alt 3a. el administrador es el mismo que propuso el alta (RN-01)
+  VB --> FA : InvalidOperationException
+  FA --> A : "No podés autorizar un vino que vos mismo diste de alta."
+  note right of FA : el flujo vuelve al paso 2
+else separación de funciones OK
+  VB -> DB : VINO_AUTORIZAR(vinoId, administradorId,\nFECHA_AUTORIZACION = ahora)
+  DB --> VB : OK
+  VB --> FA : true
+  deactivate VB
+  FA --> A : "Vino autorizado y publicado en el catálogo."
+  FA -> VB : ListarPendientes()
+  VB -> DB : VINO_LISTAR_PENDIENTES
+  DB --> VB : página actualizada
+  VB --> FA : List<Vino>
+  deactivate FA
+end
+
+@enduml

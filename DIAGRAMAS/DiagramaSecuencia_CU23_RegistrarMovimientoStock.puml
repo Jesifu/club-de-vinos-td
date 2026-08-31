@@ -1,6 +1,6 @@
-@startuml DiagramaSecuencia_CU22_RegistrarMovimientoStock
+@startuml DiagramaSecuencia_CU23_RegistrarMovimientoStock
 
-title CU-22 — Registrar Movimiento de Stock — Diagrama de Secuencia
+title CU-23 — Registrar Movimiento de Stock — Diagrama de Secuencia
 
 skinparam shadowing false
 skinparam roundcorner 6

@@ -1,11 +1,10 @@
-@startuml DiagramaSecuencia_CU21_ProponerYAutorizarAltaVino
+@startuml DiagramaSecuencia_CU21_ProponerAltaVino
 
-title CU-21 — Proponer y Autorizar Alta de Vino — Diagrama de Secuencia
+title CU-21 — Proponer Alta de Vino — Diagrama de Secuencia
 
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
 scale 0.8
@@ -14,15 +13,11 @@ actor       ":Usuario"           as U
 participant ":frmNuevoVino"      as FN #FEFECE
 participant ":VinoBLL"           as VB #E8F4E8
 database    ":DB"                as DB #E8E8F4
-actor       ":Administrador"     as A
-participant ":frmAutorizarVinos" as FA #FEFECE
 
 note over FN
   Precondición: sesión activa,
   permiso "Gestionar catálogo de vinos".
 end note
-
-== 1. Propuesta de alta de vino ==
 
 U -> FN : click "Nuevo vino"
 activate FN
@@ -55,37 +50,6 @@ else código disponible
   deactivate VB
   FN --> U : "Vino cargado, pendiente de autorización."
   deactivate FN
-end
-
-== 2. Autorización de publicación ==
-
-A -> FA : abrir "Vinos pendientes de autorización"
-activate FA
-FA -> VB : ListarPendientes()
-VB -> DB : VINO_LISTAR_PENDIENTES
-DB --> VB : filas con AUTORIZADO_POR IS NULL
-VB --> FA : List<Vino>
-FA -> FA : refrescar grilla
-
-A -> FA : seleccionar vino + click "Autorizar"
-FA -> VB : Autorizar(vinoId, administradorId)
-activate VB
-
-alt 6a. el administrador es el mismo que propuso el alta (RN-01)
-  VB --> FA : InvalidOperationException
-  FA --> A : "No podés autorizar un vino que vos mismo diste de alta."
-  note right of FA : el flujo vuelve al paso 5
-else separación de funciones OK
-  VB -> DB : VINO_AUTORIZAR(vinoId, administradorId,\nFECHA_AUTORIZACION = ahora)
-  DB --> VB : OK
-  VB --> FA : true
-  deactivate VB
-  FA --> A : "Vino autorizado y publicado en el catálogo."
-  FA -> VB : ListarPendientes()
-  VB -> DB : VINO_LISTAR_PENDIENTES
-  DB --> VB : página actualizada
-  VB --> FA : List<Vino>
-  deactivate FA
 end
 
 @enduml

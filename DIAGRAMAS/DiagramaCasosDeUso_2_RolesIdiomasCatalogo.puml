@@ -27,16 +27,18 @@ rectangle "Auditoria" #FFF0E0 {
 }
 
 rectangle "Gestion de Catalogo y Stock de Vinos" #F0E8F8 {
-  usecase "Proponer y Autorizar\nAlta de Vino" as CU21
-  usecase "Registrar Movimiento\nde Stock" as CU22
-  usecase "Solicitar y Autorizar\nDescontinuacion de Vino" as CU23
-  usecase "Consultar Alerta de\nStock Minimo" as CU24
+  usecase "Proponer Alta\nde Vino" as CU21
+  usecase "Autorizar Alta\nde Vino" as CU22
+  usecase "Registrar Movimiento\nde Stock" as CU23
+  usecase "Solicitar Descontinuacion\nde Vino" as CU24
+  usecase "Autorizar Descontinuacion\nde Vino" as CU25
+  usecase "Consultar Alerta de\nStock Minimo" as CU26
 }
 
-Usuario -- CU22
-Usuario -- CU24
 Usuario -- CU21
 Usuario -- CU23
+Usuario -- CU24
+Usuario -- CU26
 
 Administrador -- CU12
 Administrador -- CU13
@@ -47,6 +49,6 @@ Administrador -- CU17
 Administrador -- CU18
 Administrador -- CU19
 Administrador -- CU20
-Administrador -- CU21
-Administrador -- CU23
+Administrador -- CU22
+Administrador -- CU25
 @enduml

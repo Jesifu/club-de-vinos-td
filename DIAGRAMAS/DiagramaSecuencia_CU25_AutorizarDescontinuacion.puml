@@ -1,41 +1,24 @@
-@startuml DiagramaSecuencia_CU23_SolicitarYAutorizarDescontinuacion
+@startuml DiagramaSecuencia_CU25_AutorizarDescontinuacion
 
-title CU-23 — Solicitar y Autorizar Descontinuación de Vino — Diagrama de Secuencia
+title CU-25 — Autorizar Descontinuación de Vino — Diagrama de Secuencia
 
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
 scale 0.8
 
-actor       ":Usuario"              as U
-participant ":frmCatalogoVinos"     as FC #FEFECE
-participant ":VinoBLL"              as VB #E8F4E8
-database    ":DB"                   as DB #E8E8F4
 actor       ":Administrador"        as A
 participant ":frmAutorizarVinos"    as FA #FEFECE
+participant ":VinoBLL"              as VB #E8F4E8
+database    ":DB"                   as DB #E8E8F4
 
-note over FC
+note over FA
   Precondición: sesión activa,
-  permiso "Gestionar catálogo de vinos".
+  permiso "Autorizar catálogo de vinos",
+  existe al menos un vino con solicitud de baja pendiente.
 end note
-
-== 1. Solicitud de descontinuación ==
-
-U -> FC : seleccionar vino activo + click\n"Solicitar descontinuación"
-activate FC
-FC -> VB : SolicitarBaja(vinoId, solicitanteId)
-activate VB
-VB -> DB : VINO_SOLICITAR_BAJA(vinoId, solicitanteId,\nFECHA_SOLICITUD_BAJA = ahora)
-DB --> VB : OK
-VB --> FC : true
-deactivate VB
-FC --> U : "Descontinuación solicitada,\npendiente de autorización."
-deactivate FC
-
-== 2. Autorización de la descontinuación ==
 
 A -> FA : abrir "Descontinuaciones pendientes"
 activate FA
@@ -49,10 +32,10 @@ A -> FA : seleccionar vino + click "Autorizar baja"
 FA -> VB : AutorizarBaja(vinoId, administradorId)
 activate VB
 
-alt 6a. el administrador es el mismo que solicitó la baja (RN-01)
+alt 3a. el administrador es el mismo que solicitó la baja (RN-01)
   VB --> FA : InvalidOperationException
   FA --> A : "No podés autorizar una descontinuación\nque vos mismo solicitaste."
-  note right of FA : el flujo vuelve al paso 5
+  note right of FA : el flujo vuelve al paso 2
 else separación de funciones OK
   VB -> DB : VINO_AUTORIZAR_BAJA(vinoId, administradorId,\nESTADO = 'Descontinuado',\nFECHA_DESCONTINUACION = ahora)
   DB --> VB : OK

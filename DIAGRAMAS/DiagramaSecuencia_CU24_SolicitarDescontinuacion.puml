@@ -1,0 +1,40 @@
+@startuml DiagramaSecuencia_CU24_SolicitarDescontinuacion
+
+title CU-24 — Solicitar Descontinuación de Vino — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+actor       ":Usuario"              as U
+participant ":frmCatalogoVinos"     as FC #FEFECE
+participant ":VinoBLL"              as VB #E8F4E8
+database    ":DB"                   as DB #E8E8F4
+
+note over FC
+  Precondición: sesión activa,
+  permiso "Gestionar catálogo de vinos",
+  vino en ESTADO = 'Activo'.
+end note
+
+U -> FC : seleccionar vino activo + click\n"Solicitar descontinuación"
+activate FC
+FC -> VB : SolicitarBaja(vinoId, solicitanteId)
+activate VB
+
+alt 1a. el vino ya está descontinuado o con baja ya solicitada
+  VB --> FC : InvalidOperationException
+  FC --> U : "Este vino ya no está activo o ya tiene\nuna solicitud de baja pendiente."
+else vino activo, sin solicitud previa
+  VB -> DB : VINO_SOLICITAR_BAJA(vinoId, solicitanteId,\nFECHA_SOLICITUD_BAJA = ahora)
+  DB --> VB : OK
+  VB --> FC : true
+  deactivate VB
+  FC --> U : "Descontinuación solicitada,\npendiente de autorización."
+  deactivate FC
+end
+
+@enduml
