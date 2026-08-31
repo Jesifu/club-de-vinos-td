@@ -1,0 +1,85 @@
+@startuml DiagramaCasosDeUso - Sistema de Gestion de Usuarios y Catalogo de Vinos
+
+left to right direction
+skinparam shadowing false
+skinparam roundcorner 6
+scale 2.33
+
+actor Usuario
+actor Administrador
+
+Administrador --|> Usuario
+
+rectangle "Seguridad y Sesion" #FEFECE {
+  usecase "Iniciar Sesion" as CU01
+  usecase "Cerrar Sesion" as CU03
+  usecase "Cambiar Contrasena" as CU04
+  usecase "Cambiar Idioma" as CU05
+  usecase "Restaurar Integridad\ndel Sistema" as CU02
+}
+
+rectangle "Gestion de Usuarios" #E8F4E8 {
+  usecase "Crear Usuario" as CU06
+  usecase "Eliminar Usuario" as CU07
+  usecase "Desbloquear Usuario" as CU08
+  usecase "Asignar Perfiles\na Usuario" as CU09
+  usecase "Ver Historial\nde Usuario" as CU10
+  usecase "Restaurar Usuario\ndesde Historial" as CU11
+}
+
+rectangle "Gestion de Roles y Permisos" #E8E8F4 {
+  usecase "Crear Rol" as CU12
+  usecase "Eliminar Rol" as CU13
+  usecase "Cambiar Padre de Rol" as CU14
+  usecase "Asignar Permisos\na Rol" as CU15
+}
+
+rectangle "Gestion de Idiomas" #F4E8E8 {
+  usecase "Crear Idioma" as CU16
+  usecase "Editar Idioma" as CU17
+  usecase "Eliminar Idioma" as CU18
+  usecase "Cargar o Editar\nTraducciones" as CU19
+}
+
+rectangle "Auditoria" #FFF0E0 {
+  usecase "Ver Bitacora" as CU20
+}
+
+rectangle "Gestion de Catalogo y Stock de Vinos" #F0E8F8 {
+  usecase "Proponer y Autorizar\nAlta de Vino" as CU21
+  usecase "Registrar Movimiento\nde Stock" as CU22
+  usecase "Solicitar y Autorizar\nDescontinuacion de Vino" as CU23
+  usecase "Consultar Alerta de\nStock Minimo" as CU24
+}
+
+' Casos de uso accesibles a cualquier usuario autenticado
+Usuario -- CU01
+Usuario -- CU03
+Usuario -- CU04
+Usuario -- CU05
+Usuario -- CU22
+Usuario -- CU24
+Usuario -- CU21
+Usuario -- CU23
+
+' Casos de uso exclusivos de Administrador
+Administrador -- CU02
+Administrador -- CU06
+Administrador -- CU07
+Administrador -- CU08
+Administrador -- CU09
+Administrador -- CU10
+Administrador -- CU11
+Administrador -- CU12
+Administrador -- CU13
+Administrador -- CU14
+Administrador -- CU15
+Administrador -- CU16
+Administrador -- CU17
+Administrador -- CU18
+Administrador -- CU19
+Administrador -- CU20
+Administrador -- CU21
+Administrador -- CU23
+
+@enduml
