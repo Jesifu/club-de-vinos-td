@@ -1,0 +1,61 @@
+@startuml DiagramaSecuencia_CU27_RegistrarAjusteInventario
+
+title CU-27 — Registrar Ajuste de Inventario — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+actor       ":Usuario"            as U
+participant ":frmMovimientoStock" as FM #FEFECE
+participant ":StockBLL"           as SB #E8F4E8
+database    ":DB"                 as DB #E8E8F4
+
+note over FM
+  Precondición: sesión activa,
+  permiso "Gestionar catálogo de vinos".
+end note
+
+U -> FM : abrir "Registrar ajuste de inventario" + seleccionar vino
+activate FM
+FM -> SB : ObtenerStockActual(vinoId)
+SB -> DB : STOCK_ACTUAL(vinoId)\n(SUM(Entrada) - SUM(Salida))
+DB --> SB : cantidad actual
+SB --> FM : int
+FM -> FM : mostrar stock actual
+
+U -> FM : indicar sentido (positivo/negativo),\ncantidad y motivo (rotura, merma,\ncorrección de conteo) + click Registrar
+FM -> SB : RegistrarAjuste(movimiento)
+activate SB
+
+alt sentido negativo
+  SB -> DB : STOCK_ACTUAL(vinoId)
+  DB --> SB : cantidad actual
+
+  alt 2a. stock resultante menor a cero (RN-03)
+    SB --> FM : InvalidOperationException("Stock insuficiente")
+    FM --> U : "No hay stock suficiente para este ajuste."
+    note right of FM : el flujo vuelve al paso 2,\nno se registra el movimiento
+  else stock suficiente
+    SB -> DB : MOVIMIENTO_STOCK_INSERTAR(vinoId, "Salida",\ncantidad, motivo, responsable)
+    DB --> SB : OK
+  end
+else sentido positivo
+  SB -> DB : MOVIMIENTO_STOCK_INSERTAR(vinoId, "Entrada",\ncantidad, motivo, responsable)
+  DB --> SB : OK
+end
+
+SB --> FM : true
+deactivate SB
+FM --> U : "Ajuste registrado. Stock actualizado."
+FM -> SB : ObtenerStockActual(vinoId)
+SB -> DB : STOCK_ACTUAL(vinoId)
+DB --> SB : nueva cantidad
+SB --> FM : int
+FM -> FM : refrescar stock actual en pantalla
+deactivate FM
+
+@enduml

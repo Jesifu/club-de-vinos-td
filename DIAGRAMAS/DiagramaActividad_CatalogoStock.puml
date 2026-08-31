@@ -24,6 +24,11 @@ start
 :Registrar Ingreso de Stock;
 :Validar Stock Mínimo;
 
+if (¿Se detectó una diferencia de\ninventario (rotura, merma, error\nde conteo)?) then (sí)
+  :Registrar Ajuste de Inventario;
+else (no)
+endif
+
 |Encargado de Compras|
 :Actualizar Legajo de Bodega;
 
