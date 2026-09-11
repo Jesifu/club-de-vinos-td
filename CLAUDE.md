@@ -89,7 +89,7 @@ AppTheme.AplicarTema(this);
 1. `PerfilDAL.ListarRoles()` fetches all `ROL` rows and builds the rol hierarchy from `PADRE_ID`.
 2. `PerfilDAL.ListarRolPermisos()` fetches all rows from `ROL_PERMISO` joined with `PERMISO`; each returned `Permiso` carries its rol's ID in the `PadreId` field as a carrier value, which `ObtenerArbol()` uses to attach the permiso to the correct rol branch.
 
-**Roles and permissions data model** — Roles and permissions live in two separate tables (migrated off the old single-table `NODO_PERMISO` design, see `DAL/nuevoScript.sql`):
+**Roles and permissions data model** — Roles and permissions live in two separate tables (migrated off the old single-table `NODO_PERMISO` design; the migration is consolidated into `DAL/script.sql`, not a separate file):
 - **`ROL`** (`ID, NOMBRE, PADRE_ID, PROTEGIDO`): created and deleted from the UI, `PADRE_ID` used for role hierarchy.
 - **`PERMISO`** (`ID, NOMBRE`): pre-established catalog, never created or deleted from the UI. Currently: *Ver bitácora*, *Administrar usuarios*, *Gestión de roles*, *Gestión de idiomas*, *Cambiar contraseña*.
 
@@ -152,7 +152,7 @@ The system protects **USUARIO** against unauthorized out-of-system DB modificati
 **Canonical attribute order** — fixed, must never change once data is stored:
 - `USUARIO`: `ID, USUARIO, PASS, INTENTOS_FALLIDOS, BLOQUEADO("1"/"0"), ROL, PERFILES`
 
-**Valid ROL values** — defined by `frmNuevoUsuario`'s ComboBox: `'admin'` and `'usuario'`. The `ROL` string column is a legacy display/classification field, kept for compatibility and included in the DVH canonical attribute array (its position must never change). `USUARIO.ROL_ID` (nullable FK to `ROL(ID)`, added by `DAL/nuevoScript.sql`, backfilled from the legacy string) is the real source of truth: actual permissions are resolved via `USUARIO_PERFIL → ROL_PERMISO → PERMISO`.
+**Valid ROL values** — defined by `frmNuevoUsuario`'s ComboBox: `'admin'` and `'usuario'`. The `ROL` string column is a legacy display/classification field, kept for compatibility and included in the DVH canonical attribute array (its position must never change). `USUARIO.ROL_ID` (nullable FK to `ROL(ID)`, added by the ROL/PERMISO migration block in `DAL/script.sql`, backfilled from the legacy string) is the real source of truth: actual permissions are resolved via `USUARIO_PERFIL → ROL_PERMISO → PERMISO`.
 
 **Startup and login flow** (`Program.cs` + `LogIn.cs`):
 

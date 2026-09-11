@@ -61,7 +61,6 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="nuevoScript.sql" />
     <Content Include="paginado.sql" />
     <Content Include="script.sql" />
   </ItemGroup>
