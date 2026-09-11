@@ -733,6 +733,8 @@ IF NOT EXISTS (SELECT 1 FROM IDIOMA WHERE NOMBRE = 'Español')
     INSERT INTO IDIOMA (NOMBRE, HABILITADO) VALUES ('Español', 1)
 IF NOT EXISTS (SELECT 1 FROM IDIOMA WHERE NOMBRE = 'Inglés')
     INSERT INTO IDIOMA (NOMBRE, HABILITADO) VALUES ('Inglés',  1)
+IF NOT EXISTS (SELECT 1 FROM IDIOMA WHERE NOMBRE = 'Portugues')
+    INSERT INTO IDIOMA (NOMBRE, HABILITADO) VALUES ('Portugues', 1)
 GO
 
 UPDATE IDIOMA SET PREDETERMINADO = 1 WHERE NOMBRE = 'Español'
@@ -860,6 +862,9 @@ EXEC CONTROL_REGISTRAR 'btnAgregarRol',    'Agregar Rol'
 EXEC CONTROL_REGISTRAR 'btnGuardar',       'Guardar'
 EXEC CONTROL_REGISTRAR 'prefijo_Rol',      '[Rol] '
 EXEC CONTROL_REGISTRAR 'prefijo_Permiso',  '[Permiso] '
+EXEC CONTROL_REGISTRAR 'btnAgregarPerfil', 'Agregar Perfil'
+EXEC CONTROL_REGISTRAR 'btnAgregarPermiso','Agregar Permiso'
+EXEC CONTROL_REGISTRAR 'prefijo_Perfil',   '[Perfil] '
 GO
 
 -- frmAsignarPerfiles

@@ -19,8 +19,10 @@ The entry point is `CAPAS` (outputs `CAPAS.exe`). There are no automated tests; 
 Run the full script against the local SQL Server instance (Windows Auth, database `BDCAPAS`):
 
 ```powershell
-sqlcmd -S . -d BDCAPAS -E -i "DAL\script.sql"
+sqlcmd -S . -d BDCAPAS -E -f 65001 -i "DAL\script.sql"
 ```
+
+**`-f 65001` is required** — the file is UTF-8 with BOM. Without this flag, `sqlcmd` reads it with the default codepage and mangles accented literals (`'Español'`, `'Inglés'`), so the language-lookup variables in the i18n seed block resolve to `NULL` and every `TRADUCCION_GUARDAR` call for that language fails with "cannot insert NULL into IDIOMA_ID".
 
 The script is append-only and mostly idempotent: `CONTROL_REGISTRAR` and `TRADUCCION_GUARDAR` are upserts, but early `CREATE TABLE` / `CREATE PROCEDURE` blocks will error if objects already exist (harmless — the rest of the batch still runs). Later blocks use `IF OBJECT_ID ... DROP` before recreating, so they are fully idempotent.
 
