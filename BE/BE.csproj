@@ -42,16 +42,21 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BITACORA.cs" />
+    <Compile Include="Bodega.cs" />
     <Compile Include="CONTROL_IDIOMA.cs" />
+    <Compile Include="EstadoVino.cs" />
     <Compile Include="IDIOMA.cs" />
     <Compile Include="LoginResultado.cs" />
+    <Compile Include="MovimientoStock.cs" />
     <Compile Include="NodoPermiso.cs" />
     <Compile Include="PaginaResultado.cs" />
     <Compile Include="PerfilPermiso.cs" />
     <Compile Include="Permiso.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TipoMovimiento.cs" />
     <Compile Include="USUARIO.cs" />
     <Compile Include="UsuarioHistorial.cs" />
+    <Compile Include="Vino.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

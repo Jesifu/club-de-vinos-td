@@ -1468,3 +1468,272 @@ EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Realizado por'
 SET @cidp = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_VersionOrigen')
 EXEC TRADUCCION_GUARDAR @ptId, @cidp, 'Versão origem'
 GO
+
+-- ============================================================
+-- CATÁLOGO Y STOCK DE VINOS (CU-21/22/23) — Entrega 2, Slice 1
+-- Tablas, SPs y seeds. Sin i18n en este bloque (no hay UI todavía).
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- TABLAS (orden FK: BODEGA -> VINO -> MOVIMIENTO_STOCK)
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.BODEGA', 'U') IS NULL
+CREATE TABLE [dbo].[BODEGA] (
+    [ID]         INT          IDENTITY(1,1) NOT NULL,
+    [NOMBRE]     VARCHAR(100) NOT NULL,
+    [PAIS]       VARCHAR(50)  NOT NULL,
+    [REGION]     VARCHAR(50)  NULL,
+    [HABILITADO] BIT          NOT NULL DEFAULT 1,
+    CONSTRAINT PK_BODEGA PRIMARY KEY ([ID]),
+    CONSTRAINT UQ_BODEGA_NOMBRE UNIQUE ([NOMBRE])
+)
+GO
+
+IF OBJECT_ID('dbo.VINO', 'U') IS NULL
+CREATE TABLE [dbo].[VINO] (
+    [ID]                    INT           IDENTITY(1,1) NOT NULL,
+    [CODIGO]                VARCHAR(20)   NOT NULL,
+    [NOMBRE]                VARCHAR(100)  NOT NULL,
+    [BODEGA_ID]             INT           NOT NULL,
+    [VARIETAL]              VARCHAR(50)   NOT NULL,
+    [ANIADA]                INT           NOT NULL,
+    [PRECIO]                DECIMAL(10,2) NOT NULL,
+    [STOCK_MINIMO]          INT           NOT NULL,
+    [ESTADO]                VARCHAR(15)   NOT NULL DEFAULT 'Activo',
+    [MARIDAJE]              VARCHAR(200)  NULL,
+    [PUNTAJE]               INT           NULL,
+    [CREADO_POR]            INT           NOT NULL,
+    [FECHA_ALTA]            DATETIME      NOT NULL DEFAULT GETDATE(),
+    [AUTORIZADO_POR]        INT           NULL,
+    [FECHA_AUTORIZACION]    DATETIME      NULL,
+    [BAJA_SOLICITADA_POR]   INT           NULL,
+    [FECHA_SOLICITUD_BAJA]  DATETIME      NULL,
+    [DESCONTINUADO_POR]     INT           NULL,
+    [FECHA_DESCONTINUACION] DATETIME      NULL,
+    CONSTRAINT PK_VINO PRIMARY KEY ([ID]),
+    CONSTRAINT UQ_VINO_CODIGO UNIQUE ([CODIGO]),
+    CONSTRAINT FK_VINO_BODEGA             FOREIGN KEY ([BODEGA_ID])            REFERENCES [dbo].[BODEGA]([ID]),
+    CONSTRAINT FK_VINO_CREADOPOR          FOREIGN KEY ([CREADO_POR])           REFERENCES [dbo].[USUARIO]([ID]),
+    CONSTRAINT FK_VINO_AUTORIZADOPOR      FOREIGN KEY ([AUTORIZADO_POR])       REFERENCES [dbo].[USUARIO]([ID]),
+    CONSTRAINT FK_VINO_BAJASOLICITADAPOR  FOREIGN KEY ([BAJA_SOLICITADA_POR])  REFERENCES [dbo].[USUARIO]([ID]),
+    CONSTRAINT FK_VINO_DESCONTINUADOPOR   FOREIGN KEY ([DESCONTINUADO_POR])    REFERENCES [dbo].[USUARIO]([ID])
+)
+GO
+
+IF OBJECT_ID('dbo.MOVIMIENTO_STOCK', 'U') IS NULL
+CREATE TABLE [dbo].[MOVIMIENTO_STOCK] (
+    [ID]              INT          IDENTITY(1,1) NOT NULL,
+    [VINO_ID]         INT          NOT NULL,
+    [FECHA]           DATETIME     NOT NULL DEFAULT GETDATE(),
+    [TIPO]            VARCHAR(10)  NOT NULL,
+    [CANTIDAD]        INT          NOT NULL,
+    [MOTIVO]          VARCHAR(100) NOT NULL,
+    [RESPONSABLE]     VARCHAR(50)  NOT NULL,
+    [REFERENCIA_TIPO] VARCHAR(20)  NULL,
+    [REFERENCIA_ID]   INT          NULL,
+    CONSTRAINT PK_MOVIMIENTO_STOCK PRIMARY KEY ([ID]),
+    CONSTRAINT FK_MOVSTOCK_VINO FOREIGN KEY ([VINO_ID]) REFERENCES [dbo].[VINO]([ID])
+)
+GO
+
+-- ------------------------------------------------------------
+-- STORED PROCEDURES — VINO
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.VINO_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_INSERTAR]
+GO
+CREATE PROCEDURE [dbo].[VINO_INSERTAR]
+    @codigo       VARCHAR(20),
+    @nombre       VARCHAR(100),
+    @bodega_id    INT,
+    @varietal     VARCHAR(50),
+    @aniada       INT,
+    @precio       DECIMAL(10,2),
+    @stock_minimo INT,
+    @creado_por   INT,
+    @maridaje     VARCHAR(200) = NULL,
+    @puntaje      INT = NULL
+AS
+BEGIN
+    INSERT INTO VINO (CODIGO, NOMBRE, BODEGA_ID, VARIETAL, ANIADA, PRECIO, STOCK_MINIMO,
+                       ESTADO, MARIDAJE, PUNTAJE, CREADO_POR, FECHA_ALTA)
+    VALUES (@codigo, @nombre, @bodega_id, @varietal, @aniada, @precio, @stock_minimo,
+            'Activo', @maridaje, @puntaje, @creado_por, GETDATE())
+    SELECT SCOPE_IDENTITY() AS ID
+END
+GO
+
+IF OBJECT_ID('dbo.VINO_OBTENER_POR_CODIGO', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_OBTENER_POR_CODIGO]
+GO
+CREATE PROCEDURE [dbo].[VINO_OBTENER_POR_CODIGO]
+    @codigo VARCHAR(20)
+AS
+    SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
+           v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
+           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
+           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION
+    FROM VINO v
+    JOIN BODEGA b ON b.ID = v.BODEGA_ID
+    JOIN USUARIO uc ON uc.ID = v.CREADO_POR
+    LEFT JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
+    WHERE v.CODIGO = @codigo
+GO
+
+IF OBJECT_ID('dbo.VINO_OBTENER_POR_ID', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_OBTENER_POR_ID]
+GO
+CREATE PROCEDURE [dbo].[VINO_OBTENER_POR_ID]
+    @id INT
+AS
+    SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
+           v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
+           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
+           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION
+    FROM VINO v
+    JOIN BODEGA b ON b.ID = v.BODEGA_ID
+    JOIN USUARIO uc ON uc.ID = v.CREADO_POR
+    LEFT JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
+    WHERE v.ID = @id
+GO
+
+IF OBJECT_ID('dbo.VINO_LISTAR_PENDIENTES', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_LISTAR_PENDIENTES]
+GO
+CREATE PROCEDURE [dbo].[VINO_LISTAR_PENDIENTES]
+AS
+    SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
+           v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
+           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
+           v.AUTORIZADO_POR, CAST(NULL AS VARCHAR(50)) AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION
+    FROM VINO v
+    JOIN BODEGA b ON b.ID = v.BODEGA_ID
+    JOIN USUARIO uc ON uc.ID = v.CREADO_POR
+    WHERE v.AUTORIZADO_POR IS NULL
+    ORDER BY v.FECHA_ALTA
+GO
+
+IF OBJECT_ID('dbo.VINO_LISTAR_AUTORIZADOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_LISTAR_AUTORIZADOS]
+GO
+CREATE PROCEDURE [dbo].[VINO_LISTAR_AUTORIZADOS]
+AS
+    SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
+           v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
+           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
+           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION
+    FROM VINO v
+    JOIN BODEGA b ON b.ID = v.BODEGA_ID
+    JOIN USUARIO uc ON uc.ID = v.CREADO_POR
+    JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
+    WHERE v.AUTORIZADO_POR IS NOT NULL AND v.ESTADO = 'Activo'
+    ORDER BY v.FECHA_AUTORIZACION DESC
+GO
+
+IF OBJECT_ID('dbo.VINO_AUTORIZAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_AUTORIZAR]
+GO
+-- RN-01 backstop: un admin no puede autorizar un vino que el mismo dio de alta
+CREATE PROCEDURE [dbo].[VINO_AUTORIZAR]
+    @id       INT,
+    @admin_id INT
+AS
+    UPDATE VINO
+    SET AUTORIZADO_POR = @admin_id, FECHA_AUTORIZACION = GETDATE()
+    WHERE ID = @id AND AUTORIZADO_POR IS NULL AND CREADO_POR <> @admin_id
+GO
+
+-- ------------------------------------------------------------
+-- STORED PROCEDURES — BODEGA
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.BODEGA_LISTAR_HABILITADAS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[BODEGA_LISTAR_HABILITADAS]
+GO
+CREATE PROCEDURE [dbo].[BODEGA_LISTAR_HABILITADAS]
+AS
+    SELECT ID, NOMBRE, PAIS, REGION, HABILITADO
+    FROM BODEGA
+    WHERE HABILITADO = 1
+    ORDER BY NOMBRE
+GO
+
+-- ------------------------------------------------------------
+-- STORED PROCEDURES — MOVIMIENTO_STOCK (append-only: sin ACTUALIZAR/ELIMINAR)
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.MOVIMIENTO_STOCK_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[MOVIMIENTO_STOCK_INSERTAR]
+GO
+CREATE PROCEDURE [dbo].[MOVIMIENTO_STOCK_INSERTAR]
+    @vino_id         INT,
+    @tipo            VARCHAR(10),
+    @cantidad        INT,
+    @motivo          VARCHAR(100),
+    @responsable     VARCHAR(50),
+    @referencia_tipo VARCHAR(20) = NULL,
+    @referencia_id   INT = NULL
+AS
+BEGIN
+    INSERT INTO MOVIMIENTO_STOCK (VINO_ID, FECHA, TIPO, CANTIDAD, MOTIVO, RESPONSABLE, REFERENCIA_TIPO, REFERENCIA_ID)
+    VALUES (@vino_id, GETDATE(), @tipo, @cantidad, @motivo, @responsable, @referencia_tipo, @referencia_id)
+    SELECT SCOPE_IDENTITY() AS ID
+END
+GO
+
+IF OBJECT_ID('dbo.MOVIMIENTO_STOCK_LISTAR_POR_VINO', 'P') IS NOT NULL DROP PROCEDURE [dbo].[MOVIMIENTO_STOCK_LISTAR_POR_VINO]
+GO
+CREATE PROCEDURE [dbo].[MOVIMIENTO_STOCK_LISTAR_POR_VINO]
+    @vino_id INT
+AS
+    SELECT m.ID, m.VINO_ID, v.NOMBRE AS VINO_NOMBRE, m.FECHA, m.TIPO, m.CANTIDAD,
+           m.MOTIVO, m.RESPONSABLE, m.REFERENCIA_TIPO, m.REFERENCIA_ID
+    FROM MOVIMIENTO_STOCK m
+    JOIN VINO v ON v.ID = m.VINO_ID
+    WHERE m.VINO_ID = @vino_id
+    ORDER BY m.FECHA DESC, m.ID DESC
+GO
+
+IF OBJECT_ID('dbo.STOCK_ACTUAL_OBTENER', 'P') IS NOT NULL DROP PROCEDURE [dbo].[STOCK_ACTUAL_OBTENER]
+GO
+-- RN-02: el stock nunca se guarda, siempre se deriva del kardex
+CREATE PROCEDURE [dbo].[STOCK_ACTUAL_OBTENER]
+    @vino_id INT
+AS
+    SELECT ISNULL(SUM(CASE WHEN TIPO = 'Entrada' THEN CANTIDAD ELSE -CANTIDAD END), 0) AS STOCK
+    FROM MOVIMIENTO_STOCK
+    WHERE VINO_ID = @vino_id
+GO
+
+-- ------------------------------------------------------------
+-- SEEDS — permisos, rol y bodegas (idempotentes, IF NOT EXISTS)
+-- ------------------------------------------------------------
+
+IF NOT EXISTS (SELECT 1 FROM PERMISO WHERE NOMBRE = 'Gestionar catálogo de vinos')
+    INSERT INTO PERMISO (NOMBRE) VALUES ('Gestionar catálogo de vinos')
+IF NOT EXISTS (SELECT 1 FROM PERMISO WHERE NOMBRE = 'Autorizar alta de vinos')
+    INSERT INTO PERMISO (NOMBRE) VALUES ('Autorizar alta de vinos')
+GO
+
+IF NOT EXISTS (SELECT 1 FROM ROL WHERE NOMBRE = 'Encargado de Compras/Bodega' AND PADRE_ID IS NULL)
+    INSERT INTO ROL (NOMBRE, PADRE_ID, PROTEGIDO) VALUES ('Encargado de Compras/Bodega', NULL, 0)
+GO
+
+DECLARE @rolEncargadoCatalogoId INT = (SELECT ID FROM ROL WHERE NOMBRE = 'Encargado de Compras/Bodega' AND PADRE_ID IS NULL)
+DECLARE @rolAdminCatalogoId     INT = (SELECT TOP 1 ID FROM ROL WHERE NOMBRE = 'Administrador' AND PADRE_ID IS NULL)
+DECLARE @permGestionarCatalogoId INT = (SELECT ID FROM PERMISO WHERE NOMBRE = 'Gestionar catálogo de vinos')
+DECLARE @permAutorizarCatalogoId INT = (SELECT ID FROM PERMISO WHERE NOMBRE = 'Autorizar alta de vinos')
+
+IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolEncargadoCatalogoId AND PERMISO_ID = @permGestionarCatalogoId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolEncargadoCatalogoId, @permGestionarCatalogoId)
+
+IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminCatalogoId AND PERMISO_ID = @permGestionarCatalogoId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAdminCatalogoId, @permGestionarCatalogoId)
+
+IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminCatalogoId AND PERMISO_ID = @permAutorizarCatalogoId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAdminCatalogoId, @permAutorizarCatalogoId)
+GO
+
+IF NOT EXISTS (SELECT 1 FROM BODEGA WHERE NOMBRE = 'Bodega Catena Zapata')
+    INSERT INTO BODEGA (NOMBRE, PAIS, REGION, HABILITADO) VALUES ('Bodega Catena Zapata', 'Argentina', 'Mendoza', 1)
+IF NOT EXISTS (SELECT 1 FROM BODEGA WHERE NOMBRE = 'Bodega Rutini')
+    INSERT INTO BODEGA (NOMBRE, PAIS, REGION, HABILITADO) VALUES ('Bodega Rutini', 'Argentina', 'Mendoza', 1)
+IF NOT EXISTS (SELECT 1 FROM BODEGA WHERE NOMBRE = 'Bodega Salentein')
+    INSERT INTO BODEGA (NOMBRE, PAIS, REGION, HABILITADO) VALUES ('Bodega Salentein', 'Argentina', 'Valle de Uco', 1)
+IF NOT EXISTS (SELECT 1 FROM BODEGA WHERE NOMBRE = 'Concha y Toro')
+    INSERT INTO BODEGA (NOMBRE, PAIS, REGION, HABILITADO) VALUES ('Concha y Toro', 'Chile', 'Valle del Maipo', 1)
+GO
