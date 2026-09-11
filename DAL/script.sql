@@ -2292,3 +2292,296 @@ BEGIN
     FETCH NEXT @tamanio ROWS ONLY
 END
 GO
+
+-- ============================================================
+-- i18n — CATÁLOGO DE VINOS, bloque B (CU-21 alta + CU-22 autorización)
+-- ============================================================
+
+EXEC CONTROL_REGISTRAR 'catalogoToolStripMenuItem',       'Catálogo'
+EXEC CONTROL_REGISTRAR 'catalogoVinosToolStripMenuItem',  'Gestionar catálogo de vinos'
+EXEC CONTROL_REGISTRAR 'autorizarVinoToolStripMenuItem',  'Autorizar alta de vinos'
+GO
+
+EXEC CONTROL_REGISTRAR 'frmCatalogoVinos',        'Catálogo de vinos'
+EXEC CONTROL_REGISTRAR 'lblTitulo_CatalogoVinos', 'Catálogo de vinos'
+EXEC CONTROL_REGISTRAR 'lblCodigo',               'SKU:'
+EXEC CONTROL_REGISTRAR 'lblNombre_CatalogoVinos', 'Nombre:'
+EXEC CONTROL_REGISTRAR 'lblBodega',               'Bodega:'
+EXEC CONTROL_REGISTRAR 'lblVarietal',             'Varietal:'
+EXEC CONTROL_REGISTRAR 'lblMaridaje',             'Maridaje:'
+EXEC CONTROL_REGISTRAR 'lblAniada',               'Añada:'
+EXEC CONTROL_REGISTRAR 'lblPrecio',               'Precio:'
+EXEC CONTROL_REGISTRAR 'lblStockMinimo',          'Stock mínimo:'
+EXEC CONTROL_REGISTRAR 'chkPuntaje',              'Incluir puntaje'
+EXEC CONTROL_REGISTRAR 'lblPuntaje',              'Puntaje:'
+EXEC CONTROL_REGISTRAR 'btnGuardarVino',          'Proponer alta'
+EXEC CONTROL_REGISTRAR 'btnLimpiarVino',          'Limpiar'
+GO
+
+EXEC CONTROL_REGISTRAR 'frmAutorizarAltaVino',        'Autorizar alta de vinos'
+EXEC CONTROL_REGISTRAR 'lblTitulo_AutorizarAltaVino', 'Autorizar alta de vinos'
+EXEC CONTROL_REGISTRAR 'lblAyuda',                    'No puede autorizar un vino que usted mismo dio de alta.'
+EXEC CONTROL_REGISTRAR 'btnAutorizar',                'Autorizar'
+GO
+
+EXEC CONTROL_REGISTRAR 'colhdr_Codigo',             'SKU'
+EXEC CONTROL_REGISTRAR 'colhdr_NombreVino',         'Nombre'
+EXEC CONTROL_REGISTRAR 'colhdr_Bodega',             'Bodega'
+EXEC CONTROL_REGISTRAR 'colhdr_Varietal',           'Varietal'
+EXEC CONTROL_REGISTRAR 'colhdr_Aniada',             'Añada'
+EXEC CONTROL_REGISTRAR 'colhdr_Precio',             'Precio'
+EXEC CONTROL_REGISTRAR 'colhdr_StockMinimo',        'Stock mínimo'
+EXEC CONTROL_REGISTRAR 'colhdr_Maridaje',           'Maridaje'
+EXEC CONTROL_REGISTRAR 'colhdr_Puntaje',            'Puntaje'
+EXEC CONTROL_REGISTRAR 'colhdr_CreadoPor',          'Creado por'
+EXEC CONTROL_REGISTRAR 'colhdr_FechaAlta',          'Fecha de alta'
+EXEC CONTROL_REGISTRAR 'colhdr_AutorizadoPor',      'Autorizado por'
+EXEC CONTROL_REGISTRAR 'colhdr_FechaAutorizacion',  'Fecha de autorización'
+EXEC CONTROL_REGISTRAR 'colhdr_Estado',             'Estado'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — ESPAÑOL
+-- ------------------------------------------------------------
+
+DECLARE @espIdCat INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @cideCat  INT
+
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'catalogoToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Catálogo'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'catalogoVinosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Gestionar catálogo de vinos'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'autorizarVinoToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Autorizar alta de vinos'
+
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmCatalogoVinos')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Catálogo de vinos'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_CatalogoVinos')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Catálogo de vinos'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCodigo')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'SKU:'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblNombre_CatalogoVinos')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Nombre:'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblBodega')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Bodega:'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblVarietal')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Varietal:'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblMaridaje')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Maridaje:'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAniada')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Añada:'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblPrecio')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Precio:'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblStockMinimo')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Stock mínimo:'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'chkPuntaje')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Incluir puntaje'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblPuntaje')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Puntaje:'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarVino')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Proponer alta'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnLimpiarVino')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Limpiar'
+
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAutorizarAltaVino')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Autorizar alta de vinos'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AutorizarAltaVino')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Autorizar alta de vinos'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyuda')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'No puede autorizar un vino que usted mismo dio de alta.'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAutorizar')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Autorizar'
+
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Codigo')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'SKU'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_NombreVino')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Nombre'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Bodega')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Bodega'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Varietal')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Varietal'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Aniada')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Añada'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Precio')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Precio'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_StockMinimo')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Stock mínimo'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Maridaje')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Maridaje'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Puntaje')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Puntaje'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_CreadoPor')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Creado por'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaAlta')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Fecha de alta'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_AutorizadoPor')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Autorizado por'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaAutorizacion')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Fecha de autorización'
+SET @cideCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Estado')
+EXEC TRADUCCION_GUARDAR @espIdCat, @cideCat, 'Estado'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — INGLÉS
+-- ------------------------------------------------------------
+
+DECLARE @ingIdCat INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @cidiCat  INT
+
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'catalogoToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Catalog'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'catalogoVinosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Manage wine catalog'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'autorizarVinoToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Authorize wine listing'
+
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmCatalogoVinos')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Wine Catalog'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_CatalogoVinos')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Wine Catalog'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCodigo')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'SKU:'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblNombre_CatalogoVinos')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Name:'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblBodega')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Winery:'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblVarietal')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Varietal:'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblMaridaje')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Pairing:'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAniada')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Vintage:'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblPrecio')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Price:'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblStockMinimo')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Minimum stock:'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'chkPuntaje')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Include score'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblPuntaje')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Score:'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarVino')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Propose listing'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnLimpiarVino')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Clear'
+
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAutorizarAltaVino')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Authorize Wine Listing'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AutorizarAltaVino')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Authorize Wine Listing'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyuda')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'You cannot authorize a wine you registered yourself.'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAutorizar')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Authorize'
+
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Codigo')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'SKU'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_NombreVino')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Name'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Bodega')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Winery'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Varietal')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Varietal'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Aniada')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Vintage'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Precio')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Price'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_StockMinimo')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Min. stock'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Maridaje')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Pairing'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Puntaje')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Score'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_CreadoPor')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Created by'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaAlta')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Listed on'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_AutorizadoPor')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Authorized by'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaAutorizacion')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Authorized on'
+SET @cidiCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Estado')
+EXEC TRADUCCION_GUARDAR @ingIdCat, @cidiCat, 'Status'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — PORTUGUÉS
+-- ------------------------------------------------------------
+
+DECLARE @ptIdCat INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cidpCat INT
+
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'catalogoToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Catálogo'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'catalogoVinosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Gerenciar catálogo de vinhos'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'autorizarVinoToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Autorizar cadastro de vinho'
+
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmCatalogoVinos')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Catálogo de Vinhos'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_CatalogoVinos')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Catálogo de Vinhos'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCodigo')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'SKU:'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblNombre_CatalogoVinos')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Nome:'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblBodega')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Vinícola:'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblVarietal')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Variedade:'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblMaridaje')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Harmonização:'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAniada')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Safra:'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblPrecio')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Preço:'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblStockMinimo')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Estoque mínimo:'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'chkPuntaje')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Incluir pontuação'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblPuntaje')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Pontuação:'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarVino')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Propor cadastro'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnLimpiarVino')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Limpar'
+
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAutorizarAltaVino')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Autorizar Cadastro de Vinho'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AutorizarAltaVino')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Autorizar Cadastro de Vinho'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyuda')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Você não pode autorizar um vinho que você mesmo cadastrou.'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAutorizar')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Autorizar'
+
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Codigo')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'SKU'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_NombreVino')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Nome'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Bodega')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Vinícola'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Varietal')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Variedade'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Aniada')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Safra'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Precio')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Preço'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_StockMinimo')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Estoque mín.'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Maridaje')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Harmonização'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Puntaje')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Pontuação'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_CreadoPor')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Criado por'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaAlta')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Data de cadastro'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_AutorizadoPor')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Autorizado por'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaAutorizacion')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Data de autorização'
+SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Estado')
+EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Status'
+GO

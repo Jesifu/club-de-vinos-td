@@ -113,6 +113,18 @@
     <Compile Include="frmRestaurarIntegridad.Designer.cs">
       <DependentUpon>frmRestaurarIntegridad.cs</DependentUpon>
     </Compile>
+    <Compile Include="frmCatalogoVinos.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmCatalogoVinos.Designer.cs">
+      <DependentUpon>frmCatalogoVinos.cs</DependentUpon>
+    </Compile>
+    <Compile Include="frmAutorizarAltaVino.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmAutorizarAltaVino.Designer.cs">
+      <DependentUpon>frmAutorizarAltaVino.cs</DependentUpon>
+    </Compile>
     <Compile Include="LogIn.cs">
       <SubType>Form</SubType>
     </Compile>

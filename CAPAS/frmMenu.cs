@@ -38,6 +38,8 @@ namespace CAPAS
             bool puedeAdminUsuarios = sm.TienePermiso("Administrar usuarios");
             bool puedeGestionRoles = sm.TienePermiso("Gestión de roles");
             bool puedeGestionIdiomas = sm.TienePermiso("Gestión de idiomas");
+            bool puedeCatalogo = sm.TienePermiso("Gestionar catálogo de vinos");
+            bool puedeAutorizarCatalogo = sm.TienePermiso("Autorizar alta de vinos");
 
             usuariosBloqueadosToolStripMenuItem.Visible = puedeAdminUsuarios;
             perfilesToolStripMenuItem.Visible = puedeGestionRoles;
@@ -46,6 +48,10 @@ namespace CAPAS
                                                    || puedeGestionRoles
                                                    || puedeGestionIdiomas;
             bitacoraToolStripMenuItem.Visible = sm.TienePermiso("Ver bitácora");
+
+            catalogoVinosToolStripMenuItem.Visible = puedeCatalogo;
+            autorizarVinoToolStripMenuItem.Visible = puedeAutorizarCatalogo;
+            catalogoToolStripMenuItem.Visible = puedeCatalogo || puedeAutorizarCatalogo;
         }
 
         private void frmMenu_FormClosed(object sender, FormClosedEventArgs e)
@@ -140,6 +146,16 @@ namespace CAPAS
         {
             new frmIdiomas().ShowDialog();
             CargarIdiomas();
+        }
+
+        private void catalogoVinosToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new frmCatalogoVinos().ShowDialog();
+        }
+
+        private void autorizarVinoToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new frmAutorizarAltaVino().ShowDialog();
         }
     }
 }
