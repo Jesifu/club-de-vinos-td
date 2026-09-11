@@ -11,8 +11,11 @@ scale 0.8
 
 actor       ":Usuario"           as U
 participant ":frmNuevoVino"      as FN #FEFECE
+participant ":BodegaBLL"         as BB #E8F4E8
+participant ":BodegaDAL"         as BD #E8E8F4
 participant ":VinoBLL"           as VB #E8F4E8
-database    ":DB"                as DB #E8E8F4
+participant ":VinoDAL"           as VD #E8E8F4
+database    ":DB"                as DB #EEEEEE
 
 note over FN
   Precondición: sesión activa,
@@ -21,10 +24,16 @@ end note
 
 U -> FN : click "Nuevo vino"
 activate FN
-FN -> VB : ListarBodegasHabilitadas()
-VB -> DB : BODEGA_LISTAR_HABILITADAS
-DB --> VB : filas de BODEGA
-VB --> FN : List<Bodega>
+FN -> BB : ListarHabilitadas()
+activate BB
+BB -> BD : ListarHabilitadas()
+activate BD
+BD -> DB : BODEGA_LISTAR_HABILITADAS
+DB --> BD : filas de BODEGA
+BD --> BB : List<Bodega>
+deactivate BD
+BB --> FN : List<Bodega>
+deactivate BB
 FN -> FN : cboBodega.DataSource = bodegas
 
 U -> FN : ingresar código, nombre, bodega,\nvarietal, añada, precio, stock mínimo\n(maridaje y puntaje opcionales)\n+ click Aceptar
@@ -36,16 +45,24 @@ end
 
 FN -> VB : Proponer(vino, creadoPorId)
 activate VB
-VB -> DB : VINO_EXISTE_CODIGO(codigo)
-DB --> VB : existe = true / false
+VB -> VD : ExisteCodigo(codigo)
+activate VD
+VD -> DB : VINO_EXISTE_CODIGO(codigo)
+DB --> VD : existe = true / false
+VD --> VB : bool
+deactivate VD
 
 alt 3a. el código ya existe
   VB --> FN : false
   FN --> U : "Ya existe un vino con ese código."
   note right of FN : el flujo vuelve al paso 2
 else código disponible
-  VB -> DB : VINO_INSERTAR(datos, creadoPorId,\nAUTORIZADO_POR = NULL)
-  DB --> VB : OK
+  VB -> VD : Insertar(vino)
+  activate VD
+  VD -> DB : VINO_INSERTAR(datos, creadoPorId,\nAUTORIZADO_POR = NULL)
+  DB --> VD : OK
+  VD --> VB : nuevoId
+  deactivate VD
   VB --> FN : true
   deactivate VB
   FN --> U : "Vino cargado, pendiente de autorización."

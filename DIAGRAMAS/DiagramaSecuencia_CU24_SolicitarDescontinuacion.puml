@@ -12,7 +12,8 @@ scale 0.8
 actor       ":Usuario"              as U
 participant ":frmCatalogoVinos"     as FC #FEFECE
 participant ":VinoBLL"              as VB #E8F4E8
-database    ":DB"                   as DB #E8E8F4
+participant ":VinoDAL"              as VD #E8E8F4
+database    ":DB"                   as DB #EEEEEE
 
 note over FC
   Precondición: sesión activa,
@@ -29,8 +30,12 @@ alt 1a. el vino ya está descontinuado o con baja ya solicitada
   VB --> FC : InvalidOperationException
   FC --> U : "Este vino ya no está activo o ya tiene\nuna solicitud de baja pendiente."
 else vino activo, sin solicitud previa
-  VB -> DB : VINO_SOLICITAR_BAJA(vinoId, solicitanteId,\nFECHA_SOLICITUD_BAJA = ahora)
-  DB --> VB : OK
+  VB -> VD : SolicitarBaja(vinoId, solicitanteId)
+  activate VD
+  VD -> DB : VINO_SOLICITAR_BAJA(vinoId, solicitanteId,\nFECHA_SOLICITUD_BAJA = ahora)
+  DB --> VD : OK
+  VD --> VB : void
+  deactivate VD
   VB --> FC : true
   deactivate VB
   FC --> U : "Descontinuación solicitada,\npendiente de autorización."

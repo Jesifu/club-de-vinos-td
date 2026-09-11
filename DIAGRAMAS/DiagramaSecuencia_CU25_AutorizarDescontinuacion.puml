@@ -12,7 +12,8 @@ scale 0.8
 actor       ":Administrador"        as A
 participant ":frmAutorizarVinos"    as FA #FEFECE
 participant ":VinoBLL"              as VB #E8F4E8
-database    ":DB"                   as DB #E8E8F4
+participant ":VinoDAL"              as VD #E8E8F4
+database    ":DB"                   as DB #EEEEEE
 
 note over FA
   Precondición: sesión activa,
@@ -23,8 +24,12 @@ end note
 A -> FA : abrir "Descontinuaciones pendientes"
 activate FA
 FA -> VB : ListarPendientesDeBaja()
-VB -> DB : VINO_LISTAR_PENDIENTES_BAJA
-DB --> VB : filas con BAJA_SOLICITADA_POR IS NOT NULL\nAND DESCONTINUADO_POR IS NULL
+VB -> VD : ListarPendientesDeBaja()
+activate VD
+VD -> DB : VINO_LISTAR_PENDIENTES_BAJA
+DB --> VD : filas con BAJA_SOLICITADA_POR IS NOT NULL\nAND DESCONTINUADO_POR IS NULL
+VD --> VB : List<Vino>
+deactivate VD
 VB --> FA : List<Vino>
 FA -> FA : refrescar grilla
 
@@ -37,8 +42,12 @@ alt 3a. el administrador es el mismo que solicitó la baja (RN-01)
   FA --> A : "No podés autorizar una descontinuación\nque vos mismo solicitaste."
   note right of FA : el flujo vuelve al paso 2
 else separación de funciones OK
-  VB -> DB : VINO_AUTORIZAR_BAJA(vinoId, administradorId,\nESTADO = 'Descontinuado',\nFECHA_DESCONTINUACION = ahora)
-  DB --> VB : OK
+  VB -> VD : AutorizarBaja(vinoId, administradorId)
+  activate VD
+  VD -> DB : VINO_AUTORIZAR_BAJA(vinoId, administradorId,\nESTADO = 'Descontinuado',\nFECHA_DESCONTINUACION = ahora)
+  DB --> VD : OK
+  VD --> VB : void
+  deactivate VD
   VB --> FA : true
   deactivate VB
   FA --> A : "Vino descontinuado. Ya no aparece\nen el catálogo vendible."

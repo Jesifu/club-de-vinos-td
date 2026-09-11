@@ -1,6 +1,6 @@
 @startuml DiagramaActividad_CatalogoStock
 
-title Proceso de negocio — Gestión de Catálogo y Stock de Vinos
+title Proceso de negocio — Ingreso de Mercadería, Ajuste de Inventario y Actualización de Legajos
 
 skinparam shadowing false
 skinparam roundcorner 6
@@ -16,16 +16,30 @@ scale 0.8
 
 |Bodega/Proveedor|
 start
-:Despachar Mercadería;
+repeat
+  :Despachar Mercadería;
+  note right: **Remito** [Emitido]
+
+  |Encargado de Depósito|
+  :Recepcionar Mercadería;
+  :Consultar a Compras por la\nOrden de Compra asociada al Remito;
+
+  |Encargado de Compras|
+  :Verificar Orden de Compra;
+  note right: **Orden de Compra** [Verificada]
+backward: Informar Remito sin respaldo (Remito [Rechazado])\ny solicitar reenvío;
+repeat while (¿Existe Orden de Compra que\nrespalde el Remito?) is (no) not (sí)
+
+:Confirmar Vinculación Remito–OC;
+note right: **Remito** [Conciliado]
 
 |Encargado de Depósito|
-:Recepcionar Mercadería;
-:Verificar Remito;
 :Registrar Ingreso de Stock;
 :Validar Stock Mínimo;
 
 if (¿Se detectó una diferencia de\ninventario (rotura, merma, error\nde conteo)?) then (sí)
   :Registrar Ajuste de Inventario;
+  note right: **Acta de Ajuste de Inventario**\n[Registrada]
 else (no)
 endif
 
@@ -33,23 +47,36 @@ endif
 :Actualizar Legajo de Bodega;
 
 if (¿El vino recibido es nuevo\nen el catálogo?) then (sí)
-  :Proponer Alta de Vino;
+  repeat
+    :Proponer Alta de Vino;
+    note right: **Solicitud de Autorización**\n[Pendiente]
+
+    |Administrador|
+    :Evaluar Propuesta de Alta;
+  backward: Rechazar Propuesta (Solicitud [Rechazada])\ny devolver a Compras para revisión;
+  repeat while (¿Se aprueba la propuesta?) is (no) not (sí)
+
+  :Autorizar Publicación de Vino;
+  note right: **Solicitud de Autorización**\n[Aprobada]
+
+  |Encargado de Compras|
 else (no)
 endif
 
 if (¿Corresponde retirar algún vino\ndel catálogo?) then (sí)
-  :Solicitar Descontinuación de Vino;
-else (no)
-endif
+  repeat
+    :Solicitar Descontinuación de Vino;
+    note right: **Solicitud de Autorización**\n[Pendiente]
 
-|Administrador|
-if (¿Hay una propuesta de alta\npendiente?) then (sí)
-  :Autorizar Publicación de Vino;
-else (no)
-endif
+    |Administrador|
+    :Evaluar Solicitud de Descontinuación;
+  backward: Rechazar Solicitud (Solicitud [Rechazada])\ny devolver a Compras para revisión;
+  repeat while (¿Se aprueba la solicitud?) is (no) not (sí)
 
-if (¿Hay una solicitud de\ndescontinuación pendiente?) then (sí)
   :Autorizar Descontinuación de Vino;
+  note right: **Solicitud de Autorización**\n[Aprobada]
+
+  |Encargado de Compras|
 else (no)
 endif
 

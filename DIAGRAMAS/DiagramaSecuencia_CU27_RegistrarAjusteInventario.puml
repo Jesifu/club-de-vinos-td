@@ -12,7 +12,8 @@ scale 0.8
 actor       ":Usuario"            as U
 participant ":frmMovimientoStock" as FM #FEFECE
 participant ":StockBLL"           as SB #E8F4E8
-database    ":DB"                 as DB #E8E8F4
+participant ":StockDAL"           as SD #E8E8F4
+database    ":DB"                 as DB #EEEEEE
 
 note over FM
   Precondición: sesión activa,
@@ -22,38 +23,63 @@ end note
 U -> FM : abrir "Registrar ajuste de inventario" + seleccionar vino
 activate FM
 FM -> SB : ObtenerStockActual(vinoId)
-SB -> DB : STOCK_ACTUAL(vinoId)\n(SUM(Entrada) - SUM(Salida))
-DB --> SB : cantidad actual
+SB -> SD : ObtenerStockActual(vinoId)
+activate SD
+SD -> DB : STOCK_ACTUAL(vinoId)\n(SUM(Entrada) - SUM(Salida))
+DB --> SD : cantidad actual
+SD --> SB : int
+deactivate SD
 SB --> FM : int
 FM -> FM : mostrar stock actual
 
 U -> FM : indicar sentido (positivo/negativo),\ncantidad y motivo (rotura, merma,\ncorrección de conteo) + click Registrar
-FM -> SB : RegistrarAjuste(movimiento)
-activate SB
-
 alt sentido negativo
-  SB -> DB : STOCK_ACTUAL(vinoId)
-  DB --> SB : cantidad actual
+  FM -> SB : RegistrarSalida(movimiento)
+  activate SB
+  SB -> SD : ObtenerStockActual(vinoId)
+  activate SD
+  SD -> DB : STOCK_ACTUAL(vinoId)
+  DB --> SD : cantidad actual
+  SD --> SB : int
+  deactivate SD
 
   alt 2a. stock resultante menor a cero (RN-03)
     SB --> FM : InvalidOperationException("Stock insuficiente")
+    deactivate SB
     FM --> U : "No hay stock suficiente para este ajuste."
     note right of FM : el flujo vuelve al paso 2,\nno se registra el movimiento
   else stock suficiente
-    SB -> DB : MOVIMIENTO_STOCK_INSERTAR(vinoId, "Salida",\ncantidad, motivo, responsable)
-    DB --> SB : OK
+    SB -> SD : Insertar(movimiento)
+    activate SD
+    SD -> DB : MOVIMIENTO_STOCK_INSERTAR(vinoId, "Salida",\ncantidad, motivo, responsable)
+    DB --> SD : OK
+    SD --> SB : void
+    deactivate SD
+    SB --> FM : true
+    deactivate SB
+    FM --> U : "Ajuste registrado. Stock actualizado."
   end
 else sentido positivo
-  SB -> DB : MOVIMIENTO_STOCK_INSERTAR(vinoId, "Entrada",\ncantidad, motivo, responsable)
-  DB --> SB : OK
+  FM -> SB : RegistrarEntrada(movimiento)
+  activate SB
+  SB -> SD : Insertar(movimiento)
+  activate SD
+  SD -> DB : MOVIMIENTO_STOCK_INSERTAR(vinoId, "Entrada",\ncantidad, motivo, responsable)
+  DB --> SD : OK
+  SD --> SB : void
+  deactivate SD
+  SB --> FM : true
+  deactivate SB
+  FM --> U : "Ajuste registrado. Stock actualizado."
 end
 
-SB --> FM : true
-deactivate SB
-FM --> U : "Ajuste registrado. Stock actualizado."
 FM -> SB : ObtenerStockActual(vinoId)
-SB -> DB : STOCK_ACTUAL(vinoId)
-DB --> SB : nueva cantidad
+SB -> SD : ObtenerStockActual(vinoId)
+activate SD
+SD -> DB : STOCK_ACTUAL(vinoId)
+DB --> SD : nueva cantidad
+SD --> SB : int
+deactivate SD
 SB --> FM : int
 FM -> FM : refrescar stock actual en pantalla
 deactivate FM

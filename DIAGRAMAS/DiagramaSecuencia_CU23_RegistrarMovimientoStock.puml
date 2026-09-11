@@ -12,7 +12,8 @@ scale 0.8
 actor       ":Usuario"            as U
 participant ":frmMovimientoStock" as FM #FEFECE
 participant ":StockBLL"           as SB #E8F4E8
-database    ":DB"                 as DB #E8E8F4
+participant ":StockDAL"           as SD #E8E8F4
+database    ":DB"                 as DB #EEEEEE
 
 note over FM
   Precondición: sesión activa,
@@ -22,8 +23,12 @@ end note
 U -> FM : abrir "Registrar entrada de stock" + seleccionar vino
 activate FM
 FM -> SB : ObtenerStockActual(vinoId)
-SB -> DB : STOCK_ACTUAL(vinoId)\n(SUM(Entrada) - SUM(Salida))
-DB --> SB : cantidad actual
+SB -> SD : ObtenerStockActual(vinoId)
+activate SD
+SD -> DB : STOCK_ACTUAL(vinoId)\n(SUM(Entrada) - SUM(Salida))
+DB --> SD : cantidad actual
+SD --> SB : int
+deactivate SD
 SB --> FM : int
 FM -> FM : mostrar stock actual
 
@@ -36,14 +41,22 @@ end
 
 FM -> SB : RegistrarEntrada(movimiento)
 activate SB
-SB -> DB : MOVIMIENTO_STOCK_INSERTAR(vinoId, "Entrada",\ncantidad, motivo, responsable)
-DB --> SB : OK
+SB -> SD : Insertar(movimiento)
+activate SD
+SD -> DB : MOVIMIENTO_STOCK_INSERTAR(vinoId, "Entrada",\ncantidad, motivo, responsable)
+DB --> SD : OK
+SD --> SB : void
+deactivate SD
 SB --> FM : true
 deactivate SB
 FM --> U : "Entrada registrada. Stock actualizado."
 FM -> SB : ObtenerStockActual(vinoId)
-SB -> DB : STOCK_ACTUAL(vinoId)
-DB --> SB : nueva cantidad
+SB -> SD : ObtenerStockActual(vinoId)
+activate SD
+SD -> DB : STOCK_ACTUAL(vinoId)
+DB --> SD : nueva cantidad
+SD --> SB : int
+deactivate SD
 SB --> FM : int
 FM -> FM : refrescar stock actual en pantalla
 deactivate FM

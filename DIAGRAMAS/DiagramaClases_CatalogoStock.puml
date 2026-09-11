@@ -77,7 +77,7 @@ package "BLL" #E8F4E8 {
 
   class VinoBLL {
     - _dal : VinoDAL
-    + Proponer(vino : Vino) : bool
+    + Proponer(vino : Vino, propuestoPorId : int) : bool
     + Autorizar(vinoId : int, administradorId : int) : void
     + SolicitarBaja(vinoId : int, solicitanteId : int) : void
     + AutorizarBaja(vinoId : int, administradorId : int) : void
