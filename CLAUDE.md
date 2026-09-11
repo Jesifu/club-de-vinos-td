@@ -258,8 +258,17 @@ All diagram sources, generated images, and doc-generation scripts live under `DI
 | `DIAGRAMAS/DiagramaComponentes.puml` | Diagrama de componentes | Proyectos del .sln (BE, DAL, BLL, SeguridadYServicios, CAPAS), interfaces entre capas y BDCAPAS |
 | `DIAGRAMAS/DiagramaComponentes/DiagramaComponentes - TP_IS.png` | Diagrama de componentes (render) | PNG renderizado del anterior |
 | `DIAGRAMAS/DiagramaSecuencia_LoginIntegridad.puml` / `.png` | Secuencia (detallado) | Versión técnica del login + integridad, incluye Hasher, DALs, etc. |
-| `DIAGRAMAS/DiagramaSecuencia_CU01..CU20_*.puml` / `.png` | Secuencia por CU | Nivel UI/BLL/DB, uno por cada uno de los 20 casos de uso |
-| `DIAGRAMAS/CasosDeUso.docx` | Documento unificado | Los 20 CUs en un solo Word |
+| `DIAGRAMAS/DiagramaSecuencia_CU01..CU20_*.puml` / `.png` | Secuencia por CU | Nivel UI/BLL/DB, uno por cada uno de los 20 casos de uso del esqueleto base |
+| `DIAGRAMAS/DiagramaActividad_CatalogoStock.puml` / `.png` / `.svg` | Actividad (proceso de negocio) | 4 carriles (Bodega/Proveedor, Depósito, Compras, Administrador) del dominio Gestión de Catálogo y Stock de Vinos |
+| `DIAGRAMAS/ModeloConceptual_CatalogoStock.puml` / `.png` | Modelo conceptual | BODEGA-VINO-MOVIMIENTO_STOCK, sin detalle físico |
+| `DIAGRAMAS/DiagramaClases_CatalogoStock.puml` / `.png` | Diagrama de clases | BE/BLL/DAL/CAPAS del dominio de catálogo y stock de vinos |
+| `DIAGRAMAS/DiagramaSecuencia_CU21_ProponerAltaVino.puml` / `.png` | Secuencia por CU | CU-21 Proponer Alta de Vino |
+| `DIAGRAMAS/DiagramaSecuencia_CU22_AutorizarAltaVino.puml` / `.png` | Secuencia por CU | CU-22 Autorizar Alta de Vino |
+| `DIAGRAMAS/DiagramaSecuencia_CU23_RegistrarMovimientoStock.puml` / `.png` | Secuencia por CU | CU-23 Registrar Movimiento de Stock (Entrada) |
+| `DIAGRAMAS/DiagramaSecuencia_CU24_SolicitarDescontinuacion.puml` / `.png` | Secuencia por CU | CU-24 Solicitar Descontinuación de Vino |
+| `DIAGRAMAS/DiagramaSecuencia_CU25_AutorizarDescontinuacion.puml` / `.png` | Secuencia por CU | CU-25 Autorizar Descontinuación de Vino |
+| `DIAGRAMAS/DiagramaSecuencia_CU27_RegistrarAjusteInventario.puml` / `.png` | Secuencia por CU | CU-27 Registrar Ajuste de Inventario |
+| `DIAGRAMAS/CasosDeUso.docx` | Documento unificado | Los 27 CUs (CU-01..CU-20 esqueleto base + CU-21..CU-25/CU-27 principales + CU-26 soporte, dominio de catálogo y stock de vinos) en un solo Word |
 | `DIAGRAMAS/generar_casos_uso_docx.py` | Generador | Regenera `CasosDeUso.docx` desde el dict `CUS` definido en el script |
 
 Regenerar un PNG individual (desde `DIAGRAMAS/`):

@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 Genera CasosDeUso.docx con la descripción de los casos de uso del TP:
-CU-01..CU-20 (esqueleto base) + CU-21..CU-23 (principales, plantilla
-extendida) + Consultar Alerta de Stock Mínimo (soporte, especificación
-simple) del dominio de Gestión de Catálogo y Stock de Vinos.
+CU-01..CU-20 (esqueleto base) + CU-21..CU-25 y CU-27 (principales del
+dominio de Gestión de Catálogo y Stock de Vinos, plantilla extendida)
++ CU-26 Consultar Alerta de Stock Mínimo (soporte, especificación
+simple).
 """
 
 import os
@@ -1270,105 +1271,89 @@ CUS = [
     # ───────────────────────────────────────────────────────────────────
     # Dominio: Gestión de Catálogo y Stock de Vinos
     # (change: gestion-catalogo-stock-vinos — Entrega N01, análisis y diseño)
-    # CU-21..CU-23 son los CU principales (plantilla extendida: carátula,
-    # historial de revisión, puntos de extensión, gráfico del CU, diagrama
-    # de clases afectadas, diagrama de secuencia, DER con entidades
-    # afectadas y prototipo de interfaz). El soporte "Consultar Alerta de
-    # Stock Mínimo" usa la plantilla simple (igual que CU-01..CU-20).
+    # CU-21..CU-25 y CU-27 son los CU principales (plantilla extendida:
+    # carátula, historial de revisión, puntos de extensión, gráfico del
+    # CU, diagrama de clases afectadas, diagrama de secuencia, DER con
+    # entidades afectadas y prototipo de interfaz). El soporte CU-26
+    # "Consultar Alerta de Stock Mínimo" usa la plantilla simple (igual
+    # que CU-01..CU-20). Split reconciliado el 31/08/2026 (design id 86):
+    # el CU consolidado de alta se dividió en CU-21 (proponer) / CU-22
+    # (autorizar); el de descontinuación en CU-24 (solicitar) / CU-25
+    # (autorizar); y se agregó CU-27 (Registrar Ajuste de Inventario)
+    # como caso independiente de CU-23 (Registrar Movimiento de Stock —
+    # Entrada).
     # ───────────────────────────────────────────────────────────────────
     # ───── CU-21 ─────────────────────────────────────────────────────
     {
         "id": "CU-21",
-        "nombre": "Proponer y Autorizar Alta de Vino",
+        "nombre": "Proponer Alta de Vino",
         "actor_primario": "Usuario",
-        "actor_secundario": "Administrador (autoriza, en el flujo alternativo 9)",
+        "actor_secundario": None,
         "frecuencia": "Media",
         "prioridad": "Alta",
         "version": "1.0",
-        "fecha_creacion": "30/08/2026",
+        "fecha_creacion": "31/08/2026",
         "autor": "Equipo TP — Ingeniería de Software",
         "historial_revision": [
-            {"version": "1.0", "fecha": "30/08/2026", "autor": "Equipo TP",
-             "descripcion": "Versión inicial — Entrega 1 (análisis y diseño). Fusiona las propuestas previas CU-21 (proponer) y CU-22 (autorizar) en un único caso de uso con dos flujos."},
+            {"version": "1.0", "fecha": "31/08/2026", "autor": "Equipo TP",
+             "descripcion": "Versión inicial. Desdoblado de la versión consolidada previa (que fusionaba proponer y autorizar en un único CU) en dos casos de uso independientes: CU-21 (proponer) y CU-22 (autorizar), uno por actor."},
         ],
         "proposito": (
             "Permitir que un Usuario con el permiso \"Gestionar catálogo de vinos\" (rol Encargado de "
-            "Compras/Bodega) proponga el alta de un vino nuevo en el catálogo, y que un Administrador "
-            "distinto, con el permiso \"Autorizar catálogo de vinos\", apruebe su publicación — "
-            "garantizando la separación de funciones entre quien carga y quien autoriza (RN-01)."
+            "Compras/Bodega) proponga el alta de un vino nuevo en el catálogo, quedando pendiente de "
+            "autorización hasta que un Administrador distinto lo apruebe (RN-01, ver CU-22)."
         ),
         "precondiciones": [
-            "El Usuario que propone el alta inició sesión correctamente y tiene el permiso \"Gestionar catálogo de vinos\".",
+            "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar catálogo de vinos\".",
             "La bodega del vino ya existe en BODEGA y está habilitada.",
             "El código/SKU del vino no está registrado previamente en VINO.",
-            "Para la autorización: el Administrador inició sesión correctamente, tiene el permiso \"Autorizar catálogo de vinos\" y es distinto del Usuario que propuso el alta.",
         ],
         "postcondiciones_exito": [
-            "El vino queda registrado en VINO con AUTORIZADO_POR = NULL hasta que un Administrador lo autorice.",
-            "Tras la autorización, AUTORIZADO_POR y FECHA_AUTORIZACION quedan completos y el vino es visible en el catálogo publicado.",
+            "El vino queda registrado en VINO con AUTORIZADO_POR = NULL y CREADO_POR = Id del Usuario, pendiente de autorización.",
         ],
         "postcondiciones_fallo": [
             "Si el código ya existe: no se crea el vino y se informa el conflicto.",
-            "Si el Administrador que intenta autorizar es el mismo Usuario que propuso el alta: el sistema rechaza la operación (RN-01) y el vino permanece pendiente.",
         ],
-        "disparador": (
-            "El Usuario presiona \"Nuevo vino\" en frmCatalogoVinos para iniciar la propuesta; un "
-            "Administrador presiona \"Autorizar\" sobre un vino pendiente en frmAutorizarVinos para "
-            "completar el caso de uso."
-        ),
+        "disparador": "El Usuario presiona \"Nuevo vino\" en frmCatalogoVinos.",
         "puntos_extension": [
-            {"paso": "Tras el paso 13 (vino autorizado y publicado)",
-             "extension": "Notificación automática al Usuario que propuso el alta — fuera de alcance de esta entrega (ver decisión D9 del diseño: la alerta/notificación es pasiva, no push)."},
+            {"paso": "Tras el paso 7 (alta pendiente registrada)",
+             "extension": "Continúa en CU-22 Autorizar Alta de Vino, ejecutado por un Administrador distinto."},
         ],
         "grafico_cu_desc": (
-            "Actor: Usuario (permiso \"Gestionar catálogo de vinos\") ──> (Proponer Alta de Vino)\n"
-            "Actor: Administrador (permiso \"Autorizar catálogo de vinos\") ──> (Autorizar Alta de Vino)\n\n"
-            "(Proponer Alta de Vino) ── «precede» ──> (Autorizar Alta de Vino)\n\n"
-            "El caso de uso está modelado como un único CU con dos flujos secuenciales "
-            "(propone / autoriza) porque comparten el mismo objeto de negocio (el vino "
-            "pendiente) y la misma regla de separación de funciones (RN-01)."
+            "Actor: Usuario (permiso \"Gestionar catálogo de vinos\") ──> (Proponer Alta de Vino)\n\n"
+            "(Proponer Alta de Vino) ── «precede» ──> (Autorizar Alta de Vino, CU-22)"
         ),
         "flujo_principal": [
             "El Usuario abre frmCatalogoVinos y presiona \"Nuevo vino\".",
             "El sistema abre frmNuevoVino y carga el combo de bodegas habilitadas.",
-            "El Usuario ingresa código/SKU, nombre, bodega, varietal, añada, precio y stock mínimo (maridaje y puntaje son opcionales).",
-            "El Usuario presiona Aceptar.",
+            "El Usuario ingresa código/SKU, nombre, bodega, varietal, añada, precio y stock mínimo (maridaje y puntaje son opcionales) y presiona Aceptar.",
             "El sistema valida que los campos obligatorios estén completos.",
             "El sistema verifica que el código no exista previamente en VINO.",
             "El sistema inserta el vino con AUTORIZADO_POR = NULL y CREADO_POR = Id del Usuario.",
             "El sistema informa que el vino quedó pendiente de autorización.",
-            "Un Administrador abre frmAutorizarVinos y visualiza los vinos pendientes (AUTORIZADO_POR IS NULL).",
-            "El Administrador selecciona un vino y presiona Autorizar.",
-            "El sistema verifica que el Administrador sea distinto del Usuario que propuso el alta (RN-01).",
-            "El sistema completa AUTORIZADO_POR y FECHA_AUTORIZACION.",
-            "El vino queda visible en el catálogo publicado.",
         ],
         "flujos_alternativos": [
-            {"id": "5a", "nombre": "Datos obligatorios incompletos",
+            {"id": "4a", "nombre": "Datos obligatorios incompletos",
              "pasos": ["El sistema muestra \"Completá los datos obligatorios del vino.\"",
                        "El caso de uso vuelve al paso 3."]},
-            {"id": "6a", "nombre": "Código de vino duplicado",
+            {"id": "5a", "nombre": "Código de vino duplicado",
              "pasos": ["El sistema muestra \"Ya existe un vino con ese código.\"",
                        "El caso de uso vuelve al paso 3."]},
-            {"id": "11a", "nombre": "Autoautorización bloqueada (RN-01)",
-             "pasos": ["El sistema muestra \"No podés autorizar un vino que vos mismo diste de alta.\"",
-                       "El caso de uso vuelve al paso 10."]},
         ],
         "excepciones": [
-            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante el alta o la autorización.",
-             "manejo": "Mensaje genérico al Usuario/Administrador; no se persiste ningún cambio parcial."},
+            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante el alta.",
+             "manejo": "Mensaje genérico al Usuario; no se persiste ningún cambio parcial."},
         ],
         "reglas_negocio": [
-            {"codigo": "RN-01", "regla": "Separación de funciones: AUTORIZADO_POR nunca puede ser igual a CREADO_POR."},
             {"codigo": "RN-02", "regla": "El vino no es visible ni vendible en el catálogo hasta que AUTORIZADO_POR IS NOT NULL y ESTADO = 'Activo'."},
             {"codigo": "RN-03", "regla": "El código/SKU del vino es único en todo el catálogo."},
         ],
         "relaciones": [
-            {"tipo": "«extend» de", "destino": "CU-22 Registrar Movimiento de Stock",
-             "condicion": "Un vino recién publicado suele recibir su primera entrada de stock."},
+            {"tipo": "«precede» a", "destino": "CU-22 Autorizar Alta de Vino",
+             "condicion": "Toda propuesta de alta requiere autorización posterior de un Administrador distinto."},
         ],
         "diagrama_clases_imagen": "DiagramaClases_CatalogoStock.png",
-        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU21_ProponerYAutorizarAltaVino.png",
+        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU21_ProponerAltaVino.png",
         "der_imagen": "DER.png",
         "der_entidades_afectadas": ["VINO", "BODEGA", "USUARIO"],
         "prototipo_interfaz": (
@@ -1387,8 +1372,84 @@ CUS = [
             "| Puntaje:         [____] (opcional)           |\n"
             "|                                               |\n"
             "|              [ Aceptar ]  [ Cancelar ]        |\n"
-            "+-----------------------------------------------+\n\n"
-            "frmAutorizarVinos (WinForms — MaterialForm)\n"
+            "+-----------------------------------------------+"
+        ),
+        "observaciones": (
+            "El vino nunca se elimina físicamente en ningún momento de su ciclo de vida (RN-04, "
+            "ver CU-24/CU-25) — solo cambia de estado. La separación de funciones (RN-01: quien "
+            "autoriza debe ser distinto de quien propone) se valida en CU-22."
+        ),
+    },
+    # ───── CU-22 ─────────────────────────────────────────────────────
+    {
+        "id": "CU-22",
+        "nombre": "Autorizar Alta de Vino",
+        "actor_primario": "Administrador",
+        "actor_secundario": None,
+        "frecuencia": "Media",
+        "prioridad": "Alta",
+        "version": "1.0",
+        "fecha_creacion": "31/08/2026",
+        "autor": "Equipo TP — Ingeniería de Software",
+        "historial_revision": [
+            {"version": "1.0", "fecha": "31/08/2026", "autor": "Equipo TP",
+             "descripcion": "Versión inicial. Desdoblado de la versión consolidada previa en dos casos de uso independientes: CU-21 (proponer) y CU-22 (autorizar), uno por actor."},
+        ],
+        "proposito": (
+            "Permitir que un Administrador, con el permiso \"Autorizar catálogo de vinos\" y distinto "
+            "del Usuario que propuso el alta, apruebe la publicación de un vino pendiente — "
+            "garantizando la separación de funciones (RN-01)."
+        ),
+        "precondiciones": [
+            "El Administrador inició sesión correctamente y tiene el permiso \"Autorizar catálogo de vinos\".",
+            "Existe al menos un vino con AUTORIZADO_POR = NULL (propuesto en CU-21).",
+        ],
+        "postcondiciones_exito": [
+            "AUTORIZADO_POR y FECHA_AUTORIZACION quedan completos y el vino es visible en el catálogo publicado.",
+        ],
+        "postcondiciones_fallo": [
+            "Si el Administrador que intenta autorizar es el mismo Usuario que propuso el alta: el sistema rechaza la operación (RN-01) y el vino permanece pendiente.",
+        ],
+        "disparador": "El Administrador presiona \"Autorizar\" sobre un vino pendiente en frmAutorizarVinos.",
+        "puntos_extension": [
+            {"paso": "Tras el paso 5 (vino autorizado y publicado)",
+             "extension": "Notificación automática al Usuario que propuso el alta — fuera de alcance de esta entrega (la alerta/notificación es pasiva, no push)."},
+        ],
+        "grafico_cu_desc": (
+            "Actor: Administrador (permiso \"Autorizar catálogo de vinos\") ──> (Autorizar Alta de Vino)\n\n"
+            "(Autorizar Alta de Vino) ── «precedido por» ──> (Proponer Alta de Vino, CU-21)"
+        ),
+        "flujo_principal": [
+            "El Administrador abre frmAutorizarVinos y visualiza los vinos pendientes (AUTORIZADO_POR IS NULL).",
+            "El Administrador selecciona un vino y presiona \"Autorizar\".",
+            "El sistema verifica que el Administrador sea distinto del Usuario que propuso el alta (RN-01).",
+            "El sistema completa AUTORIZADO_POR y FECHA_AUTORIZACION.",
+            "El vino queda visible en el catálogo publicado.",
+            "El sistema refresca la grilla de vinos pendientes.",
+        ],
+        "flujos_alternativos": [
+            {"id": "3a", "nombre": "Autoautorización bloqueada (RN-01)",
+             "pasos": ["El sistema muestra \"No podés autorizar un vino que vos mismo diste de alta.\"",
+                       "El caso de uso vuelve al paso 2."]},
+        ],
+        "excepciones": [
+            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante la autorización.",
+             "manejo": "Mensaje genérico al Administrador; no se persiste ningún cambio parcial."},
+        ],
+        "reglas_negocio": [
+            {"codigo": "RN-01", "regla": "Separación de funciones: AUTORIZADO_POR nunca puede ser igual a CREADO_POR."},
+            {"codigo": "RN-02", "regla": "El vino no es visible ni vendible en el catálogo hasta que AUTORIZADO_POR IS NOT NULL y ESTADO = 'Activo'."},
+        ],
+        "relaciones": [
+            {"tipo": "«precedido por»", "destino": "CU-21 Proponer Alta de Vino",
+             "condicion": "Solo se pueden autorizar vinos previamente propuestos y pendientes."},
+        ],
+        "diagrama_clases_imagen": "DiagramaClases_CatalogoStock.png",
+        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU22_AutorizarAltaVino.png",
+        "der_imagen": "DER.png",
+        "der_entidades_afectadas": ["VINO", "USUARIO"],
+        "prototipo_interfaz": (
+            "frmAutorizarVinos — pestaña \"Altas pendientes\"\n"
             "+-------------------------------------------------+\n"
             "|  Vinos pendientes de autorizacion         [x]    |\n"
             "+---------------------------------------------------+\n"
@@ -1398,58 +1459,52 @@ CUS = [
             "|              [ Autorizar ]  [ Rechazar ]           |\n"
             "+-----------------------------------------------------+"
         ),
-        "observaciones": (
-            "El vino no elimina físicamente en ningún momento del ciclo de vida (RN-04 del "
-            "dominio) — solo cambia de estado; ver CU-23 para la descontinuación."
-        ),
+        "observaciones": "Simétrico a CU-25 (Autorizar Descontinuación de Vino): mismo patrón de autorización con separación de funciones, aplicado al extremo opuesto del ciclo de vida del vino.",
     },
-    # ───── CU-22 ─────────────────────────────────────────────────────
+    # ───── CU-23 ─────────────────────────────────────────────────────
     {
-        "id": "CU-22",
-        "nombre": "Registrar Movimiento de Stock",
+        "id": "CU-23",
+        "nombre": "Registrar Movimiento de Stock (Entrada)",
         "actor_primario": "Usuario",
         "actor_secundario": None,
         "frecuencia": "Alta",
         "prioridad": "Alta",
         "version": "1.0",
-        "fecha_creacion": "30/08/2026",
+        "fecha_creacion": "31/08/2026",
         "autor": "Equipo TP — Ingeniería de Software",
         "historial_revision": [
-            {"version": "1.0", "fecha": "30/08/2026", "autor": "Equipo TP",
-             "descripcion": "Versión inicial — Entrega 1 (análisis y diseño). Fusiona las propuestas previas CU-23 (entrada) y CU-24 (salida) en un único caso de uso con flujo principal y alternativo."},
+            {"version": "1.0", "fecha": "31/08/2026", "autor": "Equipo TP",
+             "descripcion": "Versión inicial — Entrega 1 (análisis y diseño). Corresponde a la entrada de stock por compra a bodega/proveedor; los ajustes manuales (rotura, merma, corrección de conteo) se modelan aparte en CU-27 Registrar Ajuste de Inventario."},
         ],
         "proposito": (
-            "Registrar toda variación de stock de un vino (entrada por compra a bodega/proveedor, "
-            "salida por pedido) como un movimiento inmutable de kardex, del cual el stock actual es "
-            "un valor derivado y reconciliable (RN-02 del dominio)."
+            "Registrar la entrada de stock de un vino por compra a bodega/proveedor como un "
+            "movimiento inmutable de kardex, del cual el stock actual es un valor derivado y "
+            "reconciliable (RN-02 del dominio)."
         ),
         "precondiciones": [
             "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar catálogo de vinos\".",
             "El vino sobre el que se registra el movimiento existe en VINO.",
         ],
         "postcondiciones_exito": [
-            "Se crea un registro en MOVIMIENTO_STOCK (fecha, tipo, cantidad, motivo, responsable, referencia).",
+            "Se crea un registro en MOVIMIENTO_STOCK con tipo Entrada (fecha, cantidad, motivo, responsable).",
             "El stock actual derivado del vino queda actualizado (SUM(Entrada) - SUM(Salida)).",
         ],
         "postcondiciones_fallo": [
-            "Si la salida dejaría el stock resultante por debajo de cero: el movimiento se rechaza y no se persiste (RN-03).",
+            "Si la cantidad ingresada es menor o igual a cero: el movimiento se rechaza y no se persiste.",
         ],
-        "disparador": "El Usuario abre frmMovimientoStock, selecciona un vino y registra una entrada o una salida.",
+        "disparador": "El Usuario abre frmMovimientoStock, selecciona un vino y registra una entrada.",
         "puntos_extension": [
             {"paso": "Tras cualquier movimiento registrado",
-             "extension": "Recalcular y notificar si el vino queda por debajo de STOCK_MINIMO — la notificación activa es fuera de alcance; ver CU de soporte Consultar Alerta de Stock Mínimo (consulta pasiva)."},
+             "extension": "Recalcular y notificar si el vino queda por debajo de STOCK_MINIMO — la notificación activa es fuera de alcance; ver CU-26 Consultar Alerta de Stock Mínimo (consulta pasiva)."},
         ],
         "grafico_cu_desc": (
             "Actor: Usuario (permiso \"Gestionar catálogo de vinos\")\n"
-            "  ──> (Registrar Movimiento de Stock)\n\n"
-            "(Registrar Movimiento de Stock) incluye dos variantes internas:\n"
-            "  - Entrada por compra a bodega/proveedor (flujo principal)\n"
-            "  - Salida por pedido, con rechazo si el stock resultante es negativo (flujo alternativo)"
+            "  ──> (Registrar Movimiento de Stock — Entrada)"
         ),
         "flujo_principal": [
             "El Usuario abre frmMovimientoStock y selecciona un vino.",
             "El sistema calcula y muestra el stock actual (derivado del kardex).",
-            "El Usuario ingresa tipo = Entrada, cantidad, motivo (compra) y referencia, y presiona Registrar.",
+            "El Usuario ingresa la cantidad recibida y el motivo (compra a bodega/proveedor) y presiona Registrar.",
             "El sistema valida que la cantidad sea mayor a cero.",
             "El sistema inserta el movimiento en MOVIMIENTO_STOCK con tipo Entrada.",
             "El sistema recalcula el stock actual y refresca la pantalla.",
@@ -1458,39 +1513,32 @@ CUS = [
             {"id": "4a", "nombre": "Cantidad menor o igual a cero",
              "pasos": ["El sistema muestra \"La cantidad debe ser mayor a cero.\"",
                        "El caso de uso vuelve al paso 3."]},
-            {"id": "3b", "nombre": "Salida de stock por pedido",
-             "pasos": [
-                 "El Usuario selecciona tipo = Salida, ingresa cantidad y motivo (pedido), y presiona Registrar.",
-                 "El sistema calcula el stock resultante (stock actual - cantidad).",
-                 "Si el resultado es negativo (RN-03), el sistema rechaza el movimiento y muestra \"No hay stock suficiente para esta salida.\"; no se persiste ningún registro.",
-                 "Si el resultado es válido, el sistema inserta el movimiento con tipo Salida y refresca el stock actual.",
-             ]},
         ],
         "excepciones": [],
         "reglas_negocio": [
             {"codigo": "RN-01", "regla": "MOVIMIENTO_STOCK es append-only: no se permiten UPDATE ni DELETE sobre movimientos ya registrados."},
             {"codigo": "RN-02", "regla": "El stock actual de un vino nunca se almacena directamente — se deriva de SUM(Entrada) - SUM(Salida) del kardex."},
-            {"codigo": "RN-03", "regla": "Toda salida que dejaría el stock resultante por debajo de cero se rechaza; no hay reservas ni backorder en esta fase."},
         ],
         "relaciones": [
-            {"tipo": "«extend» de", "destino": "CU-21 Proponer y Autorizar Alta de Vino",
-             "condicion": "Un vino recién autorizado puede recibir su primera entrada de stock."},
+            {"tipo": "«extend» de", "destino": "CU-22 Autorizar Alta de Vino",
+             "condicion": "Un vino recién autorizado y publicado suele recibir su primera entrada de stock."},
+            {"tipo": "relacionado con", "destino": "CU-27 Registrar Ajuste de Inventario",
+             "condicion": "Ambos insertan MOVIMIENTO_STOCK, pero CU-23 registra entradas por compra y CU-27 registra correcciones manuales (rotura, merma, conteo)."},
         ],
         "diagrama_clases_imagen": "DiagramaClases_CatalogoStock.png",
-        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU22_RegistrarMovimientoStock.png",
+        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU23_RegistrarMovimientoStock.png",
         "der_imagen": "DER.png",
         "der_entidades_afectadas": ["VINO", "MOVIMIENTO_STOCK"],
         "prototipo_interfaz": (
             "frmMovimientoStock (WinForms — MaterialForm)\n"
             "+-----------------------------------------------------+\n"
-            "|  Movimiento de Stock                          [x]    |\n"
+            "|  Registrar Entrada de Stock                   [x]    |\n"
             "+-------------------------------------------------------+\n"
             "| Vino:            [ ComboBox  v]                        |\n"
             "| Stock actual:    123 unidades  (solo lectura)           |\n"
             "|                                                         |\n"
-            "| Tipo:            (o) Entrada   ( ) Salida               |\n"
-            "| Cantidad:        [____]                                |\n"
-            "| Motivo:          [____________]                        |\n"
+            "| Cantidad recibida: [____]                              |\n"
+            "| Motivo:          [____________] (compra a bodega)      |\n"
             "| Referencia:      [____________] (opcional)             |\n"
             "|                                                         |\n"
             "|              [ Registrar ]  [ Cancelar ]               |\n"
@@ -1501,77 +1549,68 @@ CUS = [
             "criterio que USUARIO_HISTORIAL: el registro histórico sobrevive a la baja del usuario."
         ),
     },
-    # ───── CU-23 ─────────────────────────────────────────────────────
+    # ───── CU-24 ─────────────────────────────────────────────────────
     {
-        "id": "CU-23",
-        "nombre": "Solicitar y Autorizar Descontinuación de Vino",
+        "id": "CU-24",
+        "nombre": "Solicitar Descontinuación de Vino",
         "actor_primario": "Usuario",
-        "actor_secundario": "Administrador (autoriza, en el flujo alternativo 8)",
+        "actor_secundario": None,
         "frecuencia": "Baja",
         "prioridad": "Media",
         "version": "1.0",
-        "fecha_creacion": "30/08/2026",
+        "fecha_creacion": "31/08/2026",
         "autor": "Equipo TP — Ingeniería de Software",
         "historial_revision": [
-            {"version": "1.0", "fecha": "30/08/2026", "autor": "Equipo TP",
-             "descripcion": "Versión inicial — Entrega 1 (análisis y diseño). Fusiona las propuestas previas CU-26 (solicitar) y CU-27 (autorizar) en un único caso de uso, simétrico a CU-21."},
+            {"version": "1.0", "fecha": "31/08/2026", "autor": "Equipo TP",
+             "descripcion": "Versión inicial. Desdoblado de la versión consolidada previa en dos casos de uso independientes: CU-24 (solicitar) y CU-25 (autorizar), simétrico al split CU-21/CU-22."},
         ],
         "proposito": (
-            "Permitir que un Usuario proponga la descontinuación de un vino del catálogo y que un "
-            "Administrador distinto la autorice, aplicando el mismo criterio de separación de "
-            "funciones que el alta (RN-01), sin eliminar físicamente el registro (RN-04)."
+            "Permitir que un Usuario proponga la descontinuación de un vino del catálogo, quedando "
+            "pendiente de autorización hasta que un Administrador distinto la apruebe (RN-01, ver "
+            "CU-25), sin eliminar físicamente el registro (RN-04)."
         ),
         "precondiciones": [
             "El vino a descontinuar existe, está Activo y autorizado en el catálogo.",
-            "El Usuario que solicita la baja inició sesión correctamente y tiene el permiso \"Gestionar catálogo de vinos\".",
-            "Para la autorización: el Administrador inició sesión correctamente, tiene el permiso \"Autorizar catálogo de vinos\" y es distinto del Usuario que solicitó la baja.",
+            "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar catálogo de vinos\".",
         ],
         "postcondiciones_exito": [
-            "El vino queda con BAJA_SOLICITADA_POR y FECHA_SOLICITUD_BAJA completos mientras está pendiente de autorización.",
-            "Tras la autorización, ESTADO pasa a 'Descontinuado', y DESCONTINUADO_POR / FECHA_DESCONTINUACION quedan completos.",
-            "El vino deja de listarse en el catálogo vendible, pero el registro nunca se elimina físicamente (RN-04).",
+            "El vino queda con BAJA_SOLICITADA_POR y FECHA_SOLICITUD_BAJA completos, pendiente de autorización.",
         ],
         "postcondiciones_fallo": [
-            "Si el Administrador que intenta autorizar es el mismo Usuario que solicitó la baja: el sistema rechaza la operación (RN-01) y el vino permanece Activo.",
+            "Si el vino ya está descontinuado o ya tiene una solicitud de baja pendiente: el sistema rechaza la operación.",
         ],
-        "disparador": (
-            "El Usuario selecciona un vino activo en frmCatalogoVinos y presiona \"Solicitar "
-            "descontinuación\"; un Administrador presiona \"Autorizar baja\" sobre una solicitud "
-            "pendiente en frmAutorizarVinos para completar el caso de uso."
-        ),
+        "disparador": "El Usuario selecciona un vino activo en frmCatalogoVinos y presiona \"Solicitar descontinuación\".",
         "puntos_extension": [
-            {"paso": "Tras el paso 10 (vino descontinuado)",
-             "extension": "Notificación al Usuario que solicitó la baja — fuera de alcance de esta entrega."},
+            {"paso": "Tras el paso 3 (solicitud registrada)",
+             "extension": "Continúa en CU-25 Autorizar Descontinuación de Vino, ejecutado por un Administrador distinto."},
         ],
         "grafico_cu_desc": (
-            "Actor: Usuario (permiso \"Gestionar catálogo de vinos\") ──> (Solicitar Descontinuación de Vino)\n"
-            "Actor: Administrador (permiso \"Autorizar catálogo de vinos\") ──> (Autorizar Descontinuación de Vino)\n\n"
-            "(Solicitar Descontinuación de Vino) ── «precede» ──> (Autorizar Descontinuación de Vino)\n\n"
-            "Patrón idéntico al de CU-21 (Proponer y Autorizar Alta), aplicado al retiro del catálogo."
+            "Actor: Usuario (permiso \"Gestionar catálogo de vinos\") ──> (Solicitar Descontinuación de Vino)\n\n"
+            "(Solicitar Descontinuación de Vino) ── «precede» ──> (Autorizar Descontinuación de Vino, CU-25)"
         ),
         "flujo_principal": [
             "El Usuario selecciona un vino activo en frmCatalogoVinos y presiona \"Solicitar descontinuación\".",
             "El sistema registra BAJA_SOLICITADA_POR = Id del Usuario y FECHA_SOLICITUD_BAJA = fecha actual.",
             "El sistema informa que la descontinuación quedó pendiente de autorización.",
-            "Un Administrador abre frmAutorizarVinos y visualiza las solicitudes pendientes (BAJA_SOLICITADA_POR IS NOT NULL AND DESCONTINUADO_POR IS NULL).",
-            "El Administrador selecciona un vino y presiona \"Autorizar baja\".",
-            "El sistema verifica que el Administrador sea distinto del Usuario que solicitó la baja (RN-01).",
-            "El sistema actualiza ESTADO a 'Descontinuado' y completa DESCONTINUADO_POR y FECHA_DESCONTINUACION.",
-            "El vino deja de listarse en el catálogo vendible.",
         ],
         "flujos_alternativos": [
-            {"id": "6a", "nombre": "Autoautorización bloqueada (RN-01)",
-             "pasos": ["El sistema muestra \"No podés autorizar una descontinuación que vos mismo solicitaste.\"",
-                       "El caso de uso vuelve al paso 5."]},
+            {"id": "1a", "nombre": "El vino ya está descontinuado o con baja ya solicitada",
+             "pasos": ["El sistema muestra \"Este vino ya no está activo o ya tiene una solicitud de baja pendiente.\"",
+                       "El caso de uso finaliza sin registrar cambios."]},
         ],
-        "excepciones": [],
+        "excepciones": [
+            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante la solicitud.",
+             "manejo": "Mensaje genérico al Usuario; no se persiste ningún cambio parcial."},
+        ],
         "reglas_negocio": [
-            {"codigo": "RN-01", "regla": "Separación de funciones: DESCONTINUADO_POR nunca puede ser igual a BAJA_SOLICITADA_POR."},
             {"codigo": "RN-04", "regla": "El vino nunca se elimina físicamente; la descontinuación es siempre un cambio de ESTADO, preservando integridad referencial con movimientos de stock históricos."},
         ],
-        "relaciones": [],
+        "relaciones": [
+            {"tipo": "«precede» a", "destino": "CU-25 Autorizar Descontinuación de Vino",
+             "condicion": "Toda solicitud de baja requiere autorización posterior de un Administrador distinto."},
+        ],
         "diagrama_clases_imagen": "DiagramaClases_CatalogoStock.png",
-        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU23_SolicitarYAutorizarDescontinuacion.png",
+        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU24_SolicitarDescontinuacion.png",
         "der_imagen": "DER.png",
         "der_entidades_afectadas": ["VINO", "USUARIO"],
         "prototipo_interfaz": (
@@ -1583,8 +1622,80 @@ CUS = [
             "|  Autorizado por | Fecha alta]                            |\n"
             "|                                                           |\n"
             "|  [ Nuevo vino ]  [ Solicitar descontinuacion ]           |\n"
-            "+-------------------------------------------------------------+\n\n"
-            "frmAutorizarVinos — pestana \"Descontinuaciones pendientes\"\n"
+            "+-------------------------------------------------------------+"
+        ),
+        "observaciones": "Simétrico a CU-21 (Proponer Alta de Vino): mismo patrón de propone/autoriza, aplicado al extremo opuesto del ciclo de vida del vino.",
+    },
+    # ───── CU-25 ─────────────────────────────────────────────────────
+    {
+        "id": "CU-25",
+        "nombre": "Autorizar Descontinuación de Vino",
+        "actor_primario": "Administrador",
+        "actor_secundario": None,
+        "frecuencia": "Baja",
+        "prioridad": "Media",
+        "version": "1.0",
+        "fecha_creacion": "31/08/2026",
+        "autor": "Equipo TP — Ingeniería de Software",
+        "historial_revision": [
+            {"version": "1.0", "fecha": "31/08/2026", "autor": "Equipo TP",
+             "descripcion": "Versión inicial. Desdoblado de la versión consolidada previa en dos casos de uso independientes: CU-24 (solicitar) y CU-25 (autorizar), simétrico al split CU-21/CU-22."},
+        ],
+        "proposito": (
+            "Permitir que un Administrador, con el permiso \"Autorizar catálogo de vinos\" y distinto "
+            "del Usuario que solicitó la baja, autorice la descontinuación de un vino — garantizando "
+            "la separación de funciones (RN-01), sin eliminar físicamente el registro (RN-04)."
+        ),
+        "precondiciones": [
+            "El Administrador inició sesión correctamente y tiene el permiso \"Autorizar catálogo de vinos\".",
+            "Existe al menos un vino con BAJA_SOLICITADA_POR IS NOT NULL y DESCONTINUADO_POR IS NULL (solicitado en CU-24).",
+        ],
+        "postcondiciones_exito": [
+            "ESTADO pasa a 'Descontinuado', y DESCONTINUADO_POR / FECHA_DESCONTINUACION quedan completos.",
+            "El vino deja de listarse en el catálogo vendible, pero el registro nunca se elimina físicamente (RN-04).",
+        ],
+        "postcondiciones_fallo": [
+            "Si el Administrador que intenta autorizar es el mismo Usuario que solicitó la baja: el sistema rechaza la operación (RN-01) y el vino permanece Activo.",
+        ],
+        "disparador": "El Administrador presiona \"Autorizar baja\" sobre una solicitud pendiente en frmAutorizarVinos.",
+        "puntos_extension": [
+            {"paso": "Tras el paso 5 (vino descontinuado)",
+             "extension": "Notificación al Usuario que solicitó la baja — fuera de alcance de esta entrega."},
+        ],
+        "grafico_cu_desc": (
+            "Actor: Administrador (permiso \"Autorizar catálogo de vinos\") ──> (Autorizar Descontinuación de Vino)\n\n"
+            "(Autorizar Descontinuación de Vino) ── «precedido por» ──> (Solicitar Descontinuación de Vino, CU-24)"
+        ),
+        "flujo_principal": [
+            "El Administrador abre frmAutorizarVinos y visualiza las solicitudes pendientes (BAJA_SOLICITADA_POR IS NOT NULL AND DESCONTINUADO_POR IS NULL).",
+            "El Administrador selecciona un vino y presiona \"Autorizar baja\".",
+            "El sistema verifica que el Administrador sea distinto del Usuario que solicitó la baja (RN-01).",
+            "El sistema actualiza ESTADO a 'Descontinuado' y completa DESCONTINUADO_POR y FECHA_DESCONTINUACION.",
+            "El vino deja de listarse en el catálogo vendible.",
+        ],
+        "flujos_alternativos": [
+            {"id": "3a", "nombre": "Autoautorización bloqueada (RN-01)",
+             "pasos": ["El sistema muestra \"No podés autorizar una descontinuación que vos mismo solicitaste.\"",
+                       "El caso de uso vuelve al paso 2."]},
+        ],
+        "excepciones": [
+            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante la autorización.",
+             "manejo": "Mensaje genérico al Administrador; no se persiste ningún cambio parcial."},
+        ],
+        "reglas_negocio": [
+            {"codigo": "RN-01", "regla": "Separación de funciones: DESCONTINUADO_POR nunca puede ser igual a BAJA_SOLICITADA_POR."},
+            {"codigo": "RN-04", "regla": "El vino nunca se elimina físicamente; la descontinuación es siempre un cambio de ESTADO, preservando integridad referencial con movimientos de stock históricos."},
+        ],
+        "relaciones": [
+            {"tipo": "«precedido por»", "destino": "CU-24 Solicitar Descontinuación de Vino",
+             "condicion": "Solo se pueden autorizar bajas previamente solicitadas y pendientes."},
+        ],
+        "diagrama_clases_imagen": "DiagramaClases_CatalogoStock.png",
+        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU25_AutorizarDescontinuacion.png",
+        "der_imagen": "DER.png",
+        "der_entidades_afectadas": ["VINO", "USUARIO"],
+        "prototipo_interfaz": (
+            "frmAutorizarVinos — pestaña \"Descontinuaciones pendientes\"\n"
             "+---------------------------------------------------------+\n"
             "| [DataGridView: Codigo | Nombre | Solicitado por |         |\n"
             "|  Fecha solicitud]                                         |\n"
@@ -1592,15 +1703,11 @@ CUS = [
             "|              [ Autorizar baja ]  [ Rechazar ]            |\n"
             "+----------------------------------------------------------+"
         ),
-        "observaciones": (
-            "Simétrico a CU-21 (Proponer y Autorizar Alta): mismo patrón de propone/autoriza, "
-            "misma regla de separación de funciones, aplicado al extremo opuesto del ciclo de "
-            "vida del vino."
-        ),
+        "observaciones": "Simétrico a CU-22 (Autorizar Alta de Vino): mismo patrón de autorización con separación de funciones, aplicado al extremo opuesto del ciclo de vida del vino.",
     },
-    # ───── Consultar Alerta de Stock Mínimo (soporte, especificación simple) ──
+    # ───── CU-26 (soporte, especificación simple) ──────────────────
     {
-        "id": "CU-S1",
+        "id": "CU-26",
         "nombre": "Consultar Alerta de Stock Mínimo",
         "actor_primario": "Usuario",
         "actor_secundario": None,
@@ -1635,10 +1742,104 @@ CUS = [
             {"codigo": "RN-01", "regla": "La alerta es una consulta pasiva bajo demanda, no una notificación activa al iniciar sesión."},
         ],
         "relaciones": [
-            {"tipo": "«extend» de", "destino": "CU-22 Registrar Movimiento de Stock",
-             "condicion": "Se consulta habitualmente después de registrar salidas de stock."},
+            {"tipo": "«extend» de", "destino": "CU-23 Registrar Movimiento de Stock (Entrada)",
+             "condicion": "Se consulta habitualmente después de registrar movimientos de stock."},
+            {"tipo": "«extend» de", "destino": "CU-27 Registrar Ajuste de Inventario",
+             "condicion": "Se consulta habitualmente después de registrar ajustes que reducen stock."},
         ],
-        "observaciones": "Especificación simple — no requiere diagrama de secuencia completo ni DER dedicado (ver diseño: solo los 3 CU principales llevan modelado completo).",
+        "observaciones": "Especificación simple — no requiere diagrama de secuencia completo ni DER dedicado (ver diseño: solo los CU principales llevan modelado completo).",
+    },
+    # ───── CU-27 ─────────────────────────────────────────────────────
+    {
+        "id": "CU-27",
+        "nombre": "Registrar Ajuste de Inventario",
+        "actor_primario": "Usuario",
+        "actor_secundario": None,
+        "frecuencia": "Baja",
+        "prioridad": "Media",
+        "version": "1.0",
+        "fecha_creacion": "31/08/2026",
+        "autor": "Equipo TP — Ingeniería de Software",
+        "historial_revision": [
+            {"version": "1.0", "fecha": "31/08/2026", "autor": "Equipo TP",
+             "descripcion": "Versión inicial — Entrega 1 (análisis y diseño). Cubre correcciones manuales de stock (rotura, merma, corrección de conteo) que no son entradas por compra (CU-23), en sentido positivo o negativo."},
+        ],
+        "proposito": (
+            "Registrar una corrección manual de stock de un vino (rotura, merma, corrección de "
+            "conteo físico) como un movimiento inmutable de kardex, en sentido positivo o negativo, "
+            "respetando el bloqueo por stock cero (RN-03) en el sentido negativo."
+        ),
+        "precondiciones": [
+            "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar catálogo de vinos\".",
+            "El vino sobre el que se registra el ajuste existe en VINO.",
+        ],
+        "postcondiciones_exito": [
+            "Se crea un registro en MOVIMIENTO_STOCK (tipo Entrada o Salida según el sentido del ajuste, cantidad, motivo, responsable).",
+            "El stock actual derivado del vino queda actualizado (SUM(Entrada) - SUM(Salida)).",
+        ],
+        "postcondiciones_fallo": [
+            "Si el ajuste es de sentido negativo y dejaría el stock resultante por debajo de cero: el movimiento se rechaza y no se persiste (RN-03).",
+        ],
+        "disparador": "El Usuario abre frmMovimientoStock, selecciona un vino y registra un ajuste de inventario.",
+        "puntos_extension": [
+            {"paso": "Tras cualquier ajuste registrado",
+             "extension": "Recalcular y notificar si el vino queda por debajo de STOCK_MINIMO — la notificación activa es fuera de alcance; ver CU-26 Consultar Alerta de Stock Mínimo (consulta pasiva)."},
+        ],
+        "grafico_cu_desc": (
+            "Actor: Usuario (permiso \"Gestionar catálogo de vinos\")\n"
+            "  ──> (Registrar Ajuste de Inventario)\n\n"
+            "(Registrar Ajuste de Inventario) incluye dos variantes internas:\n"
+            "  - Ajuste positivo (corrección de conteo a favor)\n"
+            "  - Ajuste negativo (rotura, merma), con rechazo si el stock resultante es negativo"
+        ),
+        "flujo_principal": [
+            "El Usuario abre frmMovimientoStock y selecciona un vino.",
+            "El sistema calcula y muestra el stock actual (derivado del kardex).",
+            "El Usuario indica el sentido del ajuste (positivo o negativo), la cantidad y el motivo (rotura, merma, corrección de conteo) y presiona Registrar.",
+            "Si el sentido es positivo, el sistema inserta el movimiento en MOVIMIENTO_STOCK con tipo Entrada.",
+            "El sistema recalcula el stock actual y refresca la pantalla.",
+        ],
+        "flujos_alternativos": [
+            {"id": "3a", "nombre": "Ajuste de sentido negativo",
+             "pasos": [
+                 "El sistema calcula el stock resultante (stock actual - cantidad).",
+                 "Si el resultado es negativo (RN-03), el sistema rechaza el ajuste y muestra \"No hay stock suficiente para este ajuste.\"; no se persiste ningún registro.",
+                 "Si el resultado es válido, el sistema inserta el movimiento con tipo Salida, recalcula el stock actual y refresca la pantalla.",
+             ]},
+        ],
+        "excepciones": [],
+        "reglas_negocio": [
+            {"codigo": "RN-01", "regla": "MOVIMIENTO_STOCK es append-only: no se permiten UPDATE ni DELETE sobre movimientos ya registrados."},
+            {"codigo": "RN-02", "regla": "El stock actual de un vino nunca se almacena directamente — se deriva de SUM(Entrada) - SUM(Salida) del kardex."},
+            {"codigo": "RN-03", "regla": "Todo ajuste negativo que dejaría el stock resultante por debajo de cero se rechaza; no hay reservas ni backorder en esta fase."},
+        ],
+        "relaciones": [
+            {"tipo": "relacionado con", "destino": "CU-23 Registrar Movimiento de Stock (Entrada)",
+             "condicion": "Ambos insertan MOVIMIENTO_STOCK, pero CU-23 registra entradas por compra y CU-27 registra correcciones manuales (rotura, merma, conteo)."},
+        ],
+        "diagrama_clases_imagen": "DiagramaClases_CatalogoStock.png",
+        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU27_RegistrarAjusteInventario.png",
+        "der_imagen": "DER.png",
+        "der_entidades_afectadas": ["VINO", "MOVIMIENTO_STOCK"],
+        "prototipo_interfaz": (
+            "frmMovimientoStock (WinForms — MaterialForm)\n"
+            "+-----------------------------------------------------+\n"
+            "|  Registrar Ajuste de Inventario               [x]    |\n"
+            "+-------------------------------------------------------+\n"
+            "| Vino:            [ ComboBox  v]                        |\n"
+            "| Stock actual:    123 unidades  (solo lectura)           |\n"
+            "|                                                         |\n"
+            "| Sentido:         (o) Positivo   ( ) Negativo            |\n"
+            "| Cantidad:        [____]                                |\n"
+            "| Motivo:          [____________] (rotura/merma/conteo)  |\n"
+            "|                                                         |\n"
+            "|              [ Registrar ]  [ Cancelar ]               |\n"
+            "+---------------------------------------------------------+"
+        ),
+        "observaciones": (
+            "RESPONSABLE se guarda como snapshot del login (VARCHAR), sin FK a USUARIO — mismo "
+            "criterio que USUARIO_HISTORIAL: el registro histórico sobrevive a la baja del usuario."
+        ),
     },
 ]
 
@@ -1944,8 +2145,10 @@ def generar_tabla_de_contenidos(doc):
         "Sistema de Gestión de Usuarios — TP Ingeniería de Software.\n"
         f"Documento de descripción de los {len(CUS)} casos de uso identificados: CU-01..CU-20 "
         "(esqueleto base — usuarios, roles/permisos, idiomas, bitácora, integridad) y "
-        "CU-21..CU-23 más el caso de soporte Consultar Alerta de Stock Mínimo, del dominio "
-        "de Gestión de Catálogo y Stock de Vinos (Entrega N01)."
+        "CU-21..CU-25 y CU-27 (Proponer/Autorizar Alta, Registrar Movimiento de Stock, "
+        "Solicitar/Autorizar Descontinuación, Registrar Ajuste de Inventario) más el caso "
+        "de soporte CU-26 Consultar Alerta de Stock Mínimo, del dominio de Gestión de "
+        "Catálogo y Stock de Vinos (Entrega N01)."
     )
 
     doc.add_heading("Actores", level=1)
