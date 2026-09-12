@@ -2585,3 +2585,130 @@ EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Data de autorização'
 SET @cidpCat = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Estado')
 EXEC TRADUCCION_GUARDAR @ptIdCat, @cidpCat, 'Status'
 GO
+
+-- ============================================================
+-- i18n — CATÁLOGO DE VINOS, bloque C (CU-23 entrada de stock)
+-- ============================================================
+
+EXEC CONTROL_REGISTRAR 'entradaStockToolStripMenuItem', 'Registrar entrada de stock'
+GO
+
+EXEC CONTROL_REGISTRAR 'frmRegistrarEntradaStock',   'Registrar entrada de stock'
+EXEC CONTROL_REGISTRAR 'lblTitulo_EntradaStock',     'Registrar entrada de stock'
+EXEC CONTROL_REGISTRAR 'lblVino',                    'Vino:'
+EXEC CONTROL_REGISTRAR 'lblStockActual',             'Stock actual:'
+EXEC CONTROL_REGISTRAR 'lblCantidad',                'Cantidad:'
+EXEC CONTROL_REGISTRAR 'lblMotivo',                  'Motivo:'
+EXEC CONTROL_REGISTRAR 'btnRegistrarEntrada',        'Registrar entrada'
+GO
+
+EXEC CONTROL_REGISTRAR 'colhdr_TipoMovimiento', 'Tipo de movimiento'
+EXEC CONTROL_REGISTRAR 'colhdr_Cantidad',       'Cantidad'
+EXEC CONTROL_REGISTRAR 'colhdr_Motivo',         'Motivo'
+EXEC CONTROL_REGISTRAR 'colhdr_Responsable',    'Responsable'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — ESPAÑOL
+-- ------------------------------------------------------------
+
+DECLARE @espIdStk INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @cideStk  INT
+
+SET @cideStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'entradaStockToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdStk, @cideStk, 'Registrar entrada de stock'
+
+SET @cideStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmRegistrarEntradaStock')
+EXEC TRADUCCION_GUARDAR @espIdStk, @cideStk, 'Registrar entrada de stock'
+SET @cideStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_EntradaStock')
+EXEC TRADUCCION_GUARDAR @espIdStk, @cideStk, 'Registrar entrada de stock'
+SET @cideStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblVino')
+EXEC TRADUCCION_GUARDAR @espIdStk, @cideStk, 'Vino:'
+SET @cideStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblStockActual')
+EXEC TRADUCCION_GUARDAR @espIdStk, @cideStk, 'Stock actual:'
+SET @cideStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCantidad')
+EXEC TRADUCCION_GUARDAR @espIdStk, @cideStk, 'Cantidad:'
+SET @cideStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblMotivo')
+EXEC TRADUCCION_GUARDAR @espIdStk, @cideStk, 'Motivo:'
+SET @cideStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRegistrarEntrada')
+EXEC TRADUCCION_GUARDAR @espIdStk, @cideStk, 'Registrar entrada'
+
+SET @cideStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TipoMovimiento')
+EXEC TRADUCCION_GUARDAR @espIdStk, @cideStk, 'Tipo de movimiento'
+SET @cideStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Cantidad')
+EXEC TRADUCCION_GUARDAR @espIdStk, @cideStk, 'Cantidad'
+SET @cideStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Motivo')
+EXEC TRADUCCION_GUARDAR @espIdStk, @cideStk, 'Motivo'
+SET @cideStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Responsable')
+EXEC TRADUCCION_GUARDAR @espIdStk, @cideStk, 'Responsable'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — INGLÉS
+-- ------------------------------------------------------------
+
+DECLARE @ingIdStk INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @cidiStk  INT
+
+SET @cidiStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'entradaStockToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingIdStk, @cidiStk, 'Register stock entry'
+
+SET @cidiStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmRegistrarEntradaStock')
+EXEC TRADUCCION_GUARDAR @ingIdStk, @cidiStk, 'Register Stock Entry'
+SET @cidiStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_EntradaStock')
+EXEC TRADUCCION_GUARDAR @ingIdStk, @cidiStk, 'Register Stock Entry'
+SET @cidiStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblVino')
+EXEC TRADUCCION_GUARDAR @ingIdStk, @cidiStk, 'Wine:'
+SET @cidiStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblStockActual')
+EXEC TRADUCCION_GUARDAR @ingIdStk, @cidiStk, 'Current stock:'
+SET @cidiStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCantidad')
+EXEC TRADUCCION_GUARDAR @ingIdStk, @cidiStk, 'Quantity:'
+SET @cidiStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblMotivo')
+EXEC TRADUCCION_GUARDAR @ingIdStk, @cidiStk, 'Reason:'
+SET @cidiStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRegistrarEntrada')
+EXEC TRADUCCION_GUARDAR @ingIdStk, @cidiStk, 'Register entry'
+
+SET @cidiStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TipoMovimiento')
+EXEC TRADUCCION_GUARDAR @ingIdStk, @cidiStk, 'Movement type'
+SET @cidiStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Cantidad')
+EXEC TRADUCCION_GUARDAR @ingIdStk, @cidiStk, 'Quantity'
+SET @cidiStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Motivo')
+EXEC TRADUCCION_GUARDAR @ingIdStk, @cidiStk, 'Reason'
+SET @cidiStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Responsable')
+EXEC TRADUCCION_GUARDAR @ingIdStk, @cidiStk, 'Responsible'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — PORTUGUÉS
+-- ------------------------------------------------------------
+
+DECLARE @ptIdStk INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cidpStk INT
+
+SET @cidpStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'entradaStockToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Registrar entrada de estoque'
+
+SET @cidpStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmRegistrarEntradaStock')
+EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Registrar Entrada de Estoque'
+SET @cidpStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_EntradaStock')
+EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Registrar Entrada de Estoque'
+SET @cidpStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblVino')
+EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Vinho:'
+SET @cidpStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblStockActual')
+EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Estoque atual:'
+SET @cidpStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCantidad')
+EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Quantidade:'
+SET @cidpStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblMotivo')
+EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Motivo:'
+SET @cidpStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRegistrarEntrada')
+EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Registrar entrada'
+
+SET @cidpStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TipoMovimiento')
+EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Tipo de movimento'
+SET @cidpStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Cantidad')
+EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Quantidade'
+SET @cidpStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Motivo')
+EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Motivo'
+SET @cidpStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Responsable')
+EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Responsável'
+GO

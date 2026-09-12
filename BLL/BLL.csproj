@@ -51,6 +51,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="UsuarioBLL.cs" />
     <Compile Include="VinoBLL.cs" />
+    <Compile Include="MovimientoStockBLL.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\BE\BE.csproj">

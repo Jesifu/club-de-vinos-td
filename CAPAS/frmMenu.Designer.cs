@@ -25,6 +25,7 @@ namespace CAPAS
             this.idiomasToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.catalogoToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.catalogoVinosToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.entradaStockToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.autorizarVinoToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.lblIdiomaStatus = new System.Windows.Forms.ToolStripLabel();
@@ -89,6 +90,7 @@ namespace CAPAS
             this.idiomasToolStripMenuItem.Click += new System.EventHandler(this.idiomasToolStripMenuItem_Click);
             this.catalogoToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.catalogoVinosToolStripMenuItem,
+            this.entradaStockToolStripMenuItem,
             this.autorizarVinoToolStripMenuItem});
             this.catalogoToolStripMenuItem.Name = "catalogoToolStripMenuItem";
             this.catalogoToolStripMenuItem.Size = new System.Drawing.Size(100, 29);
@@ -97,6 +99,10 @@ namespace CAPAS
             this.catalogoVinosToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
             this.catalogoVinosToolStripMenuItem.Text = "Gestionar catálogo de vinos";
             this.catalogoVinosToolStripMenuItem.Click += new System.EventHandler(this.catalogoVinosToolStripMenuItem_Click);
+            this.entradaStockToolStripMenuItem.Name = "entradaStockToolStripMenuItem";
+            this.entradaStockToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
+            this.entradaStockToolStripMenuItem.Text = "Registrar entrada de stock";
+            this.entradaStockToolStripMenuItem.Click += new System.EventHandler(this.entradaStockToolStripMenuItem_Click);
             this.autorizarVinoToolStripMenuItem.Name = "autorizarVinoToolStripMenuItem";
             this.autorizarVinoToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
             this.autorizarVinoToolStripMenuItem.Text = "Autorizar alta de vinos";
@@ -149,6 +155,7 @@ namespace CAPAS
         private System.Windows.Forms.ToolStripMenuItem idiomasToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem catalogoToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem catalogoVinosToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem entradaStockToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem autorizarVinoToolStripMenuItem;
         private System.Windows.Forms.StatusStrip statusStrip1;
         private System.Windows.Forms.ToolStripLabel lblIdiomaStatus;

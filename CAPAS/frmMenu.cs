@@ -50,6 +50,7 @@ namespace CAPAS
             bitacoraToolStripMenuItem.Visible = sm.TienePermiso("Ver bitácora");
 
             catalogoVinosToolStripMenuItem.Visible = puedeCatalogo;
+            entradaStockToolStripMenuItem.Visible = puedeCatalogo;
             autorizarVinoToolStripMenuItem.Visible = puedeAutorizarCatalogo;
             catalogoToolStripMenuItem.Visible = puedeCatalogo || puedeAutorizarCatalogo;
         }
@@ -156,6 +157,11 @@ namespace CAPAS
         private void autorizarVinoToolStripMenuItem_Click(object sender, EventArgs e)
         {
             new frmAutorizarAltaVino().ShowDialog();
+        }
+
+        private void entradaStockToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new frmRegistrarEntradaStock().ShowDialog();
         }
     }
 }

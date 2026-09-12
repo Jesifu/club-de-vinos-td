@@ -125,6 +125,12 @@
     <Compile Include="frmAutorizarAltaVino.Designer.cs">
       <DependentUpon>frmAutorizarAltaVino.cs</DependentUpon>
     </Compile>
+    <Compile Include="frmRegistrarEntradaStock.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmRegistrarEntradaStock.Designer.cs">
+      <DependentUpon>frmRegistrarEntradaStock.cs</DependentUpon>
+    </Compile>
     <Compile Include="LogIn.cs">
       <SubType>Form</SubType>
     </Compile>
