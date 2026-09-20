@@ -185,5 +185,15 @@ namespace CAPAS
         {
             new frmArmarCaja().ShowDialog();
         }
+
+        private void pickingCajaToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new frmPickingCaja().ShowDialog();
+        }
+
+        private void despacharCajaToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new frmDespacharCaja().ShowDialog();
+        }
     }
 }

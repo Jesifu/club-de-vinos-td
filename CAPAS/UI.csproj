@@ -143,6 +143,18 @@
     <Compile Include="frmArmarCaja.Designer.cs">
       <DependentUpon>frmArmarCaja.cs</DependentUpon>
     </Compile>
+    <Compile Include="frmPickingCaja.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmPickingCaja.Designer.cs">
+      <DependentUpon>frmPickingCaja.cs</DependentUpon>
+    </Compile>
+    <Compile Include="frmDespacharCaja.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmDespacharCaja.Designer.cs">
+      <DependentUpon>frmDespacharCaja.cs</DependentUpon>
+    </Compile>
     <Compile Include="LogIn.cs">
       <SubType>Form</SubType>
     </Compile>

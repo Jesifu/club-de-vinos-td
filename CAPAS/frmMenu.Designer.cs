@@ -132,9 +132,11 @@ namespace CAPAS
             this.pickingCajaToolStripMenuItem.Name = "pickingCajaToolStripMenuItem";
             this.pickingCajaToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
             this.pickingCajaToolStripMenuItem.Text = "Picking y Sustituciones";
+            this.pickingCajaToolStripMenuItem.Click += new System.EventHandler(this.pickingCajaToolStripMenuItem_Click);
             this.despacharCajaToolStripMenuItem.Name = "despacharCajaToolStripMenuItem";
             this.despacharCajaToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
             this.despacharCajaToolStripMenuItem.Text = "Despachar Cajas";
+            this.despacharCajaToolStripMenuItem.Click += new System.EventHandler(this.despacharCajaToolStripMenuItem_Click);
             this.statusStrip1.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.statusStrip1.ImageScalingSize = new System.Drawing.Size(24, 24);
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {

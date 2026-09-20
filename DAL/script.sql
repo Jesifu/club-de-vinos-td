@@ -3465,3 +3465,207 @@ EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Estoque'
 SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Preferido')
 EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Preferido'
 GO
+
+-- ============================================================
+-- i18n — CLUB DE SOCIOS, bloque D (CU-29 frmPickingCaja + CU-31 frmDespacharCaja)
+-- 'pickingCajaToolStripMenuItem'/'despacharCajaToolStripMenuItem' ya existían por su
+-- Text de diseño en el Designer (bloque B no los tocó, per Reconciliation note 2) —
+-- se registran acá, junto al resto de las claves propias de estos dos forms.
+-- Reutiliza sin re-registrar (verificado por grep antes de escribir, cero colisiones
+-- de significado): 'btnCerrar', 'lblMotivo', 'colhdr_Cantidad', 'colhdr_Fecha'.
+-- 'colhdr_ArmadoPor' se registra como clave propia en vez de reutilizar el
+-- 'colhdr_Responsable' genérico ya existente (textos en español distintos:
+-- "Armada por" vs. "Responsable" — reusar hubiera dejado el fallback en inglés
+-- desincronizado del texto ya traducido al español para esa clave).
+-- ============================================================
+
+EXEC CONTROL_REGISTRAR 'pickingCajaToolStripMenuItem',   'Picking y Sustituciones'
+EXEC CONTROL_REGISTRAR 'despacharCajaToolStripMenuItem', 'Despachar Cajas'
+GO
+
+EXEC CONTROL_REGISTRAR 'frmPickingCaja',           'Picking y Sustituciones'
+EXEC CONTROL_REGISTRAR 'lblTitulo_PickingCaja',    'Picking y Sustituciones'
+EXEC CONTROL_REGISTRAR 'lblCajas',                 'Cajas armadas:'
+EXEC CONTROL_REGISTRAR 'lblComposicion',           'Composición efectiva:'
+EXEC CONTROL_REGISTRAR 'lblReemplazo',             'Reemplazar por:'
+EXEC CONTROL_REGISTRAR 'btnRegistrarSustitucion',  'Registrar sustitución'
+EXEC CONTROL_REGISTRAR 'lblTraza',                 'Historial de sustituciones:'
+GO
+
+EXEC CONTROL_REGISTRAR 'frmDespacharCaja',         'Despachar Cajas'
+EXEC CONTROL_REGISTRAR 'lblTitulo_DespacharCaja',  'Despachar Cajas'
+EXEC CONTROL_REGISTRAR 'btnDespachar',             'Despachar caja'
+GO
+
+EXEC CONTROL_REGISTRAR 'colhdr_Socio',             'Socio'
+EXEC CONTROL_REGISTRAR 'colhdr_Periodo',           'Período'
+EXEC CONTROL_REGISTRAR 'colhdr_ArmadoPor',         'Armada por'
+EXEC CONTROL_REGISTRAR 'colhdr_VinoEfectivo',      'Vino'
+EXEC CONTROL_REGISTRAR 'colhdr_StockDisponible',   'Stock disponible'
+EXEC CONTROL_REGISTRAR 'colhdr_Sustituido',        'Sustituido'
+EXEC CONTROL_REGISTRAR 'colhdr_VinoReemplazo',     'Reemplazo'
+EXEC CONTROL_REGISTRAR 'colhdr_MotivoSustitucion', 'Motivo'
+EXEC CONTROL_REGISTRAR 'colhdr_Responsable_Sust',  'Responsable'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — ESPAÑOL
+-- ------------------------------------------------------------
+
+DECLARE @espIdPick INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @cidePick  INT
+
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'pickingCajaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Picking y Sustituciones'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'despacharCajaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Despachar Cajas'
+
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmPickingCaja')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Picking y Sustituciones'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_PickingCaja')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Picking y Sustituciones'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCajas')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Cajas armadas:'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblComposicion')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Composición efectiva:'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblReemplazo')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Reemplazar por:'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRegistrarSustitucion')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Registrar sustitución'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTraza')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Historial de sustituciones:'
+
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmDespacharCaja')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Despachar Cajas'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_DespacharCaja')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Despachar Cajas'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnDespachar')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Despachar caja'
+
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Socio')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Socio'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Periodo')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Período'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_ArmadoPor')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Armada por'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_VinoEfectivo')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Vino'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_StockDisponible')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Stock disponible'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Sustituido')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Sustituido'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_VinoReemplazo')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Reemplazo'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_MotivoSustitucion')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Motivo'
+SET @cidePick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Responsable_Sust')
+EXEC TRADUCCION_GUARDAR @espIdPick, @cidePick, 'Responsable'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — INGLÉS
+-- ------------------------------------------------------------
+
+DECLARE @ingIdPick INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @cidiPick  INT
+
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'pickingCajaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Picking and Substitutions'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'despacharCajaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Dispatch Boxes'
+
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmPickingCaja')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Picking and Substitutions'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_PickingCaja')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Picking and Substitutions'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCajas')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Built boxes:'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblComposicion')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Effective composition:'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblReemplazo')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Replace with:'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRegistrarSustitucion')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Register substitution'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTraza')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Substitution history:'
+
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmDespacharCaja')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Dispatch Boxes'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_DespacharCaja')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Dispatch Boxes'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnDespachar')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Dispatch box'
+
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Socio')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Member'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Periodo')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Period'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_ArmadoPor')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Built by'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_VinoEfectivo')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Wine'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_StockDisponible')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Available stock'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Sustituido')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Substituted'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_VinoReemplazo')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Replacement'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_MotivoSustitucion')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Reason'
+SET @cidiPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Responsable_Sust')
+EXEC TRADUCCION_GUARDAR @ingIdPick, @cidiPick, 'Responsible'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — PORTUGUÉS
+-- ------------------------------------------------------------
+
+DECLARE @ptIdPick INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cidpPick INT
+
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'pickingCajaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Picking e Substituições'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'despacharCajaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Despachar Caixas'
+
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmPickingCaja')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Picking e Substituições'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_PickingCaja')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Picking e Substituições'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCajas')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Caixas montadas:'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblComposicion')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Composição efetiva:'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblReemplazo')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Substituir por:'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRegistrarSustitucion')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Registrar substituição'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTraza')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Histórico de substituições:'
+
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmDespacharCaja')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Despachar Caixas'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_DespacharCaja')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Despachar Caixas'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnDespachar')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Despachar caixa'
+
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Socio')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Sócio'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Periodo')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Período'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_ArmadoPor')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Montada por'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_VinoEfectivo')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Vinho'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_StockDisponible')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Estoque disponível'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Sustituido')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Substituído'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_VinoReemplazo')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Substituição'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_MotivoSustitucion')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Motivo'
+SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Responsable_Sust')
+EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Responsável'
+GO
