@@ -180,5 +180,10 @@ namespace CAPAS
         {
             new frmSocios().ShowDialog();
         }
+
+        private void armarCajaToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new frmArmarCaja().ShowDialog();
+        }
     }
 }

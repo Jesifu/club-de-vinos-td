@@ -3328,3 +3328,140 @@ EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Novo'
 SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_PresupuestoMensual')
 EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Orçamento mensal'
 GO
+
+-- ============================================================
+-- i18n — CLUB DE SOCIOS, bloque C (CU-28 frmArmarCaja)
+-- 'armarCajaToolStripMenuItem' ya fue registrado por su Text de diseño en el
+-- Designer (bloque B no lo tocó, per Reconciliation note 2) — se registra acá,
+-- junto al resto de las claves propias de este form.
+-- ============================================================
+
+EXEC CONTROL_REGISTRAR 'armarCajaToolStripMenuItem', 'Armar Caja Mensual'
+GO
+
+EXEC CONTROL_REGISTRAR 'frmArmarCaja',        'Armar Caja Mensual'
+EXEC CONTROL_REGISTRAR 'lblTitulo_ArmarCaja', 'Armar Caja Mensual'
+EXEC CONTROL_REGISTRAR 'lblSocio',            'Socio:'
+EXEC CONTROL_REGISTRAR 'lblPeriodo',          'Período (AAAA-MM):'
+EXEC CONTROL_REGISTRAR 'lblCandidatos',       'Vinos disponibles para el socio:'
+EXEC CONTROL_REGISTRAR 'lblCantidad',         'Cantidad:'
+EXEC CONTROL_REGISTRAR 'btnAgregarLinea',     'Agregar a la caja'
+EXEC CONTROL_REGISTRAR 'lblLineas',           'Vinos en la caja:'
+EXEC CONTROL_REGISTRAR 'lblTotal',            'Total:'
+EXEC CONTROL_REGISTRAR 'btnConfirmarArmado',  'Confirmar armado'
+GO
+
+EXEC CONTROL_REGISTRAR 'colhdr_Stock',     'Stock'
+EXEC CONTROL_REGISTRAR 'colhdr_Preferido', 'Preferido'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — ESPAÑOL
+-- ------------------------------------------------------------
+
+DECLARE @espIdCaj INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @cideCaj  INT
+
+SET @cideCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'armarCajaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdCaj, @cideCaj, 'Armar Caja Mensual'
+
+SET @cideCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmArmarCaja')
+EXEC TRADUCCION_GUARDAR @espIdCaj, @cideCaj, 'Armar Caja Mensual'
+SET @cideCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_ArmarCaja')
+EXEC TRADUCCION_GUARDAR @espIdCaj, @cideCaj, 'Armar Caja Mensual'
+SET @cideCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblSocio')
+EXEC TRADUCCION_GUARDAR @espIdCaj, @cideCaj, 'Socio:'
+SET @cideCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblPeriodo')
+EXEC TRADUCCION_GUARDAR @espIdCaj, @cideCaj, 'Período (AAAA-MM):'
+SET @cideCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCandidatos')
+EXEC TRADUCCION_GUARDAR @espIdCaj, @cideCaj, 'Vinos disponibles para el socio:'
+SET @cideCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCantidad')
+EXEC TRADUCCION_GUARDAR @espIdCaj, @cideCaj, 'Cantidad:'
+SET @cideCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAgregarLinea')
+EXEC TRADUCCION_GUARDAR @espIdCaj, @cideCaj, 'Agregar a la caja'
+SET @cideCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblLineas')
+EXEC TRADUCCION_GUARDAR @espIdCaj, @cideCaj, 'Vinos en la caja:'
+SET @cideCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTotal')
+EXEC TRADUCCION_GUARDAR @espIdCaj, @cideCaj, 'Total:'
+SET @cideCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnConfirmarArmado')
+EXEC TRADUCCION_GUARDAR @espIdCaj, @cideCaj, 'Confirmar armado'
+
+SET @cideCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Stock')
+EXEC TRADUCCION_GUARDAR @espIdCaj, @cideCaj, 'Stock'
+SET @cideCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Preferido')
+EXEC TRADUCCION_GUARDAR @espIdCaj, @cideCaj, 'Preferido'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — INGLÉS
+-- ------------------------------------------------------------
+
+DECLARE @ingIdCaj INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @cidiCaj  INT
+
+SET @cidiCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'armarCajaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingIdCaj, @cidiCaj, 'Build Monthly Box'
+
+SET @cidiCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmArmarCaja')
+EXEC TRADUCCION_GUARDAR @ingIdCaj, @cidiCaj, 'Build Monthly Box'
+SET @cidiCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_ArmarCaja')
+EXEC TRADUCCION_GUARDAR @ingIdCaj, @cidiCaj, 'Build Monthly Box'
+SET @cidiCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblSocio')
+EXEC TRADUCCION_GUARDAR @ingIdCaj, @cidiCaj, 'Member:'
+SET @cidiCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblPeriodo')
+EXEC TRADUCCION_GUARDAR @ingIdCaj, @cidiCaj, 'Period (YYYY-MM):'
+SET @cidiCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCandidatos')
+EXEC TRADUCCION_GUARDAR @ingIdCaj, @cidiCaj, 'Wines available for the member:'
+SET @cidiCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCantidad')
+EXEC TRADUCCION_GUARDAR @ingIdCaj, @cidiCaj, 'Quantity:'
+SET @cidiCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAgregarLinea')
+EXEC TRADUCCION_GUARDAR @ingIdCaj, @cidiCaj, 'Add to box'
+SET @cidiCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblLineas')
+EXEC TRADUCCION_GUARDAR @ingIdCaj, @cidiCaj, 'Wines in the box:'
+SET @cidiCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTotal')
+EXEC TRADUCCION_GUARDAR @ingIdCaj, @cidiCaj, 'Total:'
+SET @cidiCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnConfirmarArmado')
+EXEC TRADUCCION_GUARDAR @ingIdCaj, @cidiCaj, 'Confirm box'
+
+SET @cidiCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Stock')
+EXEC TRADUCCION_GUARDAR @ingIdCaj, @cidiCaj, 'Stock'
+SET @cidiCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Preferido')
+EXEC TRADUCCION_GUARDAR @ingIdCaj, @cidiCaj, 'Preferred'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — PORTUGUÉS
+-- ------------------------------------------------------------
+
+DECLARE @ptIdCaj INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cidpCaj INT
+
+SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'armarCajaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Montar Caixa Mensal'
+
+SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmArmarCaja')
+EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Montar Caixa Mensal'
+SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_ArmarCaja')
+EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Montar Caixa Mensal'
+SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblSocio')
+EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Sócio:'
+SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblPeriodo')
+EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Período (AAAA-MM):'
+SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCandidatos')
+EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Vinhos disponíveis para o sócio:'
+SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCantidad')
+EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Quantidade:'
+SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAgregarLinea')
+EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Adicionar à caixa'
+SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblLineas')
+EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Vinhos na caixa:'
+SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTotal')
+EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Total:'
+SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnConfirmarArmado')
+EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Confirmar montagem'
+
+SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Stock')
+EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Estoque'
+SET @cidpCaj = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Preferido')
+EXEC TRADUCCION_GUARDAR @ptIdCaj, @cidpCaj, 'Preferido'
+GO

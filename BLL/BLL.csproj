@@ -53,6 +53,7 @@
     <Compile Include="VinoBLL.cs" />
     <Compile Include="MovimientoStockBLL.cs" />
     <Compile Include="SocioBLL.cs" />
+    <Compile Include="CajaMensualBLL.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\BE\BE.csproj">

@@ -128,6 +128,7 @@ namespace CAPAS
             this.armarCajaToolStripMenuItem.Name = "armarCajaToolStripMenuItem";
             this.armarCajaToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
             this.armarCajaToolStripMenuItem.Text = "Armar Caja Mensual";
+            this.armarCajaToolStripMenuItem.Click += new System.EventHandler(this.armarCajaToolStripMenuItem_Click);
             this.pickingCajaToolStripMenuItem.Name = "pickingCajaToolStripMenuItem";
             this.pickingCajaToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
             this.pickingCajaToolStripMenuItem.Text = "Picking y Sustituciones";
