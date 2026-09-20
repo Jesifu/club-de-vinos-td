@@ -3206,3 +3206,125 @@ IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminClubId AND PERM
 IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminClubId AND PERMISO_ID = @permDespacharId)
     INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAdminClubId, @permDespacharId)
 GO
+
+-- ============================================================
+-- i18n — CLUB DE SOCIOS, bloque B (CU-30 frmSocios + rama de menú)
+-- Solo 'clubSociosToolStripMenuItem' y 'sociosToolStripMenuItem': los otros 3
+-- ítems del menú (armar/picking/despachar) se registran en sus propios slices.
+-- ============================================================
+
+EXEC CONTROL_REGISTRAR 'clubSociosToolStripMenuItem', 'Club de Socios'
+EXEC CONTROL_REGISTRAR 'sociosToolStripMenuItem',      'Gestionar Socios'
+GO
+
+EXEC CONTROL_REGISTRAR 'frmSocios',        'Gestión de Socios'
+EXEC CONTROL_REGISTRAR 'lblTitulo_Socios', 'Gestión de Socios'
+EXEC CONTROL_REGISTRAR 'lblNombre_Socios', 'Nombre:'
+EXEC CONTROL_REGISTRAR 'lblPresupuesto',   'Presupuesto mensual:'
+EXEC CONTROL_REGISTRAR 'chkActivo',        'Activo'
+EXEC CONTROL_REGISTRAR 'lblVarietales',    'Varietales preferidos:'
+EXEC CONTROL_REGISTRAR 'btnGuardarSocio',  'Guardar'
+EXEC CONTROL_REGISTRAR 'btnNuevoSocio',    'Nuevo'
+GO
+
+EXEC CONTROL_REGISTRAR 'colhdr_PresupuestoMensual', 'Presupuesto mensual'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — ESPAÑOL
+-- ------------------------------------------------------------
+
+DECLARE @espIdSoc INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @cideSoc  INT
+
+SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'clubSociosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Club de Socios'
+SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'sociosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Gestionar Socios'
+
+SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmSocios')
+EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Gestión de Socios'
+SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_Socios')
+EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Gestión de Socios'
+SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblNombre_Socios')
+EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Nombre:'
+SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblPresupuesto')
+EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Presupuesto mensual:'
+SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'chkActivo')
+EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Activo'
+SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblVarietales')
+EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Varietales preferidos:'
+SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarSocio')
+EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Guardar'
+SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnNuevoSocio')
+EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Nuevo'
+
+SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_PresupuestoMensual')
+EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Presupuesto mensual'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — INGLÉS
+-- ------------------------------------------------------------
+
+DECLARE @ingIdSoc INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @cidiSoc  INT
+
+SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'clubSociosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Members Club'
+SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'sociosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Manage Members'
+
+SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmSocios')
+EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Member Management'
+SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_Socios')
+EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Member Management'
+SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblNombre_Socios')
+EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Name:'
+SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblPresupuesto')
+EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Monthly budget:'
+SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'chkActivo')
+EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Active'
+SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblVarietales')
+EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Preferred varietals:'
+SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarSocio')
+EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Save'
+SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnNuevoSocio')
+EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'New'
+
+SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_PresupuestoMensual')
+EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Monthly budget'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — PORTUGUÉS
+-- ------------------------------------------------------------
+
+DECLARE @ptIdSoc INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cidpSoc INT
+
+SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'clubSociosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Clube de Sócios'
+SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'sociosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Gerenciar Sócios'
+
+SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmSocios')
+EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Gestão de Sócios'
+SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_Socios')
+EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Gestão de Sócios'
+SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblNombre_Socios')
+EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Nome:'
+SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblPresupuesto')
+EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Orçamento mensal:'
+SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'chkActivo')
+EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Ativo'
+SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblVarietales')
+EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Varietais preferidos:'
+SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarSocio')
+EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Salvar'
+SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnNuevoSocio')
+EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Novo'
+
+SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_PresupuestoMensual')
+EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Orçamento mensal'
+GO

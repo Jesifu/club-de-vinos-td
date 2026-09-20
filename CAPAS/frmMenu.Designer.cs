@@ -27,6 +27,11 @@ namespace CAPAS
             this.catalogoVinosToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.entradaStockToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.autorizarVinoToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.clubSociosToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.sociosToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.armarCajaToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.pickingCajaToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.despacharCajaToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.lblIdiomaStatus = new System.Windows.Forms.ToolStripLabel();
             this.cboIdiomaStatus = new System.Windows.Forms.ToolStripComboBox();
@@ -41,7 +46,8 @@ namespace CAPAS
             this.configuraciónToolStripMenuItem,
             this.bitacoraToolStripMenuItem,
             this.administracionToolStripMenuItem,
-            this.catalogoToolStripMenuItem});
+            this.catalogoToolStripMenuItem,
+            this.clubSociosToolStripMenuItem});
             this.menuStrip1.Location = new System.Drawing.Point(0, 0);
             this.menuStrip1.Name = "menuStrip1";
             this.menuStrip1.Size = new System.Drawing.Size(852, 33);
@@ -107,6 +113,27 @@ namespace CAPAS
             this.autorizarVinoToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
             this.autorizarVinoToolStripMenuItem.Text = "Autorizar alta de vinos";
             this.autorizarVinoToolStripMenuItem.Click += new System.EventHandler(this.autorizarVinoToolStripMenuItem_Click);
+            this.clubSociosToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.sociosToolStripMenuItem,
+            this.armarCajaToolStripMenuItem,
+            this.pickingCajaToolStripMenuItem,
+            this.despacharCajaToolStripMenuItem});
+            this.clubSociosToolStripMenuItem.Name = "clubSociosToolStripMenuItem";
+            this.clubSociosToolStripMenuItem.Size = new System.Drawing.Size(140, 29);
+            this.clubSociosToolStripMenuItem.Text = "Club de Socios";
+            this.sociosToolStripMenuItem.Name = "sociosToolStripMenuItem";
+            this.sociosToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
+            this.sociosToolStripMenuItem.Text = "Gestionar Socios";
+            this.sociosToolStripMenuItem.Click += new System.EventHandler(this.sociosToolStripMenuItem_Click);
+            this.armarCajaToolStripMenuItem.Name = "armarCajaToolStripMenuItem";
+            this.armarCajaToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
+            this.armarCajaToolStripMenuItem.Text = "Armar Caja Mensual";
+            this.pickingCajaToolStripMenuItem.Name = "pickingCajaToolStripMenuItem";
+            this.pickingCajaToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
+            this.pickingCajaToolStripMenuItem.Text = "Picking y Sustituciones";
+            this.despacharCajaToolStripMenuItem.Name = "despacharCajaToolStripMenuItem";
+            this.despacharCajaToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
+            this.despacharCajaToolStripMenuItem.Text = "Despachar Cajas";
             this.statusStrip1.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.statusStrip1.ImageScalingSize = new System.Drawing.Size(24, 24);
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
@@ -157,6 +184,11 @@ namespace CAPAS
         private System.Windows.Forms.ToolStripMenuItem catalogoVinosToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem entradaStockToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem autorizarVinoToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem clubSociosToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem sociosToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem armarCajaToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem pickingCajaToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem despacharCajaToolStripMenuItem;
         private System.Windows.Forms.StatusStrip statusStrip1;
         private System.Windows.Forms.ToolStripLabel lblIdiomaStatus;
         private System.Windows.Forms.ToolStripComboBox cboIdiomaStatus;

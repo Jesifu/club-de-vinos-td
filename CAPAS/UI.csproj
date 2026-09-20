@@ -131,6 +131,12 @@
     <Compile Include="frmRegistrarEntradaStock.Designer.cs">
       <DependentUpon>frmRegistrarEntradaStock.cs</DependentUpon>
     </Compile>
+    <Compile Include="frmSocios.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmSocios.Designer.cs">
+      <DependentUpon>frmSocios.cs</DependentUpon>
+    </Compile>
     <Compile Include="LogIn.cs">
       <SubType>Form</SubType>
     </Compile>

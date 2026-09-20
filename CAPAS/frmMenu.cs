@@ -40,6 +40,10 @@ namespace CAPAS
             bool puedeGestionIdiomas = sm.TienePermiso("Gestión de idiomas");
             bool puedeCatalogo = sm.TienePermiso("Gestionar catálogo de vinos");
             bool puedeAutorizarCatalogo = sm.TienePermiso("Autorizar alta de vinos");
+            bool puedeSocios = sm.TienePermiso("Gestionar socios");
+            bool puedeArmar = sm.TienePermiso("Armar cajas mensuales");
+            bool puedePicking = sm.TienePermiso("Registrar picking y sustituciones");
+            bool puedeDespachar = sm.TienePermiso("Despachar cajas");
 
             usuariosBloqueadosToolStripMenuItem.Visible = puedeAdminUsuarios;
             perfilesToolStripMenuItem.Visible = puedeGestionRoles;
@@ -53,6 +57,14 @@ namespace CAPAS
             entradaStockToolStripMenuItem.Visible = puedeCatalogo;
             autorizarVinoToolStripMenuItem.Visible = puedeAutorizarCatalogo;
             catalogoToolStripMenuItem.Visible = puedeCatalogo || puedeAutorizarCatalogo;
+
+            // CU-28/29/31: los ítems ya existen y quedan visibles-pero-inertes hasta
+            // que su propio slice los conecte (Reconciliation note 2 del apply de tasks).
+            sociosToolStripMenuItem.Visible = puedeSocios;
+            armarCajaToolStripMenuItem.Visible = puedeArmar;
+            pickingCajaToolStripMenuItem.Visible = puedePicking;
+            despacharCajaToolStripMenuItem.Visible = puedeDespachar;
+            clubSociosToolStripMenuItem.Visible = puedeSocios || puedeArmar || puedePicking || puedeDespachar;
         }
 
         private void frmMenu_FormClosed(object sender, FormClosedEventArgs e)
@@ -162,6 +174,11 @@ namespace CAPAS
         private void entradaStockToolStripMenuItem_Click(object sender, EventArgs e)
         {
             new frmRegistrarEntradaStock().ShowDialog();
+        }
+
+        private void sociosToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new frmSocios().ShowDialog();
         }
     }
 }
