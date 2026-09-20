@@ -2712,3 +2712,497 @@ EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Motivo'
 SET @cidpStk = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Responsable')
 EXEC TRADUCCION_GUARDAR @ptIdStk, @cidpStk, 'Responsável'
 GO
+
+-- ============================================================
+-- CURACIÓN Y ARMADO DE CAJAS MENSUALES (CU-28..31) — Entrega 3, Slice 1
+-- Tablas, 18 SPs y seeds de permisos/rol. Sin i18n en este bloque
+-- (no hay UI todavía — llega en los blocks B/C/D de los Slices 2-4).
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- TABLAS (orden FK: SOCIO -> SOCIO_VARIETAL -> CAJA_MENSUAL -> CAJA_VINO -> SUSTITUCION)
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.SOCIO', 'U') IS NULL
+CREATE TABLE [dbo].[SOCIO] (
+    [ID]                   INT           IDENTITY(1,1) NOT NULL,
+    [NOMBRE]               VARCHAR(50)   NOT NULL,
+    [APELLIDO]             VARCHAR(50)   NOT NULL,
+    [EMAIL]                VARCHAR(100)  NULL,
+    [TELEFONO]             VARCHAR(20)   NULL,
+    [PRESUPUESTO_MENSUAL]  DECIMAL(10,2) NOT NULL,
+    [ACTIVO]               BIT           NOT NULL DEFAULT 1,
+    [FECHA_ALTA]           DATETIME      NOT NULL DEFAULT GETDATE(),
+    [CREADO_POR]           INT           NOT NULL,
+    CONSTRAINT PK_SOCIO PRIMARY KEY ([ID]),
+    CONSTRAINT FK_SOCIO_CREADOPOR FOREIGN KEY ([CREADO_POR]) REFERENCES [dbo].[USUARIO]([ID])
+)
+GO
+
+IF OBJECT_ID('dbo.SOCIO_VARIETAL', 'U') IS NULL
+CREATE TABLE [dbo].[SOCIO_VARIETAL] (
+    [SOCIO_ID] INT         NOT NULL,
+    [VARIETAL] VARCHAR(50) NOT NULL,
+    CONSTRAINT PK_SOCIO_VARIETAL PRIMARY KEY ([SOCIO_ID], [VARIETAL]),
+    CONSTRAINT FK_SOCIOVAR_SOCIO FOREIGN KEY ([SOCIO_ID]) REFERENCES [dbo].[SOCIO]([ID])
+)
+GO
+
+IF OBJECT_ID('dbo.CAJA_MENSUAL', 'U') IS NULL
+CREATE TABLE [dbo].[CAJA_MENSUAL] (
+    [ID]                    INT           IDENTITY(1,1) NOT NULL,
+    [SOCIO_ID]              INT           NOT NULL,
+    [PERIODO]               CHAR(7)       NOT NULL,
+    [ESTADO]                VARCHAR(12)   NOT NULL DEFAULT 'Armada',
+    [PRESUPUESTO_SNAPSHOT]  DECIMAL(10,2) NOT NULL,
+    [FECHA_ARMADO]          DATETIME      NOT NULL DEFAULT GETDATE(),
+    [ARMADO_POR]            INT           NOT NULL,
+    [FECHA_DESPACHO]        DATETIME      NULL,
+    [DESPACHADO_POR]        INT           NULL,
+    [FECHA_CANCELACION]     DATETIME      NULL,
+    [CANCELADA_POR]         INT           NULL,
+    [MOTIVO_CANCELACION]    VARCHAR(200)  NULL,
+    CONSTRAINT PK_CAJA_MENSUAL PRIMARY KEY ([ID]),
+    CONSTRAINT FK_CAJA_SOCIO         FOREIGN KEY ([SOCIO_ID])       REFERENCES [dbo].[SOCIO]([ID]),
+    CONSTRAINT FK_CAJA_ARMADOPOR     FOREIGN KEY ([ARMADO_POR])     REFERENCES [dbo].[USUARIO]([ID]),
+    CONSTRAINT FK_CAJA_DESPACHADOPOR FOREIGN KEY ([DESPACHADO_POR]) REFERENCES [dbo].[USUARIO]([ID]),
+    CONSTRAINT FK_CAJA_CANCELADAPOR  FOREIGN KEY ([CANCELADA_POR])  REFERENCES [dbo].[USUARIO]([ID])
+)
+GO
+
+-- Decision 8: una caja viva por socio+período; una caja cancelada no bloquea re-armar.
+-- BDCAPAS tiene QUOTED_IDENTIFIER OFF a nivel de base (gotcha nuevo: es el primer
+-- índice filtrado del repo, y esa opción SET debe estar ON para crearlo).
+SET QUOTED_IDENTIFIER ON
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UQ_CAJA_SOCIO_PERIODO' AND object_id = OBJECT_ID('dbo.CAJA_MENSUAL'))
+CREATE UNIQUE NONCLUSTERED INDEX UQ_CAJA_SOCIO_PERIODO
+    ON [dbo].[CAJA_MENSUAL] ([SOCIO_ID], [PERIODO]) WHERE [ESTADO] <> 'Cancelada'
+GO
+
+IF OBJECT_ID('dbo.CAJA_VINO', 'U') IS NULL
+CREATE TABLE [dbo].[CAJA_VINO] (
+    [ID]              INT           IDENTITY(1,1) NOT NULL,
+    [CAJA_ID]         INT           NOT NULL,
+    [VINO_ID]         INT           NOT NULL,
+    [CANTIDAD]        INT           NOT NULL,
+    [NOMBRE_SNAPSHOT] VARCHAR(100)  NOT NULL,
+    [PRECIO_SNAPSHOT] DECIMAL(10,2) NOT NULL,
+    CONSTRAINT PK_CAJA_VINO PRIMARY KEY ([ID]),
+    CONSTRAINT CK_CAJA_VINO_CANTIDAD CHECK ([CANTIDAD] > 0),
+    CONSTRAINT UQ_CAJA_VINO UNIQUE ([CAJA_ID], [VINO_ID]),
+    CONSTRAINT FK_CAJAVINO_CAJA FOREIGN KEY ([CAJA_ID]) REFERENCES [dbo].[CAJA_MENSUAL]([ID]),
+    CONSTRAINT FK_CAJAVINO_VINO FOREIGN KEY ([VINO_ID]) REFERENCES [dbo].[VINO]([ID])
+)
+GO
+
+-- Sin FK a MOVIMIENTO_STOCK: soft link vía REFERENCIA_TIPO/REFERENCIA_ID (design #117/#132)
+IF OBJECT_ID('dbo.SUSTITUCION', 'U') IS NULL
+CREATE TABLE [dbo].[SUSTITUCION] (
+    [ID]                INT           IDENTITY(1,1) NOT NULL,
+    [CAJA_VINO_ID]      INT           NOT NULL,
+    [VINO_ORIGINAL_ID]  INT           NOT NULL,
+    [VINO_REEMPLAZO_ID] INT           NOT NULL,
+    [NOMBRE_SNAPSHOT]   VARCHAR(100)  NOT NULL,
+    [PRECIO_SNAPSHOT]   DECIMAL(10,2) NOT NULL,
+    [MOTIVO]            VARCHAR(200)  NOT NULL,
+    [RESPONSABLE_ID]    INT           NOT NULL,
+    [FECHA]             DATETIME      NOT NULL DEFAULT GETDATE(),
+    CONSTRAINT PK_SUSTITUCION PRIMARY KEY ([ID]),
+    CONSTRAINT FK_SUST_CAJAVINO   FOREIGN KEY ([CAJA_VINO_ID])      REFERENCES [dbo].[CAJA_VINO]([ID]),
+    CONSTRAINT FK_SUST_VINOORIG   FOREIGN KEY ([VINO_ORIGINAL_ID])  REFERENCES [dbo].[VINO]([ID]),
+    CONSTRAINT FK_SUST_VINOREEMP  FOREIGN KEY ([VINO_REEMPLAZO_ID]) REFERENCES [dbo].[VINO]([ID])
+)
+GO
+
+-- ------------------------------------------------------------
+-- STORED PROCEDURES — SOCIO (CU-30)
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.SOCIO_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOCIO_INSERTAR]
+GO
+CREATE PROCEDURE [dbo].[SOCIO_INSERTAR]
+    @nombre               VARCHAR(50),
+    @apellido             VARCHAR(50),
+    @presupuesto_mensual  DECIMAL(10,2),
+    @creado_por           INT,
+    @email                VARCHAR(100) = NULL,
+    @telefono             VARCHAR(20)  = NULL
+AS
+BEGIN
+    INSERT INTO SOCIO (NOMBRE, APELLIDO, EMAIL, TELEFONO, PRESUPUESTO_MENSUAL, ACTIVO, FECHA_ALTA, CREADO_POR)
+    VALUES (@nombre, @apellido, @email, @telefono, @presupuesto_mensual, 1, GETDATE(), @creado_por)
+    SELECT SCOPE_IDENTITY() AS ID
+END
+GO
+
+IF OBJECT_ID('dbo.SOCIO_ACTUALIZAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOCIO_ACTUALIZAR]
+GO
+CREATE PROCEDURE [dbo].[SOCIO_ACTUALIZAR]
+    @id                   INT,
+    @nombre               VARCHAR(50),
+    @apellido             VARCHAR(50),
+    @presupuesto_mensual  DECIMAL(10,2),
+    @creado_por           INT,
+    @activo               BIT,
+    @email                VARCHAR(100) = NULL,
+    @telefono             VARCHAR(20)  = NULL
+AS
+    UPDATE SOCIO
+    SET NOMBRE = @nombre, APELLIDO = @apellido, EMAIL = @email, TELEFONO = @telefono,
+        PRESUPUESTO_MENSUAL = @presupuesto_mensual, ACTIVO = @activo
+    WHERE ID = @id
+GO
+
+IF OBJECT_ID('dbo.SOCIO_OBTENER_POR_ID', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOCIO_OBTENER_POR_ID]
+GO
+CREATE PROCEDURE [dbo].[SOCIO_OBTENER_POR_ID]
+    @id INT
+AS
+    SELECT s.ID, s.NOMBRE, s.APELLIDO, s.EMAIL, s.TELEFONO, s.PRESUPUESTO_MENSUAL, s.ACTIVO,
+           s.FECHA_ALTA, s.CREADO_POR, u.USUARIO AS CREADO_POR_LOGIN
+    FROM SOCIO s
+    JOIN USUARIO u ON u.ID = s.CREADO_POR
+    WHERE s.ID = @id
+GO
+
+IF OBJECT_ID('dbo.SOCIO_VARIETAL_LISTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOCIO_VARIETAL_LISTAR]
+GO
+CREATE PROCEDURE [dbo].[SOCIO_VARIETAL_LISTAR]
+    @socio_id INT
+AS
+    SELECT SOCIO_ID, VARIETAL FROM SOCIO_VARIETAL WHERE SOCIO_ID = @socio_id ORDER BY VARIETAL
+GO
+
+IF OBJECT_ID('dbo.SOCIO_LISTAR_ACTIVOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOCIO_LISTAR_ACTIVOS]
+GO
+CREATE PROCEDURE [dbo].[SOCIO_LISTAR_ACTIVOS]
+AS
+    SELECT s.ID, s.NOMBRE, s.APELLIDO, s.EMAIL, s.TELEFONO, s.PRESUPUESTO_MENSUAL, s.ACTIVO,
+           s.FECHA_ALTA, s.CREADO_POR, u.USUARIO AS CREADO_POR_LOGIN
+    FROM SOCIO s
+    JOIN USUARIO u ON u.ID = s.CREADO_POR
+    WHERE s.ACTIVO = 1
+    ORDER BY s.APELLIDO, s.NOMBRE
+GO
+
+IF OBJECT_ID('dbo.SOCIO_VARIETAL_LIMPIAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOCIO_VARIETAL_LIMPIAR]
+GO
+CREATE PROCEDURE [dbo].[SOCIO_VARIETAL_LIMPIAR]
+    @socio_id INT
+AS
+    DELETE FROM SOCIO_VARIETAL WHERE SOCIO_ID = @socio_id
+GO
+
+IF OBJECT_ID('dbo.SOCIO_VARIETAL_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOCIO_VARIETAL_INSERTAR]
+GO
+CREATE PROCEDURE [dbo].[SOCIO_VARIETAL_INSERTAR]
+    @socio_id INT,
+    @varietal VARCHAR(50)
+AS
+    INSERT INTO SOCIO_VARIETAL (SOCIO_ID, VARIETAL) VALUES (@socio_id, @varietal)
+GO
+
+IF OBJECT_ID('dbo.VARIETAL_LISTAR_CATALOGO', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VARIETAL_LISTAR_CATALOGO]
+GO
+CREATE PROCEDURE [dbo].[VARIETAL_LISTAR_CATALOGO]
+AS
+    SELECT DISTINCT VARIETAL FROM VINO WHERE ESTADO = 'Activo' ORDER BY VARIETAL
+GO
+
+-- ------------------------------------------------------------
+-- STORED PROCEDURES — VINO_LISTAR_CANDIDATOS (CU-28, sobre el agregado VINO)
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.VINO_LISTAR_CANDIDATOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_LISTAR_CANDIDATOS]
+GO
+-- RN-06 filtra (WHERE), RN-05.2 ordena (nunca filtra)
+CREATE PROCEDURE [dbo].[VINO_LISTAR_CANDIDATOS] @socio_id INT
+AS
+    SELECT v.ID, v.CODIGO, v.NOMBRE, b.NOMBRE AS BODEGA_NOMBRE, v.VARIETAL, v.ANIADA, v.PRECIO,
+           ISNULL(k.STOCK, 0) AS STOCK,
+           CASE WHEN sv.VARIETAL IS NULL THEN 0 ELSE 1 END AS PREFERIDO
+    FROM VINO v
+    JOIN BODEGA b ON b.ID = v.BODEGA_ID
+    LEFT JOIN SOCIO_VARIETAL sv ON sv.SOCIO_ID = @socio_id AND sv.VARIETAL = v.VARIETAL
+    OUTER APPLY (SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END) AS STOCK
+                 FROM MOVIMIENTO_STOCK m WHERE m.VINO_ID = v.ID) k
+    WHERE v.ESTADO = 'Activo' AND v.AUTORIZADO_POR IS NOT NULL AND ISNULL(k.STOCK, 0) > 0
+    ORDER BY PREFERIDO DESC, v.PRECIO ASC, v.NOMBRE ASC
+GO
+
+-- ------------------------------------------------------------
+-- STORED PROCEDURES — CAJA_MENSUAL / CAJA_VINO (CU-28)
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.CAJA_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[CAJA_INSERTAR]
+GO
+CREATE PROCEDURE [dbo].[CAJA_INSERTAR]
+    @socio_id              INT,
+    @periodo               CHAR(7),
+    @presupuesto_snapshot  DECIMAL(10,2),
+    @armado_por            INT
+AS
+BEGIN
+    INSERT INTO CAJA_MENSUAL (SOCIO_ID, PERIODO, ESTADO, PRESUPUESTO_SNAPSHOT, FECHA_ARMADO, ARMADO_POR)
+    VALUES (@socio_id, @periodo, 'Armada', @presupuesto_snapshot, GETDATE(), @armado_por)
+    SELECT SCOPE_IDENTITY() AS ID
+END
+GO
+
+IF OBJECT_ID('dbo.CAJA_VINO_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[CAJA_VINO_INSERTAR]
+GO
+CREATE PROCEDURE [dbo].[CAJA_VINO_INSERTAR]
+    @caja_id         INT,
+    @vino_id         INT,
+    @cantidad        INT,
+    @nombre_snapshot VARCHAR(100),
+    @precio_snapshot DECIMAL(10,2)
+AS
+    -- RN-04: snapshots congelados al armado, no siguen cambios posteriores del catálogo
+    INSERT INTO CAJA_VINO (CAJA_ID, VINO_ID, CANTIDAD, NOMBRE_SNAPSHOT, PRECIO_SNAPSHOT)
+    VALUES (@caja_id, @vino_id, @cantidad, @nombre_snapshot, @precio_snapshot)
+GO
+
+IF OBJECT_ID('dbo.CAJA_VINO_LISTAR_EFECTIVO', 'P') IS NOT NULL DROP PROCEDURE [dbo].[CAJA_VINO_LISTAR_EFECTIVO]
+GO
+-- RN-07: composición DERIVADA, jamás un UPDATE de la línea.
+-- Cadena A->B->C se resuelve por ROW_NUMBER sobre SUSTITUCION.ID DESC (Decision 4).
+CREATE PROCEDURE [dbo].[CAJA_VINO_LISTAR_EFECTIVO] @caja_id INT
+AS
+    WITH ULTIMA AS (
+        SELECT s.CAJA_VINO_ID, s.VINO_REEMPLAZO_ID, s.NOMBRE_SNAPSHOT, s.PRECIO_SNAPSHOT,
+               ROW_NUMBER() OVER (PARTITION BY s.CAJA_VINO_ID ORDER BY s.ID DESC) AS RN
+        FROM SUSTITUCION s
+    )
+    SELECT cv.ID, cv.CAJA_ID, cv.VINO_ID, cv.CANTIDAD, cv.NOMBRE_SNAPSHOT, cv.PRECIO_SNAPSHOT,
+           ISNULL(u.VINO_REEMPLAZO_ID, cv.VINO_ID)        AS VINO_EFECTIVO_ID,
+           ISNULL(u.NOMBRE_SNAPSHOT,   cv.NOMBRE_SNAPSHOT) AS NOMBRE_EFECTIVO,
+           ISNULL(u.PRECIO_SNAPSHOT,   cv.PRECIO_SNAPSHOT) AS PRECIO_EFECTIVO,
+           CASE WHEN u.CAJA_VINO_ID IS NULL THEN 0 ELSE 1 END AS SUSTITUIDO,
+           ISNULL((SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END)
+                   FROM MOVIMIENTO_STOCK m
+                   WHERE m.VINO_ID = ISNULL(u.VINO_REEMPLAZO_ID, cv.VINO_ID)), 0) AS STOCK_DISPONIBLE
+    FROM CAJA_VINO cv
+    LEFT JOIN ULTIMA u ON u.CAJA_VINO_ID = cv.ID AND u.RN = 1
+    WHERE cv.CAJA_ID = @caja_id
+    ORDER BY cv.ID
+GO
+
+IF OBJECT_ID('dbo.CAJA_OBTENER_POR_ID', 'P') IS NOT NULL DROP PROCEDURE [dbo].[CAJA_OBTENER_POR_ID]
+GO
+CREATE PROCEDURE [dbo].[CAJA_OBTENER_POR_ID]
+    @id INT
+AS
+    SELECT c.ID, c.SOCIO_ID, s.APELLIDO + ', ' + s.NOMBRE AS SOCIO_NOMBRE,
+           c.PERIODO, c.ESTADO, c.PRESUPUESTO_SNAPSHOT, c.FECHA_ARMADO,
+           c.ARMADO_POR, ua.USUARIO AS ARMADO_POR_LOGIN,
+           c.FECHA_DESPACHO, c.DESPACHADO_POR, ud.USUARIO AS DESPACHADO_POR_LOGIN,
+           c.FECHA_CANCELACION, c.CANCELADA_POR, c.MOTIVO_CANCELACION
+    FROM CAJA_MENSUAL c
+    JOIN SOCIO s ON s.ID = c.SOCIO_ID
+    JOIN USUARIO ua ON ua.ID = c.ARMADO_POR
+    LEFT JOIN USUARIO ud ON ud.ID = c.DESPACHADO_POR
+    WHERE c.ID = @id
+GO
+
+IF OBJECT_ID('dbo.CAJA_LISTAR_POR_ESTADO', 'P') IS NOT NULL DROP PROCEDURE [dbo].[CAJA_LISTAR_POR_ESTADO]
+GO
+CREATE PROCEDURE [dbo].[CAJA_LISTAR_POR_ESTADO]
+    @estado VARCHAR(12)
+AS
+    SELECT c.ID, c.SOCIO_ID, s.APELLIDO + ', ' + s.NOMBRE AS SOCIO_NOMBRE,
+           c.PERIODO, c.ESTADO, c.PRESUPUESTO_SNAPSHOT, c.FECHA_ARMADO,
+           c.ARMADO_POR, ua.USUARIO AS ARMADO_POR_LOGIN,
+           c.FECHA_DESPACHO, c.DESPACHADO_POR, ud.USUARIO AS DESPACHADO_POR_LOGIN,
+           c.FECHA_CANCELACION, c.CANCELADA_POR, c.MOTIVO_CANCELACION
+    FROM CAJA_MENSUAL c
+    JOIN SOCIO s ON s.ID = c.SOCIO_ID
+    JOIN USUARIO ua ON ua.ID = c.ARMADO_POR
+    LEFT JOIN USUARIO ud ON ud.ID = c.DESPACHADO_POR
+    WHERE c.ESTADO = @estado
+    ORDER BY c.FECHA_ARMADO DESC
+GO
+
+-- ------------------------------------------------------------
+-- STORED PROCEDURES — SUSTITUCION (CU-29)
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.SUSTITUCION_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SUSTITUCION_INSERTAR]
+GO
+-- UNA sola sentencia -> Escribir() devuelve 0 o 1 honesto.
+-- RN-08 y RN-10 viven en el WHERE (backstop contra llamadas directas a la BD).
+CREATE PROCEDURE [dbo].[SUSTITUCION_INSERTAR]
+    @caja_vino_id INT, @vino_original_id INT, @vino_reemplazo_id INT,
+    @nombre_snapshot VARCHAR(100), @precio_snapshot DECIMAL(10,2),
+    @motivo VARCHAR(200), @responsable_id INT
+AS
+    INSERT INTO SUSTITUCION (CAJA_VINO_ID, VINO_ORIGINAL_ID, VINO_REEMPLAZO_ID,
+                             NOMBRE_SNAPSHOT, PRECIO_SNAPSHOT, MOTIVO, RESPONSABLE_ID, FECHA)
+    SELECT @caja_vino_id, @vino_original_id, @vino_reemplazo_id,
+           @nombre_snapshot, @precio_snapshot, @motivo, @responsable_id, GETDATE()
+    FROM CAJA_VINO cv
+    JOIN CAJA_MENSUAL c ON c.ID = cv.CAJA_ID
+    WHERE cv.ID = @caja_vino_id
+      AND c.ESTADO     = 'Armada'          -- RN-08
+      AND c.ARMADO_POR <> @responsable_id  -- RN-10
+GO
+
+IF OBJECT_ID('dbo.SUSTITUCION_LISTAR_POR_CAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SUSTITUCION_LISTAR_POR_CAJA]
+GO
+CREATE PROCEDURE [dbo].[SUSTITUCION_LISTAR_POR_CAJA]
+    @caja_id INT
+AS
+    SELECT s.ID, s.CAJA_VINO_ID, s.VINO_ORIGINAL_ID, s.VINO_REEMPLAZO_ID,
+           s.NOMBRE_SNAPSHOT, s.PRECIO_SNAPSHOT, s.MOTIVO, s.RESPONSABLE_ID,
+           u.USUARIO AS RESPONSABLE_LOGIN, s.FECHA
+    FROM SUSTITUCION s
+    JOIN CAJA_VINO cv ON cv.ID = s.CAJA_VINO_ID
+    JOIN USUARIO u ON u.ID = s.RESPONSABLE_ID
+    WHERE cv.CAJA_ID = @caja_id
+    ORDER BY s.ID
+GO
+
+-- ------------------------------------------------------------
+-- STORED PROCEDURES — CAJA_MENSUAL despacho/cancelación (CU-31)
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.CAJA_DESPACHAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[CAJA_DESPACHAR]
+GO
+-- Primera SP transaccional del repo (ver corrección C5 en el design). Devuelve
+-- EXACTAMENTE un result set (FILAS) porque Acceso.Leer() -> SqlDataAdapter.Fill()
+-- solo lee el primero (C4/C6).
+CREATE PROCEDURE [dbo].[CAJA_DESPACHAR]
+    @caja_id INT, @despachado_por INT, @responsable_login VARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    DECLARE @filas INT = 0;
+
+    -- RN-08 + RN-10: si no pasa, 0 filas y el kardex queda intacto
+    IF NOT EXISTS (SELECT 1 FROM CAJA_MENSUAL
+                   WHERE ID = @caja_id AND ESTADO = 'Armada' AND ARMADO_POR <> @despachado_por)
+    BEGIN
+        SELECT 0 AS FILAS; RETURN;
+    END
+
+    DECLARE @EFECTIVA TABLE (VINO_ID INT, CANTIDAD INT, STOCK INT);
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        ;WITH ULTIMA AS (
+            SELECT s.CAJA_VINO_ID, s.VINO_REEMPLAZO_ID,
+                   ROW_NUMBER() OVER (PARTITION BY s.CAJA_VINO_ID ORDER BY s.ID DESC) AS RN
+            FROM SUSTITUCION s
+        )
+        INSERT INTO @EFECTIVA (VINO_ID, CANTIDAD, STOCK)
+        SELECT
+            ISNULL(u.VINO_REEMPLAZO_ID, cv.VINO_ID) AS VINO_ID,
+            cv.CANTIDAD,
+            ISNULL((SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END)
+                    FROM MOVIMIENTO_STOCK m
+                    WHERE m.VINO_ID = ISNULL(u.VINO_REEMPLAZO_ID, cv.VINO_ID)), 0) AS STOCK
+        FROM CAJA_VINO cv
+        LEFT JOIN ULTIMA u ON u.CAJA_VINO_ID = cv.ID AND u.RN = 1
+        WHERE cv.CAJA_ID = @caja_id;
+
+        -- RN-03: si una sola línea no tiene stock, no se despacha nada
+        IF EXISTS (SELECT 1 FROM @EFECTIVA WHERE STOCK < CANTIDAD)
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        -- RN-09: una Salida por línea efectiva. INSERT set-based, no EXEC anidado (ver C6)
+        INSERT INTO MOVIMIENTO_STOCK (VINO_ID, FECHA, TIPO, CANTIDAD, MOTIVO,
+                                      RESPONSABLE, REFERENCIA_TIPO, REFERENCIA_ID)
+        SELECT e.VINO_ID, GETDATE(), 'Salida', e.CANTIDAD,
+               'Despacho de caja mensual', @responsable_login, 'CAJA', @caja_id
+        FROM @EFECTIVA e;
+
+        UPDATE CAJA_MENSUAL
+        SET ESTADO = 'Despachada', FECHA_DESPACHO = GETDATE(), DESPACHADO_POR = @despachado_por
+        WHERE ID = @caja_id AND ESTADO = 'Armada' AND ARMADO_POR <> @despachado_por;
+        SET @filas = @@ROWCOUNT;
+
+        COMMIT TRAN;
+        SELECT @filas AS FILAS;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END
+GO
+
+IF OBJECT_ID('dbo.CAJA_CANCELAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[CAJA_CANCELAR]
+GO
+CREATE PROCEDURE [dbo].[CAJA_CANCELAR]
+    @caja_id       INT,
+    @motivo        VARCHAR(200),
+    @cancelada_por INT
+AS
+    UPDATE CAJA_MENSUAL
+    SET ESTADO = 'Cancelada', FECHA_CANCELACION = GETDATE(),
+        CANCELADA_POR = @cancelada_por, MOTIVO_CANCELACION = @motivo
+    WHERE ID = @caja_id AND ESTADO = 'Armada'
+GO
+
+-- ------------------------------------------------------------
+-- SEEDS — permisos y roles del Club de Socios (idempotentes, IF NOT EXISTS)
+-- ------------------------------------------------------------
+
+IF NOT EXISTS (SELECT 1 FROM PERMISO WHERE NOMBRE = 'Gestionar socios')
+    INSERT INTO PERMISO (NOMBRE) VALUES ('Gestionar socios')
+IF NOT EXISTS (SELECT 1 FROM PERMISO WHERE NOMBRE = 'Armar cajas mensuales')
+    INSERT INTO PERMISO (NOMBRE) VALUES ('Armar cajas mensuales')
+IF NOT EXISTS (SELECT 1 FROM PERMISO WHERE NOMBRE = 'Registrar picking y sustituciones')
+    INSERT INTO PERMISO (NOMBRE) VALUES ('Registrar picking y sustituciones')
+IF NOT EXISTS (SELECT 1 FROM PERMISO WHERE NOMBRE = 'Despachar cajas')
+    INSERT INTO PERMISO (NOMBRE) VALUES ('Despachar cajas')
+GO
+
+IF NOT EXISTS (SELECT 1 FROM ROL WHERE NOMBRE = 'Atención al Socio' AND PADRE_ID IS NULL)
+    INSERT INTO ROL (NOMBRE, PADRE_ID, PROTEGIDO) VALUES ('Atención al Socio', NULL, 0)
+IF NOT EXISTS (SELECT 1 FROM ROL WHERE NOMBRE = 'Curador de Producto' AND PADRE_ID IS NULL)
+    INSERT INTO ROL (NOMBRE, PADRE_ID, PROTEGIDO) VALUES ('Curador de Producto', NULL, 0)
+IF NOT EXISTS (SELECT 1 FROM ROL WHERE NOMBRE = 'Encargado de Depósito' AND PADRE_ID IS NULL)
+    INSERT INTO ROL (NOMBRE, PADRE_ID, PROTEGIDO) VALUES ('Encargado de Depósito', NULL, 0)
+IF NOT EXISTS (SELECT 1 FROM ROL WHERE NOMBRE = 'Logística' AND PADRE_ID IS NULL)
+    INSERT INTO ROL (NOMBRE, PADRE_ID, PROTEGIDO) VALUES ('Logística', NULL, 0)
+GO
+
+DECLARE @rolAtencionSocioId INT = (SELECT ID FROM ROL WHERE NOMBRE = 'Atención al Socio' AND PADRE_ID IS NULL)
+DECLARE @rolCuradorId       INT = (SELECT ID FROM ROL WHERE NOMBRE = 'Curador de Producto' AND PADRE_ID IS NULL)
+DECLARE @rolDepositoId      INT = (SELECT ID FROM ROL WHERE NOMBRE = 'Encargado de Depósito' AND PADRE_ID IS NULL)
+DECLARE @rolLogisticaId     INT = (SELECT ID FROM ROL WHERE NOMBRE = 'Logística' AND PADRE_ID IS NULL)
+DECLARE @rolAdminClubId     INT = (SELECT TOP 1 ID FROM ROL WHERE NOMBRE = 'Administrador' AND PADRE_ID IS NULL)
+
+DECLARE @permGestionarSociosId INT = (SELECT ID FROM PERMISO WHERE NOMBRE = 'Gestionar socios')
+DECLARE @permArmarCajasId      INT = (SELECT ID FROM PERMISO WHERE NOMBRE = 'Armar cajas mensuales')
+DECLARE @permPickingId         INT = (SELECT ID FROM PERMISO WHERE NOMBRE = 'Registrar picking y sustituciones')
+DECLARE @permDespacharId       INT = (SELECT ID FROM PERMISO WHERE NOMBRE = 'Despachar cajas')
+
+IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAtencionSocioId AND PERMISO_ID = @permGestionarSociosId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAtencionSocioId, @permGestionarSociosId)
+
+IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolCuradorId AND PERMISO_ID = @permArmarCajasId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolCuradorId, @permArmarCajasId)
+
+IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolDepositoId AND PERMISO_ID = @permPickingId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolDepositoId, @permPickingId)
+
+IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolLogisticaId AND PERMISO_ID = @permDespacharId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolLogisticaId, @permDespacharId)
+
+-- Administrador recibe los 4 (seguro: RN-10 es por identidad, no por permiso, design Decision 12)
+IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminClubId AND PERMISO_ID = @permGestionarSociosId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAdminClubId, @permGestionarSociosId)
+IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminClubId AND PERMISO_ID = @permArmarCajasId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAdminClubId, @permArmarCajasId)
+IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminClubId AND PERMISO_ID = @permPickingId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAdminClubId, @permPickingId)
+IF NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminClubId AND PERMISO_ID = @permDespacharId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAdminClubId, @permDespacharId)
+GO

@@ -125,6 +125,41 @@ namespace DAL
             finally { _acceso.Cerrar(); }
         }
 
+        // RN-06 (filtra en el WHERE de la SP) + RN-05.2 (ordena, nunca filtra).
+        public List<BE.VinoCandidato> ListarCandidatos(int socioId)
+        {
+            List<BE.VinoCandidato> lista = new List<BE.VinoCandidato>();
+            List<SqlParameter> parametros = new List<SqlParameter>
+            {
+                _acceso.CrearParametro("@socio_id", socioId)
+            };
+            try
+            {
+                _acceso.Abrir();
+                DataTable tabla = _acceso.Leer("VINO_LISTAR_CANDIDATOS", parametros);
+                foreach (DataRow fila in tabla.Rows)
+                    lista.Add(MapearCandidato(fila));
+            }
+            finally { _acceso.Cerrar(); }
+            return lista;
+        }
+
+        private BE.VinoCandidato MapearCandidato(DataRow fila)
+        {
+            return new BE.VinoCandidato
+            {
+                Id = Convert.ToInt32(fila["ID"]),
+                Codigo = fila["CODIGO"].ToString(),
+                Nombre = fila["NOMBRE"].ToString(),
+                BodegaNombre = fila["BODEGA_NOMBRE"].ToString(),
+                Varietal = fila["VARIETAL"].ToString(),
+                Aniada = Convert.ToInt32(fila["ANIADA"]),
+                Precio = Convert.ToDecimal(fila["PRECIO"]),
+                Stock = Convert.ToInt32(fila["STOCK"]),
+                Preferido = Convert.ToBoolean(fila["PREFERIDO"])
+            };
+        }
+
         private BE.Vino MapearFila(DataRow fila)
         {
             return new BE.Vino
