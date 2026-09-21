@@ -177,6 +177,24 @@ namespace CAPAS
                 return;
             }
 
+            // RN-11: la generación del remito es best-effort y corre en su propio
+            // try/catch — el despacho ya quedó confirmado por CAJA_DESPACHAR (fuente
+            // de verdad transaccional) y nunca se revierte por una falla acá.
+            // ObtenerConComposicionEfectiva DEBE llamarse antes de CargarCajasArmadas():
+            // la caja deja ListarArmadas() apenas cambia de estado, y el rebind de
+            // dgvCajasArmadas descartaría el DataBoundItem sostenido en `caja`.
+            try
+            {
+                BE.CajaMensual cajaDespachada = _bll.ObtenerConComposicionEfectiva(caja.Id);
+                string rutaRemito = RemitoDespachoPdf.Generar(cajaDespachada);
+                RemitoDespachoPdf.Abrir(rutaRemito);
+            }
+            catch (Exception)
+            {
+                MsgBox.Show("No se pudo generar el remito de despacho; la caja fue despachada igualmente.",
+                    "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+            }
+
             MsgBox.Show("Caja despachada correctamente.", "Éxito", MsgBox.Botones.OK, MsgBox.Icono.Exito);
             CargarCajasArmadas();
         }

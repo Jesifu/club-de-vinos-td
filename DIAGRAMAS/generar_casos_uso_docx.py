@@ -2124,6 +2124,7 @@ CUS = [
         "postcondiciones_exito": [
             "La caja pasa a estado Despachada.",
             "Se crea un MOVIMIENTO_STOCK de tipo Salida por cada línea efectiva de la caja, referenciando la caja (REFERENCIA_TIPO='CAJA', REFERENCIA_ID=caja).",
+            "Se genera y abre el Remito de Despacho en PDF (Remitos/Remito_Caja{id}.pdf); si la generación falla, el despacho ya confirmado no se revierte (RN-11).",
         ],
         "postcondiciones_fallo": [
             "Si la caja no está en estado Armada: se rechaza y no se genera ningún movimiento.",
@@ -2137,6 +2138,7 @@ CUS = [
             "El sistema valida que el Usuario no sea quien armó la caja (RN-10) y que la caja siga en estado Armada (RN-08).",
             "El sistema verifica el stock disponible de cada línea efectiva de la caja (RN-03).",
             "El sistema inserta un MOVIMIENTO_STOCK de tipo Salida por cada línea y actualiza la caja a estado Despachada, en una única transacción.",
+            "El sistema genera el Remito de Despacho en PDF y lo abre (RN-11).",
             "El sistema informa que la caja fue despachada.",
         ],
         "flujos_alternativos": [
@@ -2150,6 +2152,10 @@ CUS = [
              "pasos": ["El sistema muestra \"No hay stock suficiente para despachar la línea del vino.\"",
                        "La transacción se revierte por completo; no se genera ningún movimiento.",
                        "El caso de uso vuelve al paso 1."]},
+            {"id": "6a", "nombre": "Falla la generación del remito de despacho (RN-11)",
+             "pasos": ["El sistema muestra \"No se pudo generar el remito de despacho; la caja fue despachada igualmente.\"",
+                       "El despacho ya confirmado no se revierte.",
+                       "El caso de uso continúa al paso 7."]},
         ],
         "excepciones": [],
         "reglas_negocio": [
@@ -2157,6 +2163,7 @@ CUS = [
             {"codigo": "RN-08", "regla": "Solo se pueden despachar cajas en estado Armada; el ciclo de una caja despachada es unidireccional."},
             {"codigo": "RN-09", "regla": "El despacho es el único punto del proceso que genera movimientos de kardex (Salida) para este dominio."},
             {"codigo": "RN-10", "regla": "El responsable del despacho no puede ser quien armó la caja (separación de funciones)."},
+            {"codigo": "RN-11", "regla": "La generación del Remito de Despacho es best-effort: si falla, el despacho queda confirmado igual (CAJA_DESPACHAR es la fuente de verdad transaccional), se informa al usuario, y no se revierte ninguna operación."},
         ],
         "relaciones": [
             {"tipo": "«precedido por»", "destino": "CU-28 Armar Caja Mensual",

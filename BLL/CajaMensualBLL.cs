@@ -31,6 +31,15 @@ namespace BLL
             return _dal.ListarPorEstado("Armada");
         }
 
+        // CAJA_LISTAR_POR_ESTADO ordena ORDER BY FECHA_ARMADO DESC — para un
+        // historial de despachos se re-ordena en memoria por FechaDespacho.
+        public List<CajaMensual> ListarDespachadas()
+        {
+            return _dal.ListarPorEstado("Despachada")
+                       .OrderByDescending(c => c.FechaDespacho)
+                       .ToList();
+        }
+
         public int Armar(CajaMensual caja, USUARIO sesion)
         {
             if (caja.Lineas == null || caja.Lineas.Count == 0)

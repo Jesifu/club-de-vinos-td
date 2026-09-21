@@ -164,6 +164,7 @@
     <Compile Include="AppTheme.cs" />
     <Compile Include="IdiomaUIHelper.cs" />
     <Compile Include="MsgBox.cs" />
+    <Compile Include="RemitoDespachoPdf.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="frmAdminUsuarios.resx">
@@ -228,6 +229,9 @@
   <ItemGroup>
     <PackageReference Include="ReaLTaiizor">
       <Version>3.8.1.8</Version>
+    </PackageReference>
+    <PackageReference Include="PDFsharp-MigraDoc">
+      <Version>1.50.5147</Version>
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
