@@ -169,11 +169,17 @@
     <EmbeddedResource Include="frmAdminUsuarios.resx">
       <DependentUpon>frmAdminUsuarios.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="frmArmarCaja.resx">
+      <DependentUpon>frmArmarCaja.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="frmBitacora.resx">
       <DependentUpon>frmBitacora.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="frmContraseña.resx">
       <DependentUpon>frmContraseña.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="frmDespacharCaja.resx">
+      <DependentUpon>frmDespacharCaja.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="frmHistorialUsuario.resx">
       <DependentUpon>frmHistorialUsuario.cs</DependentUpon>

@@ -23,94 +23,97 @@ namespace CAPAS
             ((System.ComponentModel.ISupportInitialize)(this.dgvCajasArmadas)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.dgvComposicionEfectiva)).BeginInit();
             this.SuspendLayout();
-            //
+            // 
             // lblTitulo
-            //
+            // 
             this.lblTitulo.AutoSize = true;
             this.lblTitulo.Font = new System.Drawing.Font("Microsoft Sans Serif", 11F, System.Drawing.FontStyle.Bold);
             this.lblTitulo.Location = new System.Drawing.Point(13, 84);
             this.lblTitulo.Name = "lblTitulo";
-            this.lblTitulo.Size = new System.Drawing.Size(240, 18);
+            this.lblTitulo.Size = new System.Drawing.Size(194, 26);
             this.lblTitulo.TabIndex = 0;
             this.lblTitulo.Text = "Despachar Cajas";
-            //
+            // 
             // lblCajas
-            //
+            // 
             this.lblCajas.AutoSize = true;
+            this.lblCajas.Font = new System.Drawing.Font("Microsoft Sans Serif", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblCajas.Location = new System.Drawing.Point(13, 122);
             this.lblCajas.Name = "lblCajas";
-            this.lblCajas.Size = new System.Drawing.Size(150, 20);
+            this.lblCajas.Size = new System.Drawing.Size(135, 22);
             this.lblCajas.TabIndex = 1;
             this.lblCajas.Text = "Cajas armadas:";
-            //
+            this.lblCajas.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            // 
             // dgvCajasArmadas
-            //
+            // 
             this.dgvCajasArmadas.AllowUserToAddRows = false;
             this.dgvCajasArmadas.AllowUserToDeleteRows = false;
-            this.dgvCajasArmadas.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            this.dgvCajasArmadas.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dgvCajasArmadas.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.dgvCajasArmadas.Location = new System.Drawing.Point(13, 147);
+            this.dgvCajasArmadas.Location = new System.Drawing.Point(13, 164);
             this.dgvCajasArmadas.MultiSelect = false;
             this.dgvCajasArmadas.Name = "dgvCajasArmadas";
             this.dgvCajasArmadas.ReadOnly = true;
             this.dgvCajasArmadas.RowHeadersWidth = 55;
             this.dgvCajasArmadas.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
-            this.dgvCajasArmadas.Size = new System.Drawing.Size(860, 190);
+            this.dgvCajasArmadas.Size = new System.Drawing.Size(860, 164);
             this.dgvCajasArmadas.TabIndex = 2;
             this.dgvCajasArmadas.SelectionChanged += new System.EventHandler(this.dgvCajasArmadas_SelectionChanged);
-            //
+            // 
             // lblComposicion
-            //
+            // 
             this.lblComposicion.AutoSize = true;
+            this.lblComposicion.Font = new System.Drawing.Font("Microsoft Sans Serif", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.lblComposicion.Location = new System.Drawing.Point(13, 352);
             this.lblComposicion.Name = "lblComposicion";
-            this.lblComposicion.Size = new System.Drawing.Size(220, 20);
+            this.lblComposicion.Size = new System.Drawing.Size(185, 22);
             this.lblComposicion.TabIndex = 3;
             this.lblComposicion.Text = "Composición efectiva:";
-            //
+            // 
             // dgvComposicionEfectiva
-            //
+            // 
             this.dgvComposicionEfectiva.AllowUserToAddRows = false;
             this.dgvComposicionEfectiva.AllowUserToDeleteRows = false;
-            this.dgvComposicionEfectiva.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom)
-            | System.Windows.Forms.AnchorStyles.Left)
+            this.dgvComposicionEfectiva.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dgvComposicionEfectiva.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.dgvComposicionEfectiva.Location = new System.Drawing.Point(13, 377);
+            this.dgvComposicionEfectiva.Location = new System.Drawing.Point(13, 394);
             this.dgvComposicionEfectiva.MultiSelect = false;
             this.dgvComposicionEfectiva.Name = "dgvComposicionEfectiva";
             this.dgvComposicionEfectiva.ReadOnly = true;
             this.dgvComposicionEfectiva.RowHeadersWidth = 55;
             this.dgvComposicionEfectiva.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
-            this.dgvComposicionEfectiva.Size = new System.Drawing.Size(860, 210);
+            this.dgvComposicionEfectiva.Size = new System.Drawing.Size(860, 168);
             this.dgvComposicionEfectiva.TabIndex = 4;
             this.dgvComposicionEfectiva.CellFormatting += new System.Windows.Forms.DataGridViewCellFormattingEventHandler(this.dgvComposicionEfectiva_CellFormatting);
-            //
+            // 
             // btnDespachar
-            //
+            // 
             this.btnDespachar.Enabled = false;
             this.btnDespachar.Location = new System.Drawing.Point(13, 605);
             this.btnDespachar.Name = "btnDespachar";
-            this.btnDespachar.Size = new System.Drawing.Size(220, 38);
+            this.btnDespachar.Size = new System.Drawing.Size(220, 55);
             this.btnDespachar.TabIndex = 5;
             this.btnDespachar.Text = "Despachar caja";
             this.btnDespachar.UseVisualStyleBackColor = true;
             this.btnDespachar.Click += new System.EventHandler(this.btnDespachar_Click);
-            //
+            // 
             // btnCerrar
-            //
+            // 
             this.btnCerrar.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
             this.btnCerrar.Location = new System.Drawing.Point(773, 605);
             this.btnCerrar.Name = "btnCerrar";
-            this.btnCerrar.Size = new System.Drawing.Size(100, 38);
+            this.btnCerrar.Size = new System.Drawing.Size(100, 55);
             this.btnCerrar.TabIndex = 6;
             this.btnCerrar.Text = "Cerrar";
             this.btnCerrar.UseVisualStyleBackColor = true;
             this.btnCerrar.Click += new System.EventHandler(this.btnCerrar_Click);
-            //
+            // 
             // frmDespacharCaja
-            //
+            // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.ActiveCaption;
