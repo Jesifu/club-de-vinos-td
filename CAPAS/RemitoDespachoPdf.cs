@@ -68,10 +68,19 @@ namespace CAPAS
             fila2.Cells[1].AddParagraph("Fecha de despacho: " + fechaDespacho.ToString("dd/MM/yyyy", _cultura));
 
             Row fila3 = tabla.AddRow();
-            fila3.Cells[0].AddParagraph("Responsable: " + caja.DespachadoPorLogin);
+            fila3.Cells[0].AddParagraph("Domicilio: " + Coalescer(caja.SocioDomicilio));
+            fila3.Cells[1].AddParagraph("Teléfono: " + Coalescer(caja.SocioTelefono));
+
+            Row fila4 = tabla.AddRow();
+            fila4.Cells[0].AddParagraph("Responsable: " + caja.DespachadoPorLogin);
 
             seccion.AddParagraph().Format.SpaceAfter = Unit.FromCentimeter(0.5);
         }
+
+        // RN-14: domicilio/teléfono NULL o vacío se imprimen como placeholder en vez de
+        // omitir la línea o bloquear la generación del remito (best-effort, RN-11).
+        private static string Coalescer(string valor)
+            => string.IsNullOrWhiteSpace(valor) ? "(no informado)" : valor;
 
         private static void AgregarTablaLineas(Section seccion, BE.CajaMensual caja)
         {

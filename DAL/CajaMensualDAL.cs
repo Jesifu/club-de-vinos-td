@@ -149,6 +149,8 @@ namespace DAL
                 Id = Convert.ToInt32(fila["ID"]),
                 SocioId = Convert.ToInt32(fila["SOCIO_ID"]),
                 SocioNombre = fila["SOCIO_NOMBRE"].ToString(),
+                SocioDomicilio = fila["SOCIO_DOMICILIO"] == DBNull.Value ? null : fila["SOCIO_DOMICILIO"].ToString(),
+                SocioTelefono = fila["SOCIO_TELEFONO"] == DBNull.Value ? null : fila["SOCIO_TELEFONO"].ToString(),
                 Periodo = fila["PERIODO"].ToString(),
                 Estado = (EstadoCaja)Enum.Parse(typeof(EstadoCaja), fila["ESTADO"].ToString()),
                 PresupuestoSnapshot = Convert.ToDecimal(fila["PRESUPUESTO_SNAPSHOT"]),

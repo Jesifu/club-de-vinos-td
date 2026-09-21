@@ -8,6 +8,8 @@ namespace BE
         public int Id { get; set; }
         public int SocioId { get; set; }
         public string SocioNombre { get; set; }
+        public string SocioDomicilio { get; set; }
+        public string SocioTelefono { get; set; }
         public string Periodo { get; set; }
         public EstadoCaja Estado { get; set; }
         public decimal PresupuestoSnapshot { get; set; }
