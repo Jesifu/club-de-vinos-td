@@ -64,6 +64,7 @@ namespace CAPAS
             armarCajaToolStripMenuItem.Visible = puedeArmar;
             pickingCajaToolStripMenuItem.Visible = puedePicking;
             despacharCajaToolStripMenuItem.Visible = puedeDespachar;
+            historialDespachosToolStripMenuItem.Visible = puedeDespachar;
             clubSociosToolStripMenuItem.Visible = puedeSocios || puedeArmar || puedePicking || puedeDespachar;
         }
 
@@ -194,6 +195,11 @@ namespace CAPAS
         private void despacharCajaToolStripMenuItem_Click(object sender, EventArgs e)
         {
             new frmDespacharCaja().ShowDialog();
+        }
+
+        private void historialDespachosToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new frmHistorialDespachos().ShowDialog();
         }
     }
 }

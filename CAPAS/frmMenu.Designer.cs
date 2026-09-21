@@ -32,6 +32,7 @@ namespace CAPAS
             this.armarCajaToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.pickingCajaToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.despacharCajaToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.historialDespachosToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.statusStrip1 = new System.Windows.Forms.StatusStrip();
             this.lblIdiomaStatus = new System.Windows.Forms.ToolStripLabel();
             this.cboIdiomaStatus = new System.Windows.Forms.ToolStripComboBox();
@@ -117,7 +118,8 @@ namespace CAPAS
             this.sociosToolStripMenuItem,
             this.armarCajaToolStripMenuItem,
             this.pickingCajaToolStripMenuItem,
-            this.despacharCajaToolStripMenuItem});
+            this.despacharCajaToolStripMenuItem,
+            this.historialDespachosToolStripMenuItem});
             this.clubSociosToolStripMenuItem.Name = "clubSociosToolStripMenuItem";
             this.clubSociosToolStripMenuItem.Size = new System.Drawing.Size(140, 29);
             this.clubSociosToolStripMenuItem.Text = "Club de Socios";
@@ -137,6 +139,10 @@ namespace CAPAS
             this.despacharCajaToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
             this.despacharCajaToolStripMenuItem.Text = "Despachar Cajas";
             this.despacharCajaToolStripMenuItem.Click += new System.EventHandler(this.despacharCajaToolStripMenuItem_Click);
+            this.historialDespachosToolStripMenuItem.Name = "historialDespachosToolStripMenuItem";
+            this.historialDespachosToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
+            this.historialDespachosToolStripMenuItem.Text = "Historial de Despachos";
+            this.historialDespachosToolStripMenuItem.Click += new System.EventHandler(this.historialDespachosToolStripMenuItem_Click);
             this.statusStrip1.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.statusStrip1.ImageScalingSize = new System.Drawing.Size(24, 24);
             this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
@@ -192,6 +198,7 @@ namespace CAPAS
         private System.Windows.Forms.ToolStripMenuItem armarCajaToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem pickingCajaToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem despacharCajaToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem historialDespachosToolStripMenuItem;
         private System.Windows.Forms.StatusStrip statusStrip1;
         private System.Windows.Forms.ToolStripLabel lblIdiomaStatus;
         private System.Windows.Forms.ToolStripComboBox cboIdiomaStatus;

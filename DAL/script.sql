@@ -3669,3 +3669,88 @@ EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Motivo'
 SET @cidpPick = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Responsable_Sust')
 EXEC TRADUCCION_GUARDAR @ptIdPick, @cidpPick, 'Responsável'
 GO
+
+-- ============================================================
+-- i18n — CLUB DE SOCIOS, bloque E (CU-32 frmHistorialDespachos)
+-- Reutiliza sin re-registrar (verificado por grep antes de escribir, cero
+-- colisiones de significado): 'btnCerrar', 'colhdr_Socio', 'colhdr_Periodo'.
+-- 'lblTitulo' colisiona con otros forms (mismo Name en el Designer) —
+-- se registra 'lblTitulo_HistorialDespachos' como clave propia, mismo
+-- idiom que 'lblTitulo_DespacharCaja' en el bloque D.
+-- ============================================================
+
+EXEC CONTROL_REGISTRAR 'historialDespachosToolStripMenuItem', 'Historial de Despachos'
+GO
+
+EXEC CONTROL_REGISTRAR 'frmHistorialDespachos',        'Historial de Despachos'
+EXEC CONTROL_REGISTRAR 'lblTitulo_HistorialDespachos', 'Historial de Despachos'
+EXEC CONTROL_REGISTRAR 'btnRegenerar',                 'Regenerar remito'
+EXEC CONTROL_REGISTRAR 'colhdr_FechaDespacho',         'Fecha de despacho'
+EXEC CONTROL_REGISTRAR 'colhdr_DespachadoPor',         'Despachada por'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — ESPAÑOL
+-- ------------------------------------------------------------
+
+DECLARE @espIdHist INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @cideHist  INT
+
+SET @cideHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'historialDespachosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdHist, @cideHist, 'Historial de Despachos'
+
+SET @cideHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmHistorialDespachos')
+EXEC TRADUCCION_GUARDAR @espIdHist, @cideHist, 'Historial de Despachos'
+SET @cideHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_HistorialDespachos')
+EXEC TRADUCCION_GUARDAR @espIdHist, @cideHist, 'Historial de Despachos'
+SET @cideHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRegenerar')
+EXEC TRADUCCION_GUARDAR @espIdHist, @cideHist, 'Regenerar remito'
+SET @cideHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaDespacho')
+EXEC TRADUCCION_GUARDAR @espIdHist, @cideHist, 'Fecha de despacho'
+SET @cideHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_DespachadoPor')
+EXEC TRADUCCION_GUARDAR @espIdHist, @cideHist, 'Despachada por'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — INGLÉS
+-- ------------------------------------------------------------
+
+DECLARE @ingIdHist INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @cidiHist  INT
+
+SET @cidiHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'historialDespachosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingIdHist, @cidiHist, 'Dispatch History'
+
+SET @cidiHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmHistorialDespachos')
+EXEC TRADUCCION_GUARDAR @ingIdHist, @cidiHist, 'Dispatch History'
+SET @cidiHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_HistorialDespachos')
+EXEC TRADUCCION_GUARDAR @ingIdHist, @cidiHist, 'Dispatch History'
+SET @cidiHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRegenerar')
+EXEC TRADUCCION_GUARDAR @ingIdHist, @cidiHist, 'Regenerate receipt'
+SET @cidiHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaDespacho')
+EXEC TRADUCCION_GUARDAR @ingIdHist, @cidiHist, 'Dispatch date'
+SET @cidiHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_DespachadoPor')
+EXEC TRADUCCION_GUARDAR @ingIdHist, @cidiHist, 'Dispatched by'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — PORTUGUÉS
+-- ------------------------------------------------------------
+
+DECLARE @ptIdHist INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cidpHist INT
+
+SET @cidpHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'historialDespachosToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptIdHist, @cidpHist, 'Histórico de Despachos'
+
+SET @cidpHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmHistorialDespachos')
+EXEC TRADUCCION_GUARDAR @ptIdHist, @cidpHist, 'Histórico de Despachos'
+SET @cidpHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_HistorialDespachos')
+EXEC TRADUCCION_GUARDAR @ptIdHist, @cidpHist, 'Histórico de Despachos'
+SET @cidpHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRegenerar')
+EXEC TRADUCCION_GUARDAR @ptIdHist, @cidpHist, 'Gerar novamente remito'
+SET @cidpHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaDespacho')
+EXEC TRADUCCION_GUARDAR @ptIdHist, @cidpHist, 'Data de despacho'
+SET @cidpHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_DespachadoPor')
+EXEC TRADUCCION_GUARDAR @ptIdHist, @cidpHist, 'Despachada por'
+GO

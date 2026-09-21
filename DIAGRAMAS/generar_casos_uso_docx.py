@@ -4,9 +4,9 @@ Genera CasosDeUso.docx con la descripción de los casos de uso del TP:
 CU-01..CU-20 (esqueleto base) + CU-21..CU-25 y CU-27 (principales del
 dominio de Gestión de Catálogo y Stock de Vinos, plantilla extendida)
 + CU-26 Consultar Alerta de Stock Mínimo (soporte, especificación
-simple) + CU-28..CU-31 (dominio de Curación y Armado de Cajas
+simple) + CU-28..CU-32 (dominio de Curación y Armado de Cajas
 Mensuales, Club de Socios — CU-28/29 con plantilla extendida y
-diagrama de secuencia, CU-30/31 con especificación simple).
+diagrama de secuencia, CU-30/31/32 con especificación simple).
 """
 
 import os
@@ -2179,6 +2179,59 @@ CUS = [
             "(ver diseño: solo CU-28 y CU-29 llevan modelado completo con diagrama de secuencia)."
         ),
     },
+    # ───── CU-32 ─────────────────────────────────────────────────────
+    {
+        "id": "CU-32",
+        "nombre": "Consultar Historial de Despachos",
+        "actor_primario": "Usuario",
+        "actor_secundario": None,
+        "frecuencia": "Media",
+        "prioridad": "Media",
+        "proposito": (
+            "Permitir que un Usuario con el permiso \"Despachar cajas\" (rol Logística) liste las "
+            "cajas mensuales ya despachadas y reimprima el Remito de Despacho de cualquiera de "
+            "ellas bajo demanda, sin rehacer el despacho."
+        ),
+        "precondiciones": [
+            "El Usuario inició sesión correctamente y tiene el permiso \"Despachar cajas\".",
+            "Existe al menos una caja en estado Despachada.",
+        ],
+        "postcondiciones_exito": [
+            "El Remito de Despacho de la caja seleccionada se regenera, sobrescribiendo "
+            "Remitos/Remito_Caja{id}.pdf en el mismo path, sin sufijo de timestamp (RN-12), y se abre.",
+        ],
+        "postcondiciones_fallo": [
+            "Si la generación del PDF falla: se muestra un mensaje de error y no se abre ningún "
+            "archivo; el historial permanece navegable y ninguna otra operación se ve afectada.",
+        ],
+        "disparador": "El Usuario abre frmHistorialDespachos.",
+        "flujo_principal": [
+            "El Usuario abre el historial de despachos.",
+            "El sistema lista las cajas en estado Despachada, ordenadas por fecha de despacho descendente.",
+            "El Usuario selecciona una caja y presiona \"Regenerar remito\".",
+            "El sistema obtiene la composición efectiva de la caja y regenera el PDF, sobrescribiendo Remito_Caja{id}.pdf (RN-12).",
+            "El sistema abre el PDF regenerado.",
+        ],
+        "flujos_alternativos": [],
+        "excepciones": [
+            {"codigo": "EX-01", "descripcion": "Falla la generación del remito (RN-11): permisos, disco lleno, lector de PDF ausente, etc.",
+             "manejo": "El sistema muestra \"No se pudo generar el remito de despacho; la caja fue despachada igualmente.\"; no abre ningún archivo; el historial sigue navegable."},
+        ],
+        "reglas_negocio": [
+            {"codigo": "RN-07", "regla": "El remito regenerado refleja la composición efectiva de la caja (líneas con sustituciones aplicadas), igual que en el despacho original."},
+            {"codigo": "RN-11", "regla": "La generación del Remito de Despacho es best-effort: una falla no afecta el estado de la caja, que ya es Despachada e inmutable desde este form."},
+            {"codigo": "RN-12", "regla": "La regeneración del remito desde el historial sobrescribe Remito_Caja{id}.pdf en el mismo path — no se generan copias versionadas con timestamp."},
+        ],
+        "relaciones": [
+            {"tipo": "relacionado con", "destino": "CU-31 Despachar Caja",
+             "condicion": "Ambos comparten el renderer RemitoDespachoPdf como detalle de implementación; no existe relación «include»/«extend» entre los dos casos de uso."},
+        ],
+        "observaciones": (
+            "Especificación simple — no requiere diagrama de secuencia dedicado en esta entrega "
+            "(ver diseño: solo CU-28 y CU-29 llevan modelado completo con diagrama de secuencia). "
+            "Reutiliza el mismo permiso \"Despachar cajas\" que CU-31 — no se creó ningún permiso nuevo."
+        ),
+    },
 ]
 
 
@@ -2486,10 +2539,10 @@ def generar_tabla_de_contenidos(doc):
         "CU-21..CU-25 y CU-27 (Proponer/Autorizar Alta, Registrar Movimiento de Stock, "
         "Solicitar/Autorizar Descontinuación, Registrar Ajuste de Inventario) más el caso "
         "de soporte CU-26 Consultar Alerta de Stock Mínimo, del dominio de Gestión de "
-        "Catálogo y Stock de Vinos (Entrega N01); y CU-28..CU-31 (Armar Caja Mensual, "
+        "Catálogo y Stock de Vinos (Entrega N01); y CU-28..CU-32 (Armar Caja Mensual, "
         "Registrar Sustitución por Falta de Stock, Actualizar Perfil de Socio, Despachar "
-        "Caja), del dominio de Curación y Armado de Cajas Mensuales, Club de Socios "
-        "(Entrega N02)."
+        "Caja, Consultar Historial de Despachos), del dominio de Curación y Armado de "
+        "Cajas Mensuales, Club de Socios (Entrega N02)."
     )
 
     doc.add_heading("Actores", level=1)
