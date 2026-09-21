@@ -164,4 +164,83 @@ USUARIO ||--o{ VINO             : "AUTORIZADO_POR >"
 USUARIO ||--o{ VINO             : "BAJA_SOLICITADA_POR >"
 USUARIO ||--o{ VINO             : "DESCONTINUADO_POR >"
 
+' ─────────────────────────────────────────
+' Dominio: Curación y Armado de Cajas Mensuales (N02)
+' ─────────────────────────────────────────
+
+entity SOCIO {
+  * ID : INT <<PK>>
+  --
+  NOMBRE : VARCHAR(50)
+  APELLIDO : VARCHAR(50)
+  EMAIL : VARCHAR(100) <<nullable>>
+  TELEFONO : VARCHAR(30) <<nullable>>
+  PRESUPUESTO_MENSUAL : DECIMAL(10,2)
+  ACTIVO : BIT
+  FECHA_ALTA : DATETIME
+  CREADO_POR : INT <<FK>>
+}
+
+entity SOCIO_VARIETAL {
+  * SOCIO_ID : INT <<PK, FK>>
+  * VARIETAL : VARCHAR(50) <<PK>>
+}
+
+entity CAJA_MENSUAL {
+  * ID : INT <<PK>>
+  --
+  SOCIO_ID : INT <<FK>>
+  PERIODO : CHAR(7)
+  ESTADO : VARCHAR(12)
+  PRESUPUESTO_SNAPSHOT : DECIMAL(10,2)
+  FECHA_ARMADO : DATETIME
+  ARMADO_POR : INT <<FK>>
+  FECHA_DESPACHO : DATETIME <<nullable>>
+  DESPACHADO_POR : INT <<FK, nullable>>
+  FECHA_CANCELACION : DATETIME <<nullable>>
+  CANCELADA_POR : INT <<FK, nullable>>
+  MOTIVO_CANCELACION : VARCHAR(200) <<nullable>>
+}
+note bottom of CAJA_MENSUAL
+  UQ (SOCIO_ID, PERIODO) WHERE ESTADO <> 'Cancelada'
+end note
+
+entity CAJA_VINO {
+  * ID : INT <<PK>>
+  --
+  CAJA_ID : INT <<FK>>
+  VINO_ID : INT <<FK>>
+  CANTIDAD : INT
+  NOMBRE_SNAPSHOT : VARCHAR(100)
+  PRECIO_SNAPSHOT : DECIMAL(10,2)
+}
+note bottom of CAJA_VINO
+  UQ (CAJA_ID, VINO_ID)
+end note
+
+entity SUSTITUCION {
+  * ID : INT <<PK>>
+  --
+  CAJA_VINO_ID : INT <<FK>>
+  VINO_ORIGINAL_ID : INT <<FK>>
+  VINO_REEMPLAZO_ID : INT <<FK>>
+  NOMBRE_SNAPSHOT : VARCHAR(100)
+  PRECIO_SNAPSHOT : DECIMAL(10,2)
+  MOTIVO : VARCHAR(200)
+  RESPONSABLE_ID : INT <<FK>>
+  FECHA : DATETIME
+}
+
+SOCIO        ||--o{ SOCIO_VARIETAL : "SOCIO_ID >"
+SOCIO        ||--o{ CAJA_MENSUAL   : "SOCIO_ID >"
+CAJA_MENSUAL ||--o{ CAJA_VINO      : "CAJA_ID >"
+VINO         ||--o{ CAJA_VINO      : "VINO_ID >"
+CAJA_VINO    ||--o{ SUSTITUCION    : "CAJA_VINO_ID >"
+VINO         ||--o{ SUSTITUCION    : "VINO_ORIGINAL_ID >"
+VINO         ||--o{ SUSTITUCION    : "VINO_REEMPLAZO_ID >"
+USUARIO      ||--o{ SOCIO          : "CREADO_POR >"
+USUARIO      ||--o{ CAJA_MENSUAL   : "ARMADO_POR / DESPACHADO_POR / CANCELADA_POR >"
+USUARIO      ||--o{ SUSTITUCION    : "RESPONSABLE_ID >"
+CAJA_MENSUAL ..o{ MOVIMIENTO_STOCK : "REFERENCIA_TIPO='CAJA', REFERENCIA_ID (soft link, RN-09)"
+
 @enduml

@@ -142,6 +142,75 @@ package "BE" #FEFECE {
   MovimientoStock --> TipoMovimiento
   MovimientoStock --> Vino : VinoId >
 
+  ' ── Dominio: curación y armado de cajas mensuales (curacion-cajas-mensuales) ──
+  enum EstadoCaja {
+    Armada
+    Despachada
+    Cancelada
+  }
+
+  class Socio {
+    + Id : int
+    + Nombre : string
+    + Apellido : string
+    + Email : string
+    + Telefono : string
+    + PresupuestoMensual : decimal
+    + Activo : bool
+    + FechaAlta : DateTime
+    + CreadoPor : int
+    + VarietalesPreferidos : List<string>
+  }
+
+  class CajaMensual {
+    + Id : int
+    + SocioId : int
+    + Periodo : string
+    + Estado : EstadoCaja
+    + PresupuestoSnapshot : decimal
+    + FechaArmado : DateTime
+    + ArmadoPor : int
+    + FechaDespacho : DateTime?
+    + DespachadoPor : int?
+    + FechaCancelacion : DateTime?
+    + CanceladaPor : int?
+    + MotivoCancelacion : string
+  }
+
+  class CajaVino {
+    + Id : int
+    + CajaId : int
+    + VinoId : int
+    + Cantidad : int
+    + NombreSnapshot : string
+    + PrecioSnapshot : decimal
+  }
+
+  class Sustitucion {
+    + Id : int
+    + CajaVinoId : int
+    + VinoOriginalId : int
+    + VinoReemplazoId : int
+    + NombreSnapshot : string
+    + PrecioSnapshot : decimal
+    + Motivo : string
+    + ResponsableId : int
+    + Fecha : DateTime
+  }
+
+  class VinoCandidato {
+    + VinoId : int
+    + Nombre : string
+    + Precio : decimal
+    + Stock : int
+    + Preferido : bool
+  }
+
+  Socio        "1" o-- "0..*" CajaMensual : SocioId >
+  CajaMensual  "1" o-- "0..*" CajaVino    : CajaId >
+  CajaVino     "1" o-- "0..*" Sustitucion : CajaVinoId >
+  CajaMensual  --> EstadoCaja
+
   abstract class NodoPermiso {
     + Id : int
     + Nombre : string
@@ -376,6 +445,39 @@ package "DAL" #DAE8FC {
   VinoDAL --> Acceso
   BodegaDAL --> Acceso
   StockDAL --> Acceso
+
+  ' ── Dominio: curación y armado de cajas mensuales ──
+  class SocioDAL {
+    - _acceso : Acceso
+    + Insertar(s : Socio) : int
+    + Actualizar(s : Socio) : void
+    + ObtenerPorId(id : int) : Socio
+    + ListarActivos() : List<Socio>
+    + LimpiarVarietales(socioId : int) : void
+    + InsertarVarietal(socioId : int, varietal : string) : void
+    + ListarCatalogoVarietales() : List<string>
+  }
+
+  class CajaMensualDAL {
+    - _acceso : Acceso
+    + Armar(caja : CajaMensual) : int
+    + ObtenerConComposicionEfectiva(cajaId : int) : CajaMensual
+    + ObtenerPorId(id : int) : CajaMensual
+    + ListarPorEstado(estado : string) : List<CajaMensual>
+    + ListarPorSocio(socioId : int) : List<CajaMensual>
+    + Despachar(cajaId : int, despachadoPor : int, responsableLogin : string) : int
+    + Cancelar(cajaId : int, motivo : string, canceladaPor : int) : int
+  }
+
+  class SustitucionDAL {
+    - _acceso : Acceso
+    + Insertar(s : Sustitucion) : int
+    + ListarPorCaja(cajaId : int) : List<Sustitucion>
+  }
+
+  SocioDAL --> Acceso
+  CajaMensualDAL --> Acceso
+  SustitucionDAL --> Acceso
 }
 
 ' ─────────────────────────────────────────
@@ -546,6 +648,33 @@ package "BLL" #FFE6CC {
   VinoBLL --> VinoDAL
   BodegaBLL --> BodegaDAL
   StockBLL --> StockDAL
+
+  ' ── Dominio: curación y armado de cajas mensuales ──
+  class SocioBLL {
+    - _dal : SocioDAL
+    + ListarActivos() : List<Socio>
+    + ObtenerPorId(id : int) : Socio
+    + ListarVarietalesDeCatalogo() : List<string>
+    + Registrar(s : Socio, sesion : BE.USUARIO) : void
+    + Actualizar(s : Socio, sesion : BE.USUARIO) : void
+  }
+
+  class CajaMensualBLL {
+    - _dal : CajaMensualDAL
+    + ListarCandidatos(socioId : int) : List<VinoCandidato>
+    + CalcularTotal(lineas : IEnumerable<CajaVino>) : decimal
+    + Armar(caja : CajaMensual, sesion : BE.USUARIO) : int
+    + ObtenerConComposicionEfectiva(cajaId : int) : CajaMensual
+    + RegistrarSustitucion(cajaVinoId : int, vinoReemplazoId : int, motivo : string, sesion : BE.USUARIO) : void
+    + Despachar(cajaId : int, sesion : BE.USUARIO) : void
+    + Cancelar(cajaId : int, motivo : string, sesion : BE.USUARIO) : void
+  }
+
+  SocioBLL --> SocioDAL
+  CajaMensualBLL --> CajaMensualDAL
+  CajaMensualBLL --> SocioDAL
+  CajaMensualBLL --> VinoDAL
+  CajaMensualBLL --> SustitucionDAL
 }
 
 ' ─────────────────────────────────────────
@@ -679,6 +808,35 @@ package "CAPAS" #F8CECC {
   IObservadorIdioma <|.. frmMovimientoStock
   IObservadorIdioma <|.. frmKardexVino
   IObservadorIdioma <|.. frmAlertaStockMinimo
+
+  ' ── Dominio: curación y armado de cajas mensuales ──
+  together {
+    class frmSocios {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmArmarCaja {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmPickingCaja {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+    class frmDespacharCaja {
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + ActualizarIdioma() : void
+    }
+  }
+
+  IObservadorIdioma <|.. frmSocios
+  IObservadorIdioma <|.. frmArmarCaja
+  IObservadorIdioma <|.. frmPickingCaja
+  IObservadorIdioma <|.. frmDespacharCaja
 }
 
 ' ─────────────────────────────────────────
@@ -713,5 +871,12 @@ frmAutorizarVinos    --> VinoBLL
 frmMovimientoStock   --> StockBLL
 frmKardexVino        --> StockBLL
 frmAlertaStockMinimo --> StockBLL
+
+' Dominio: curación y armado de cajas mensuales
+frmSocios        --> SocioBLL
+frmArmarCaja     --> CajaMensualBLL
+frmArmarCaja     --> SocioBLL
+frmPickingCaja   --> CajaMensualBLL
+frmDespacharCaja --> CajaMensualBLL
 
 @enduml

@@ -1,0 +1,60 @@
+@startuml DiagramaActividad_CuracionCajas
+
+title Proceso de negocio — Curación, Armado y Despacho de Cajas Mensuales
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam activity {
+  BackgroundColor #FEFECE
+  BorderColor #33342E
+}
+skinparam partition {
+  BorderColor #666666
+  FontStyle bold
+}
+scale 0.8
+
+|Atención al Socio|
+start
+:Relevar Preferencias del Socio;
+:Registrar Perfil del Socio;
+note right: **Ficha de Socio** [Vigente]
+:Solicitar Caja del Período;
+note right: **Solicitud de Caja** [Pendiente]
+
+|Curador de Producto|
+:Consultar Perfil de Preferencias del Socio;
+:Consultar Catálogo Autorizado;
+repeat
+  :Seleccionar Vinos Compatibles;
+backward: Reemplazar Vino por Alternativa más Económica;
+repeat while (¿El total supera el presupuesto mensual?) is (sí) not (no)
+:Confirmar Armado de la Caja;
+note right: **Caja Mensual** [Armada]
+
+|Encargado de Depósito|
+:Preparar el Pedido de la Caja;
+if (¿Hay faltante de stock en alguna línea?) then (sí)
+  :Proponer Vino de Reemplazo;
+
+  |Curador de Producto|
+  repeat
+    :Evaluar Compatibilidad del Reemplazo;
+  backward: Rechazar Reemplazo y solicitar otra alternativa;
+  repeat while (¿El reemplazo respeta perfil y presupuesto?) is (no) not (sí)
+  :Aprobar el Vino de Reemplazo;
+
+  |Encargado de Depósito|
+  :Registrar la Sustitución;
+  note right: **Acta de Sustitución** [Registrada]
+else (no)
+endif
+:Embalar la Caja;
+note right: **Caja Mensual** [Preparada]
+
+|Logística|
+:Despachar la Caja al Socio;
+note right: **Remito de Despacho** [Emitido]\n**Caja Mensual** [Despachada]
+stop
+
+@enduml

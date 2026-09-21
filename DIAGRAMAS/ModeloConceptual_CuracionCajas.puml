@@ -1,0 +1,69 @@
+@startuml ModeloConceptual_CuracionCajas
+
+title Modelo Conceptual — Curación y Armado de Cajas Mensuales
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+hide circle
+hide methods
+
+class Socio {
+  Nombre
+  Apellido
+  Email
+  Teléfono
+  Presupuesto mensual
+  Activo
+}
+
+class "Varietal Preferido" as VarietalPreferido {
+  Varietal
+}
+
+class "Caja Mensual" as CajaMensual {
+  Período
+  Estado (Armada / Despachada / Cancelada)
+  Presupuesto congelado
+}
+
+class "Línea de Caja" as CajaVino {
+  Cantidad
+  Nombre congelado
+  Precio congelado
+}
+
+class Sustitución {
+  Motivo
+  Fecha
+}
+
+class Vino {
+  Nombre
+}
+
+Socio        "1" -- "0..*" VarietalPreferido : prefiere >
+Socio        "1" -- "0..*" CajaMensual       : encarga >
+CajaMensual  "1" -- "1..*" CajaVino          : compone >
+Vino         "1" -- "0..*" CajaVino          : incluido en >
+CajaVino     "1" -- "0..*" Sustitución       : reemplazado por >
+Vino         "1" -- "0..*" Sustitución       : original / reemplazo >
+
+note right of CajaMensual
+  El ciclo de vida de una caja es
+  unidireccional: Armada -> Despachada,
+  o Armada -> Cancelada. Una caja
+  despachada nunca vuelve a un estado
+  anterior (RN-08).
+end note
+
+note bottom of Sustitución
+  Cada sustitución es evidencia
+  histórica append-only: nunca se
+  edita ni elimina una línea de caja,
+  la composición efectiva se deriva
+  del historial de sustituciones (RN-07).
+end note
+
+@enduml

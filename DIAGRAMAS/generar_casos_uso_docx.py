@@ -4,7 +4,9 @@ Genera CasosDeUso.docx con la descripción de los casos de uso del TP:
 CU-01..CU-20 (esqueleto base) + CU-21..CU-25 y CU-27 (principales del
 dominio de Gestión de Catálogo y Stock de Vinos, plantilla extendida)
 + CU-26 Consultar Alerta de Stock Mínimo (soporte, especificación
-simple).
+simple) + CU-28..CU-31 (dominio de Curación y Armado de Cajas
+Mensuales, Club de Socios — CU-28/29 con plantilla extendida y
+diagrama de secuencia, CU-30/31 con especificación simple).
 """
 
 import os
@@ -1841,6 +1843,335 @@ CUS = [
             "criterio que USUARIO_HISTORIAL: el registro histórico sobrevive a la baja del usuario."
         ),
     },
+    # ───── CU-28 ─────────────────────────────────────────────────────
+    {
+        "id": "CU-28",
+        "nombre": "Armar Caja Mensual",
+        "actor_primario": "Usuario",
+        "actor_secundario": None,
+        "frecuencia": "Alta",
+        "prioridad": "Alta",
+        "version": "1.0",
+        "fecha_creacion": "18/09/2026",
+        "autor": "Equipo TP — Ingeniería de Software",
+        "historial_revision": [
+            {"version": "1.0", "fecha": "18/09/2026", "autor": "Equipo TP",
+             "descripcion": "Versión inicial — Entrega 2 (análisis y diseño). Dominio de curación y armado de cajas mensuales, Club de Socios."},
+        ],
+        "proposito": (
+            "Permitir que un Usuario con el permiso \"Armar cajas mensuales\" (rol Curador de "
+            "Producto) arme una caja mensual para un socio y un período, con líneas tomadas solo "
+            "del catálogo gobernado (RN-06) y sin exceder el presupuesto mensual del socio (RN-05)."
+        ),
+        "precondiciones": [
+            "El Usuario inició sesión correctamente y tiene el permiso \"Armar cajas mensuales\".",
+            "Existe al menos un socio activo con perfil vigente (presupuesto mensual cargado).",
+            "Existe al menos un vino que cumple RN-06 (Activo, autorizado, con stock derivado > 0).",
+        ],
+        "postcondiciones_exito": [
+            "Se crea una CAJA_MENSUAL en estado Armada, con presupuesto congelado (PRESUPUESTO_SNAPSHOT).",
+            "Cada línea CAJA_VINO queda con NOMBRE_SNAPSHOT y PRECIO_SNAPSHOT congelados (RN-04).",
+        ],
+        "postcondiciones_fallo": [
+            "Si la suma de las líneas supera el presupuesto del socio: no se persiste ninguna línea ni la caja.",
+            "Si el socio ya tiene una caja no cancelada para ese período: se rechaza el armado.",
+            "Si una línea dejó de cumplir RN-06 durante la selección: se rechaza el armado.",
+        ],
+        "disparador": "El Usuario presiona \"Armar caja mensual\" en frmArmarCaja.",
+        "puntos_extension": [
+            {"paso": "Tras el paso 8 (caja armada)",
+             "extension": "Continúa en CU-29 Registrar Sustitución por Falta de Stock (si el picking detecta faltantes) y en CU-31 Despachar Caja."},
+        ],
+        "grafico_cu_desc": (
+            "Actor: Usuario (permiso \"Armar cajas mensuales\") ──> (Armar Caja Mensual)\n\n"
+            "(Armar Caja Mensual) ── «precede» ──> (Registrar Sustitución, CU-29)\n"
+            "(Armar Caja Mensual) ── «precede» ──> (Despachar Caja, CU-31)"
+        ),
+        "flujo_principal": [
+            "El Usuario abre \"Armar caja mensual\" en frmArmarCaja.",
+            "El sistema lista los socios activos.",
+            "El Usuario selecciona un socio y un período (formato YYYY-MM).",
+            "El sistema lista los vinos candidatos que cumplen RN-06, ordenados con los varietales preferidos del socio primero (RN-05.2, ranking, no filtro).",
+            "El sistema muestra el presupuesto mensual del socio y el total de la caja en $0.",
+            "El Usuario agrega vinos con su cantidad; el sistema recalcula el total en cada línea y deshabilita \"Confirmar\" si se supera el presupuesto.",
+            "El Usuario presiona \"Confirmar armado\".",
+            "El sistema valida el total contra el presupuesto (RN-05.1), la unicidad del período (RN-08) y que cada línea siga cumpliendo RN-06, e inserta la caja y sus líneas en una única transacción, dejándola en estado Armada.",
+            "El sistema informa que la caja quedó armada.",
+        ],
+        "flujos_alternativos": [
+            {"id": "8a", "nombre": "El total supera el presupuesto mensual (RN-05.1)",
+             "pasos": ["El sistema muestra \"El total de la caja supera el presupuesto mensual del socio.\"",
+                       "El caso de uso vuelve al paso 6."]},
+            {"id": "8b", "nombre": "Ya existe una caja no cancelada del socio para el período (RN-08)",
+             "pasos": ["El sistema muestra \"El socio ya tiene una caja armada para ese período.\"",
+                       "El caso de uso vuelve al paso 3."]},
+            {"id": "8c", "nombre": "Una línea dejó de cumplir RN-06 durante la selección",
+             "pasos": ["El sistema muestra \"El vino seleccionado no está disponible para armado.\"",
+                       "El caso de uso vuelve al paso 6."]},
+        ],
+        "excepciones": [
+            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante el armado.",
+             "manejo": "Mensaje genérico al Usuario; la transacción se revierte, no queda ninguna línea parcial."},
+        ],
+        "reglas_negocio": [
+            {"codigo": "RN-04", "regla": "Cada línea de caja congela NOMBRE y PRECIO del vino al momento del armado (snapshot)."},
+            {"codigo": "RN-05", "regla": "La suma de las líneas no puede exceder el presupuesto del socio (tope duro, RN-05.1); los varietales preferidos solo ordenan candidatos, nunca excluyen (RN-05.2)."},
+            {"codigo": "RN-06", "regla": "Solo pueden incluirse vinos Activos, autorizados y con stock derivado mayor a cero (catálogo gobernado)."},
+            {"codigo": "RN-08", "regla": "Un socio no puede tener más de una caja no cancelada por período."},
+            {"codigo": "RN-09", "regla": "Armar una caja no reserva ni descuenta stock; la salida se registra recién al despachar (ver CU-31)."},
+        ],
+        "relaciones": [
+            {"tipo": "«precede» a", "destino": "CU-29 Registrar Sustitución por Falta de Stock",
+             "condicion": "Solo se pueden registrar sustituciones sobre cajas previamente armadas."},
+            {"tipo": "«precede» a", "destino": "CU-31 Despachar Caja",
+             "condicion": "Solo se pueden despachar cajas previamente armadas."},
+        ],
+        "diagrama_clases_imagen": "DiagramaClases_CuracionCajas.png",
+        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU28_ArmarCajaMensual.png",
+        "der_imagen": "DER.png",
+        "der_entidades_afectadas": ["SOCIO", "CAJA_MENSUAL", "CAJA_VINO", "VINO"],
+        "prototipo_interfaz": (
+            "frmArmarCaja (WinForms — MaterialForm)\n"
+            "+-----------------------------------------------------+\n"
+            "|  Armar Caja Mensual                            [x]   |\n"
+            "+-------------------------------------------------------+\n"
+            "| Socio:        [ ComboBox  v]   Periodo: [ 2026-10 ]   |\n"
+            "| Presupuesto:  $ 15000.00        Total:  $ 0.00        |\n"
+            "| [DataGridView: Vino | Precio | Preferido | Cantidad]  |\n"
+            "|                                                       |\n"
+            "|              [ Confirmar armado ]  [ Cancelar ]       |\n"
+            "+---------------------------------------------------------+"
+        ),
+        "observaciones": (
+            "RN-09 marca explícitamente que armar la caja no genera ningún MOVIMIENTO_STOCK — la "
+            "primera salida de kardex de este dominio ocurre recién en el despacho (CU-31). El "
+            "diseño también define una SP CAJA_CANCELAR y un método CajaMensualBLL.Cancelar para "
+            "el estado Cancelada (RN-08), sin un CU dedicado en esta entrega: la cancelación de una "
+            "caja mal armada queda como operación de soporte sin flujo propio en N02."
+        ),
+    },
+    # ───── CU-29 ─────────────────────────────────────────────────────
+    {
+        "id": "CU-29",
+        "nombre": "Registrar Sustitución por Falta de Stock",
+        "actor_primario": "Usuario",
+        "actor_secundario": None,
+        "frecuencia": "Media",
+        "prioridad": "Alta",
+        "version": "1.0",
+        "fecha_creacion": "18/09/2026",
+        "autor": "Equipo TP — Ingeniería de Software",
+        "historial_revision": [
+            {"version": "1.0", "fecha": "18/09/2026", "autor": "Equipo TP",
+             "descripcion": "Versión inicial — Entrega 2 (análisis y diseño). Dominio de curación y armado de cajas mensuales, Club de Socios."},
+        ],
+        "proposito": (
+            "Permitir que un Usuario con el permiso \"Registrar picking y sustituciones\" (rol "
+            "Encargado de Depósito) registre, de forma trazable y append-only, el reemplazo de un "
+            "vino de una caja armada cuando el picking detecta que no hay stock suficiente."
+        ),
+        "precondiciones": [
+            "El Usuario inició sesión correctamente y tiene el permiso \"Registrar picking y sustituciones\".",
+            "La caja está en estado Armada.",
+            "El Usuario no es quien armó la caja (RN-10).",
+        ],
+        "postcondiciones_exito": [
+            "Se inserta una fila en SUSTITUCION (vino original, vino de reemplazo, motivo, responsable, fecha); la línea original de CAJA_VINO no se edita.",
+            "La composición efectiva de la caja, consultada desde ese momento, refleja el vino de reemplazo.",
+        ],
+        "postcondiciones_fallo": [
+            "Si el Usuario es quien armó la caja (RN-10): se rechaza y no se inserta ninguna fila.",
+            "Si la caja ya no está en estado Armada (RN-08): se rechaza.",
+            "Si el reemplazo excede el presupuesto disponible o no cumple RN-06: se rechaza.",
+        ],
+        "disparador": "El Usuario selecciona una línea con faltante y presiona \"Registrar sustitución\" en frmPickingCaja.",
+        "puntos_extension": [
+            {"paso": "Tras el paso 8 (sustitución registrada)",
+             "extension": "La composición efectiva actualizada es la que se despacha en CU-31 Despachar Caja."},
+        ],
+        "grafico_cu_desc": (
+            "Actor: Usuario (permiso \"Registrar picking y sustituciones\")\n"
+            "  ──> (Registrar Sustitución por Falta de Stock)\n\n"
+            "(Registrar Sustitución) ── «precedido por» ──> (Armar Caja Mensual, CU-28)"
+        ),
+        "flujo_principal": [
+            "El Usuario abre el picking de la caja en frmPickingCaja.",
+            "El sistema obtiene la composición efectiva de la caja, derivada de CAJA_VINO y su historial de sustituciones (RN-07).",
+            "El sistema marca las líneas con faltante de stock y deshabilita \"Registrar sustitución\" si el Usuario es quien armó la caja (RN-10).",
+            "El Usuario selecciona una línea con faltante y presiona \"Registrar sustitución\".",
+            "El sistema lista vinos de reemplazo candidatos, filtrados por el saldo de presupuesto liberado por esa línea.",
+            "El Usuario elige un vino de reemplazo y un motivo.",
+            "El sistema valida RN-10, RN-08 y RN-05/RN-06 sobre el reemplazo, e inserta la sustitución como fila append-only.",
+            "El sistema informa que la sustitución quedó registrada y refresca la grilla con la composición efectiva actualizada.",
+        ],
+        "flujos_alternativos": [
+            {"id": "7a", "nombre": "El usuario armó esta caja (RN-10)",
+             "pasos": ["El sistema muestra \"No puede registrar una sustitución en una caja que usted mismo armó.\"",
+                       "El caso de uso vuelve al paso 4."]},
+            {"id": "7b", "nombre": "La caja no está en estado Armada (RN-08)",
+             "pasos": ["El sistema muestra \"La caja ya fue despachada; su composición es inmutable.\"",
+                       "El caso de uso vuelve al paso 1."]},
+            {"id": "7c", "nombre": "El reemplazo excede el presupuesto o no cumple RN-06",
+             "pasos": ["El sistema muestra \"El vino de reemplazo excede el presupuesto disponible de la caja.\" o \"El vino de reemplazo no está disponible.\", según corresponda.",
+                       "El caso de uso vuelve al paso 5."]},
+        ],
+        "excepciones": [
+            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante el registro.",
+             "manejo": "Mensaje genérico al Usuario; no se persiste ninguna fila parcial."},
+        ],
+        "reglas_negocio": [
+            {"codigo": "RN-07", "regla": "Toda sustitución es una fila append-only en SUSTITUCION; no existen SP de UPDATE/DELETE sobre esa tabla. La composición efectiva de la caja se deriva, nunca se edita una línea existente."},
+            {"codigo": "RN-08", "regla": "Solo se pueden registrar sustituciones sobre cajas en estado Armada."},
+            {"codigo": "RN-10", "regla": "El responsable de la sustitución no puede ser quien armó la caja (separación de funciones), verificado en UI, BLL y SP."},
+            {"codigo": "RN-05 / RN-06", "regla": "El vino de reemplazo debe cumplir, por sí mismo, el tope de presupuesto restante y el catálogo gobernado."},
+        ],
+        "relaciones": [
+            {"tipo": "«precedido por»", "destino": "CU-28 Armar Caja Mensual",
+             "condicion": "Solo existen sustituciones sobre cajas ya armadas."},
+            {"tipo": "«precede» a", "destino": "CU-31 Despachar Caja",
+             "condicion": "Las sustituciones registradas antes del despacho determinan la composición efectiva que se despacha."},
+        ],
+        "diagrama_clases_imagen": "DiagramaClases_CuracionCajas.png",
+        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU29_RegistrarSustitucion.png",
+        "der_imagen": "DER.png",
+        "der_entidades_afectadas": ["CAJA_MENSUAL", "CAJA_VINO", "SUSTITUCION", "VINO"],
+        "prototipo_interfaz": (
+            "frmPickingCaja (WinForms — MaterialForm)\n"
+            "+-----------------------------------------------------+\n"
+            "|  Picking de Caja #128 — Socio: Juana Pérez     [x]    |\n"
+            "+-------------------------------------------------------+\n"
+            "| [DataGridView: Vino | Cantidad | Stock | Faltante]     |\n"
+            "|                                                        |\n"
+            "|          [ Registrar sustitución ]  [ Cerrar ]         |\n"
+            "+----------------------------------------------------------+"
+        ),
+        "observaciones": (
+            "Una línea puede sustituirse más de una vez (A→B→C): la identidad estable es "
+            "CAJA_VINO_ID, y el vino efectivo es el VINO_REEMPLAZO_ID de la sustitución con mayor "
+            "ID para esa línea. Como una sustitución solo puede ocurrir mientras la caja está "
+            "Armada (RN-08), es decir antes de cualquier MOVIMIENTO_STOCK (RN-09), nunca hace falta "
+            "compensar kardex por una sustitución."
+        ),
+    },
+    # ───── CU-30 ─────────────────────────────────────────────────────
+    {
+        "id": "CU-30",
+        "nombre": "Actualizar Perfil de Socio",
+        "actor_primario": "Usuario",
+        "actor_secundario": None,
+        "frecuencia": "Media",
+        "prioridad": "Media",
+        "proposito": (
+            "Permitir que un Usuario con el permiso \"Gestionar socios\" (rol Atención al Socio) "
+            "registre y actualice el perfil de un SOCIO — nombre, contacto, presupuesto mensual y "
+            "varietales preferidos — sin crear un USUARIO ni credenciales de acceso: el socio es "
+            "una entidad de dominio, nunca un actor con sesión propia."
+        ),
+        "precondiciones": [
+            "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar socios\".",
+        ],
+        "postcondiciones_exito": [
+            "El SOCIO queda registrado o actualizado (nombre, contacto, presupuesto mensual, varietales preferidos), sin vínculo a ningún USUARIO.",
+        ],
+        "postcondiciones_fallo": [
+            "Si el presupuesto mensual es menor o igual a cero: no se persiste ningún cambio.",
+            "Si el nombre está vacío: no se persiste ningún cambio.",
+        ],
+        "disparador": "El Usuario abre frmSocios y presiona \"Nuevo socio\" o selecciona un socio existente para editarlo.",
+        "flujo_principal": [
+            "El Usuario abre frmSocios.",
+            "El Usuario ingresa o edita nombre, apellido, contacto, presupuesto mensual y varietales preferidos del socio.",
+            "El sistema valida que el nombre esté completo y que el presupuesto mensual sea mayor a cero.",
+            "El sistema guarda el socio y, si cambiaron, reemplaza la lista de varietales preferidos.",
+            "El sistema informa que el perfil quedó guardado.",
+        ],
+        "flujos_alternativos": [
+            {"id": "3a", "nombre": "Nombre vacío",
+             "pasos": ["El sistema muestra \"El nombre del socio es obligatorio.\"",
+                       "El caso de uso vuelve al paso 2."]},
+            {"id": "3b", "nombre": "Presupuesto mensual inválido",
+             "pasos": ["El sistema muestra \"El presupuesto mensual debe ser mayor a cero.\"",
+                       "El caso de uso vuelve al paso 2."]},
+        ],
+        "excepciones": [],
+        "reglas_negocio": [
+            {"codigo": "Validación", "regla": "Actualizar los varietales preferidos de un socio no recalcula cajas ya armadas — el nuevo perfil solo afecta futuros armados (ver CU-28)."},
+        ],
+        "relaciones": [
+            {"tipo": "relacionado con", "destino": "CU-28 Armar Caja Mensual",
+             "condicion": "El presupuesto mensual y los varietales preferidos del socio son la entrada para el armado de sus futuras cajas."},
+        ],
+        "observaciones": "Especificación simple — no requiere diagrama de secuencia dedicado (ver diseño: solo los CU principales de N02 llevan modelado completo).",
+    },
+    # ───── CU-31 ─────────────────────────────────────────────────────
+    {
+        "id": "CU-31",
+        "nombre": "Despachar Caja",
+        "actor_primario": "Usuario",
+        "actor_secundario": None,
+        "frecuencia": "Alta",
+        "prioridad": "Alta",
+        "proposito": (
+            "Permitir que un Usuario con el permiso \"Despachar cajas\" (rol Logística) despache una "
+            "caja mensual en estado Armada, transicionándola a Despachada y registrando, por cada "
+            "línea efectiva, un movimiento de kardex de tipo Salida."
+        ),
+        "precondiciones": [
+            "El Usuario inició sesión correctamente y tiene el permiso \"Despachar cajas\".",
+            "La caja está en estado Armada.",
+            "El Usuario no es quien armó la caja (RN-10).",
+        ],
+        "postcondiciones_exito": [
+            "La caja pasa a estado Despachada.",
+            "Se crea un MOVIMIENTO_STOCK de tipo Salida por cada línea efectiva de la caja, referenciando la caja (REFERENCIA_TIPO='CAJA', REFERENCIA_ID=caja).",
+        ],
+        "postcondiciones_fallo": [
+            "Si la caja no está en estado Armada: se rechaza y no se genera ningún movimiento.",
+            "Si el Usuario es quien armó la caja (RN-10): se rechaza.",
+            "Si alguna línea no tiene stock suficiente al momento del despacho (RN-03): toda la operación se revierte, sin movimientos parciales.",
+        ],
+        "disparador": "El Usuario presiona \"Despachar\" sobre una caja en estado Armada.",
+        "flujo_principal": [
+            "El Usuario abre la lista de cajas en estado Armada.",
+            "El Usuario selecciona una caja y presiona \"Despachar\".",
+            "El sistema valida que el Usuario no sea quien armó la caja (RN-10) y que la caja siga en estado Armada (RN-08).",
+            "El sistema verifica el stock disponible de cada línea efectiva de la caja (RN-03).",
+            "El sistema inserta un MOVIMIENTO_STOCK de tipo Salida por cada línea y actualiza la caja a estado Despachada, en una única transacción.",
+            "El sistema informa que la caja fue despachada.",
+        ],
+        "flujos_alternativos": [
+            {"id": "3a", "nombre": "El usuario armó la caja (RN-10)",
+             "pasos": ["El sistema muestra \"No puede despachar una caja que usted mismo armó.\"",
+                       "El caso de uso vuelve al paso 1."]},
+            {"id": "3b", "nombre": "La caja no está en estado Armada (RN-08)",
+             "pasos": ["El sistema muestra \"Solo se pueden despachar cajas en estado Armada.\"",
+                       "El caso de uso vuelve al paso 1."]},
+            {"id": "4a", "nombre": "Stock insuficiente en alguna línea (RN-03)",
+             "pasos": ["El sistema muestra \"No hay stock suficiente para despachar la línea del vino.\"",
+                       "La transacción se revierte por completo; no se genera ningún movimiento.",
+                       "El caso de uso vuelve al paso 1."]},
+        ],
+        "excepciones": [],
+        "reglas_negocio": [
+            {"codigo": "RN-03", "regla": "Todo movimiento de Salida que dejaría el stock derivado por debajo de cero se rechaza (bloqueo por stock cero, reactivado desde N01)."},
+            {"codigo": "RN-08", "regla": "Solo se pueden despachar cajas en estado Armada; el ciclo de una caja despachada es unidireccional."},
+            {"codigo": "RN-09", "regla": "El despacho es el único punto del proceso que genera movimientos de kardex (Salida) para este dominio."},
+            {"codigo": "RN-10", "regla": "El responsable del despacho no puede ser quien armó la caja (separación de funciones)."},
+        ],
+        "relaciones": [
+            {"tipo": "«precedido por»", "destino": "CU-28 Armar Caja Mensual",
+             "condicion": "Solo se pueden despachar cajas previamente armadas."},
+            {"tipo": "relacionado con", "destino": "CU-29 Registrar Sustitución por Falta de Stock",
+             "condicion": "Las sustituciones registradas antes del despacho determinan la composición efectiva que se despacha."},
+        ],
+        "observaciones": (
+            "REFERENCIA_TIPO/REFERENCIA_ID de MOVIMIENTO_STOCK fueron creados en N01 y dejados en "
+            "null en esa entrega; el despacho de una caja es su primer consumidor real, vinculando "
+            "cada Salida a su CAJA_MENSUAL por una referencia blanda (soft link, sin FK física). "
+            "Especificación simple — no requiere diagrama de secuencia dedicado en esta entrega "
+            "(ver diseño: solo CU-28 y CU-29 llevan modelado completo con diagrama de secuencia)."
+        ),
+    },
 ]
 
 
@@ -2148,7 +2479,10 @@ def generar_tabla_de_contenidos(doc):
         "CU-21..CU-25 y CU-27 (Proponer/Autorizar Alta, Registrar Movimiento de Stock, "
         "Solicitar/Autorizar Descontinuación, Registrar Ajuste de Inventario) más el caso "
         "de soporte CU-26 Consultar Alerta de Stock Mínimo, del dominio de Gestión de "
-        "Catálogo y Stock de Vinos (Entrega N01)."
+        "Catálogo y Stock de Vinos (Entrega N01); y CU-28..CU-31 (Armar Caja Mensual, "
+        "Registrar Sustitución por Falta de Stock, Actualizar Perfil de Socio, Despachar "
+        "Caja), del dominio de Curación y Armado de Cajas Mensuales, Club de Socios "
+        "(Entrega N02)."
     )
 
     doc.add_heading("Actores", level=1)

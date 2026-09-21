@@ -270,7 +270,12 @@ All diagram sources, generated images, and doc-generation scripts live under `DI
 | `DIAGRAMAS/DiagramaSecuencia_CU24_SolicitarDescontinuacion.puml` / `.png` | Secuencia por CU | CU-24 Solicitar Descontinuación de Vino |
 | `DIAGRAMAS/DiagramaSecuencia_CU25_AutorizarDescontinuacion.puml` / `.png` | Secuencia por CU | CU-25 Autorizar Descontinuación de Vino |
 | `DIAGRAMAS/DiagramaSecuencia_CU27_RegistrarAjusteInventario.puml` / `.png` | Secuencia por CU | CU-27 Registrar Ajuste de Inventario |
-| `DIAGRAMAS/CasosDeUso.docx` | Documento unificado | Los 27 CUs (CU-01..CU-20 esqueleto base + CU-21..CU-25/CU-27 principales + CU-26 soporte, dominio de catálogo y stock de vinos) en un solo Word |
+| `DIAGRAMAS/ModeloConceptual_CuracionCajas.puml` / `.png` | Modelo conceptual | SOCIO-SOCIO_VARIETAL-CAJA_MENSUAL-CAJA_VINO-SUSTITUCION, sin detalle físico, dominio de curación y armado de cajas mensuales |
+| `DIAGRAMAS/DiagramaActividad_CuracionCajas.puml` / `.png` | Actividad (proceso de negocio) | 4 carriles (Atención al Socio, Curador de Producto, Encargado de Depósito, Logística) del dominio de curación y armado de cajas mensuales |
+| `DIAGRAMAS/DiagramaClases_CuracionCajas.puml` / `.png` | Diagrama de clases | BE/BLL/DAL/CAPAS del dominio de curación y armado de cajas mensuales |
+| `DIAGRAMAS/DiagramaSecuencia_CU28_ArmarCajaMensual.puml` / `.png` | Secuencia por CU | CU-28 Armar Caja Mensual |
+| `DIAGRAMAS/DiagramaSecuencia_CU29_RegistrarSustitucion.puml` / `.png` | Secuencia por CU | CU-29 Registrar Sustitución por Falta de Stock |
+| `DIAGRAMAS/CasosDeUso.docx` | Documento unificado | Los 31 CUs (CU-01..CU-20 esqueleto base + CU-21..CU-25/CU-27 principales + CU-26 soporte, dominio de catálogo y stock de vinos + CU-28..CU-31 dominio de curación y cajas mensuales) en un solo Word |
 | `DIAGRAMAS/generar_casos_uso_docx.py` | Generador | Regenera `CasosDeUso.docx` desde el dict `CUS` definido en el script |
 
 Regenerar un PNG individual (desde `DIAGRAMAS/`):

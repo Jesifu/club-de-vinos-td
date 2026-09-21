@@ -1,0 +1,189 @@
+@startuml DiagramaClases_CuracionCajas
+
+title Diagrama de Clases — Curación y Armado de Cajas Mensuales
+
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam linetype ortho
+hide empty members
+scale 0.7
+
+package "BE" #FEFECE {
+
+  enum EstadoCaja {
+    Armada
+    Despachada
+    Cancelada
+  }
+
+  class Socio {
+    + Id : int
+    + Nombre : string
+    + Apellido : string
+    + Email : string
+    + Telefono : string
+    + PresupuestoMensual : decimal
+    + Activo : bool
+    + FechaAlta : DateTime
+    + CreadoPor : int
+    + VarietalesPreferidos : List<string>
+  }
+
+  class CajaMensual {
+    + Id : int
+    + SocioId : int
+    + Periodo : string
+    + Estado : EstadoCaja
+    + PresupuestoSnapshot : decimal
+    + FechaArmado : DateTime
+    + ArmadoPor : int
+    + FechaDespacho : DateTime?
+    + DespachadoPor : int?
+    + FechaCancelacion : DateTime?
+    + CanceladaPor : int?
+    + MotivoCancelacion : string
+  }
+
+  class CajaVino {
+    + Id : int
+    + CajaId : int
+    + VinoId : int
+    + Cantidad : int
+    + NombreSnapshot : string
+    + PrecioSnapshot : decimal
+  }
+
+  class Sustitucion {
+    + Id : int
+    + CajaVinoId : int
+    + VinoOriginalId : int
+    + VinoReemplazoId : int
+    + NombreSnapshot : string
+    + PrecioSnapshot : decimal
+    + Motivo : string
+    + ResponsableId : int
+    + Fecha : DateTime
+  }
+
+  class VinoCandidato {
+    + VinoId : int
+    + Nombre : string
+    + Precio : decimal
+    + Stock : int
+    + Preferido : bool
+  }
+
+  Socio        "1" o-- "0..*" CajaMensual : SocioId >
+  CajaMensual  "1" o-- "0..*" CajaVino    : CajaId >
+  CajaVino     "1" o-- "0..*" Sustitucion : CajaVinoId >
+  CajaMensual  --> EstadoCaja
+}
+
+' ─────────────────────────────────────────
+' CAPA DAL
+' ─────────────────────────────────────────
+package "DAL" #E8E8F4 {
+
+  class Acceso <<existente>> {
+    + Leer(sp : string, params : List<SqlParameter>?) : DataTable
+    + Escribir(sp : string, params : List<SqlParameter>?) : int
+  }
+
+  class SocioDAL {
+    - _acceso : Acceso
+    + Insertar(s : Socio) : int
+    + Actualizar(s : Socio) : void
+    + ObtenerPorId(id : int) : Socio
+    + ListarActivos() : List<Socio>
+    + LimpiarVarietales(socioId : int) : void
+    + InsertarVarietal(socioId : int, varietal : string) : void
+    + ListarCatalogoVarietales() : List<string>
+  }
+
+  class CajaMensualDAL {
+    - _acceso : Acceso
+    + Armar(caja : CajaMensual) : int
+    + ObtenerConComposicionEfectiva(cajaId : int) : CajaMensual
+    + ObtenerPorId(id : int) : CajaMensual
+    + ListarPorEstado(estado : string) : List<CajaMensual>
+    + ListarPorSocio(socioId : int) : List<CajaMensual>
+    + Despachar(cajaId : int, despachadoPor : int, responsableLogin : string) : int
+    + Cancelar(cajaId : int, motivo : string, canceladaPor : int) : int
+  }
+
+  class SustitucionDAL {
+    - _acceso : Acceso
+    + Insertar(s : Sustitucion) : int
+    + ListarPorCaja(cajaId : int) : List<Sustitucion>
+  }
+
+  class VinoDAL <<existente>> {
+    + ListarCandidatos(socioId : int) : List<VinoCandidato>
+  }
+
+  SocioDAL       --> Acceso
+  CajaMensualDAL --> Acceso
+  SustitucionDAL --> Acceso
+  VinoDAL        --> Acceso
+}
+
+' ─────────────────────────────────────────
+' CAPA BLL
+' ─────────────────────────────────────────
+package "BLL" #E8F4E8 {
+
+  class SocioBLL {
+    - _dal : SocioDAL
+    + ListarActivos() : List<Socio>
+    + ObtenerPorId(id : int) : Socio
+    + ListarVarietalesDeCatalogo() : List<string>
+    + Registrar(s : Socio, sesion : BE.USUARIO) : void
+    + Actualizar(s : Socio, sesion : BE.USUARIO) : void
+  }
+
+  class CajaMensualBLL {
+    - _dal : CajaMensualDAL
+    + ListarCandidatos(socioId : int) : List<VinoCandidato>
+    + CalcularTotal(lineas : IEnumerable<CajaVino>) : decimal
+    + Armar(caja : CajaMensual, sesion : BE.USUARIO) : int
+    + ObtenerConComposicionEfectiva(cajaId : int) : CajaMensual
+    + RegistrarSustitucion(cajaVinoId : int, vinoReemplazoId : int, motivo : string, sesion : BE.USUARIO) : void
+    + Despachar(cajaId : int, sesion : BE.USUARIO) : void
+    + Cancelar(cajaId : int, motivo : string, sesion : BE.USUARIO) : void
+  }
+
+  SocioBLL       --> SocioDAL
+  CajaMensualBLL --> CajaMensualDAL
+  CajaMensualBLL --> SocioDAL
+  CajaMensualBLL --> VinoDAL
+  CajaMensualBLL --> SustitucionDAL
+}
+
+' ─────────────────────────────────────────
+' CAPA CAPAS (presentación)
+' ─────────────────────────────────────────
+package "CAPAS" #F4E8E8 {
+
+  class frmSocios {
+    + ActualizarIdioma() : void
+  }
+  class frmArmarCaja {
+    + ActualizarIdioma() : void
+  }
+  class frmPickingCaja {
+    + ActualizarIdioma() : void
+  }
+  class frmDespacharCaja {
+    + ActualizarIdioma() : void
+  }
+
+  frmSocios      --> SocioBLL
+  frmArmarCaja   --> CajaMensualBLL
+  frmArmarCaja   --> SocioBLL
+  frmPickingCaja --> CajaMensualBLL
+  frmDespacharCaja --> CajaMensualBLL
+}
+
+@enduml

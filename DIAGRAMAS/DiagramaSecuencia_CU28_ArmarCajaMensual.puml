@@ -1,0 +1,96 @@
+@startuml DiagramaSecuencia_CU28_ArmarCajaMensual
+
+title CU-28 — Armar Caja Mensual — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+actor       ":Usuario"           as U
+participant ":frmArmarCaja"      as FA #FEFECE
+participant ":CajaMensualBLL"    as CB #E8F4E8
+participant ":SocioDAL"          as SD #E8E8F4
+participant ":VinoDAL"           as VD #E8E8F4
+participant ":CajaMensualDAL"    as CD #E8E8F4
+database    ":DB"                as DB #EEEEEE
+
+note over FA
+  Precondición: sesión activa; permiso "Armar cajas mensuales";
+  existe al menos un socio activo con perfil vigente.
+end note
+
+U -> FA : abrir "Armar caja mensual"
+activate FA
+FA -> CB : ListarSocios()
+CB -> SD : ListarActivos()
+activate SD
+SD -> DB : SOCIO_LISTAR_ACTIVOS
+DB --> SD : filas
+SD --> CB : List<Socio>
+deactivate SD
+CB --> FA : List<Socio>
+
+U -> FA : seleccionar socio + período (YYYY-MM)
+
+FA -> CB : ListarCandidatos(socioId)
+CB -> VD : ListarCandidatos(socioId)
+activate VD
+VD -> DB : VINO_LISTAR_CANDIDATOS(@socio_id)
+DB --> VD : vinos activos + autorizados + stock > 0, con flag PREFERIDO
+VD --> CB : List<VinoCandidato>
+deactivate VD
+note right of VD
+  RN-06 — solo catálogo gobernado.
+  RN-05.2 — varietales preferidos ordenan, no filtran.
+end note
+CB --> FA : List<VinoCandidato>
+
+FA -> FA : mostrar candidatos, lblPresupuesto = socio.PresupuestoMensual, lblTotal = 0
+
+loop mientras el curador agrega líneas
+  U -> FA : agregar vino + cantidad
+  FA -> FA : recalcular total y deshabilitar "Confirmar" si supera el presupuesto
+end
+
+U -> FA : click "Confirmar armado"
+FA -> CB : Armar(caja, sesión)
+activate CB
+
+alt 8a. el total supera el presupuesto mensual (RN-05.1)
+  CB --> FA : InvalidOperationException
+  FA --> U : "El total de la caja supera el presupuesto mensual del socio."
+  note right of FA : el flujo vuelve al paso 6
+else 8b. ya existe una caja no cancelada del socio para el período
+  CB --> FA : InvalidOperationException
+  FA --> U : "El socio ya tiene una caja armada para ese período."
+else 8c. una línea dejó de cumplir RN-06 durante la selección
+  CB --> FA : InvalidOperationException
+  FA --> U : "El vino <X> ya no está disponible para el catálogo."
+else curación válida
+  CB -> CD : Armar(caja)
+  activate CD
+  CD -> DB : BEGIN TRAN
+  CD -> DB : CAJA_INSERTAR(@socio_id,@periodo,@armado_por,@presupuesto_snapshot)
+  DB --> CD : @caja_id
+  loop por cada línea
+    CD -> DB : CAJA_VINO_INSERTAR(@caja_id,@vino_id,@cantidad,@nombre_snapshot,@precio_snapshot)
+    note right of CD : RN-04 — nombre y precio congelados al armado.
+  end
+  CD -> DB : COMMIT
+  CD --> CB : cajaId
+  deactivate CD
+  CB -> CB : BitacoraBLL.RegistrarAccion(...)
+  CB --> FA : cajaId
+  deactivate CB
+  FA --> U : "Caja armada en estado Armada."
+  note right of FA
+    RN-09 — armar NO reserva stock;
+    la salida se registra recién al despachar (por eso existe CU-29).
+  end note
+end
+deactivate FA
+
+@enduml

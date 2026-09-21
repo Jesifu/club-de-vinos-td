@@ -1,0 +1,96 @@
+@startuml DiagramaSecuencia_CU29_RegistrarSustitucion
+
+title CU-29 — Registrar Sustitución por Falta de Stock — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+actor       ":Usuario"           as U
+participant ":frmPickingCaja"    as FP #FEFECE
+participant ":CajaMensualBLL"    as CB #E8F4E8
+participant ":CajaMensualDAL"    as CD #E8E8F4
+participant ":VinoDAL"           as VD #E8E8F4
+participant ":SustitucionDAL"    as SD #E8E8F4
+database    ":DB"                as DB #EEEEEE
+
+note over FP
+  Precondición: permiso "Registrar picking y sustituciones";
+  la caja está en estado Armada; RN-10 — quien armó la caja
+  no puede registrar sus sustituciones.
+end note
+
+U -> FP : abrir picking de la caja
+activate FP
+FP -> CB : ObtenerConComposicionEfectiva(cajaId)
+CB -> CD : ObtenerConComposicionEfectiva(cajaId)
+activate CD
+CD -> DB : CAJA_OBTENER_POR_ID
+CD -> DB : CAJA_VINO_LISTAR_EFECTIVO(@caja_id)
+DB --> CD : composición efectiva + stock derivado por línea
+CD --> CB : CajaMensual
+deactivate CD
+note right of CD
+  RN-07 — la composición efectiva se DERIVA
+  de CAJA_VINO ⟕ SUSTITUCION; nunca se edita la línea.
+end note
+CB --> FP : CajaMensual
+
+FP -> FP : marcar líneas con faltante (stock < cantidad); deshabilitar\n"Registrar sustitución" si caja.ArmadoPor == sesión.Id
+note right of FP : capa UI del triple guard de RN-10.
+
+U -> FP : seleccionar línea con faltante + click "Registrar sustitución"
+
+FP -> CB : ListarCandidatosReemplazo(cajaVinoId)
+CB -> VD : ListarCandidatos(socioId)
+activate VD
+VD -> DB : VINO_LISTAR_CANDIDATOS(@socio_id)
+DB --> VD : candidatos filtrados por el saldo de presupuesto liberado
+VD --> CB : List<VinoCandidato>
+deactivate VD
+note right of CB : el reemplazo debe cumplir RN-05 y RN-06 por sí mismo.
+CB --> FP : List<VinoCandidato>
+
+U -> FP : elegir vino de reemplazo + motivo
+FP -> CB : RegistrarSustitucion(cajaVinoId, vinoReemplazoId, motivo, sesión)
+activate CB
+
+alt 8a. el usuario armó esta caja (RN-10)
+  CB --> FP : InvalidOperationException
+  FP --> U : "No podés registrar sustituciones en una caja que vos mismo armaste."
+else 8b. la caja no está en estado Armada (RN-08)
+  CB --> FP : InvalidOperationException
+  FP --> U : "La caja ya fue despachada; su composición es inmutable."
+else 8c. el reemplazo rompe el presupuesto o no está en el catálogo gobernado (RN-05 / RN-06)
+  CB --> FP : InvalidOperationException
+  FP --> U : "El vino de reemplazo excede el presupuesto disponible de la caja."
+else sustitución válida
+  CB -> SD : Insertar(sustitucion)
+  activate SD
+  SD -> DB : SUSTITUCION_INSERTAR(@caja_vino_id,@vino_original_id,@vino_reemplazo_id,\n@nombre_snapshot,@precio_snapshot,@motivo,@responsable_id)
+  note right of DB
+    backstop en el WHERE:
+    ESTADO = 'Armada' AND ARMADO_POR <> @responsable_id
+  end note
+  DB --> SD : filas afectadas
+  SD --> CB : filas
+  deactivate SD
+
+  alt filas == 0
+    CB --> FP : InvalidOperationException (backstop de SP)
+  else
+    CB -> CB : BitacoraBLL.RegistrarAccion(...)
+    CB --> FP : ok
+  end
+  deactivate CB
+
+  FP --> U : "Sustitución registrada. La caja conserva su historial completo."
+  FP -> CB : ObtenerConComposicionEfectiva(cajaId)
+  CB --> FP : grilla refrescada con el vino de reemplazo
+  deactivate FP
+end
+
+@enduml
