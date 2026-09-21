@@ -91,6 +91,8 @@ namespace CAPAS
                 dgvSocios.Columns["Email"].HeaderText = mgr.Traducir("colhdr_Email") ?? "Email";
             if (dgvSocios.Columns["Telefono"] != null)
                 dgvSocios.Columns["Telefono"].HeaderText = mgr.Traducir("colhdr_Telefono") ?? "Teléfono";
+            if (dgvSocios.Columns["Domicilio"] != null)
+                dgvSocios.Columns["Domicilio"].HeaderText = mgr.Traducir("colhdr_Domicilio") ?? "Domicilio";
             if (dgvSocios.Columns["PresupuestoMensual"] != null)
                 dgvSocios.Columns["PresupuestoMensual"].HeaderText = mgr.Traducir("colhdr_PresupuestoMensual") ?? "Presupuesto mensual";
             if (dgvSocios.Columns["FechaAlta"] != null)
@@ -149,6 +151,7 @@ namespace CAPAS
             txtApellido.Text = s.Apellido;
             txtEmail.Text = s.Email;
             txtTelefono.Text = s.Telefono;
+            txtDomicilio.Text = s.Domicilio;
             numPresupuesto.Value = s.PresupuestoMensual;
             chkActivo.Checked = s.Activo;
 
@@ -167,6 +170,7 @@ namespace CAPAS
                 Apellido = txtApellido.Text.Trim(),
                 Email = string.IsNullOrWhiteSpace(txtEmail.Text) ? null : txtEmail.Text.Trim(),
                 Telefono = string.IsNullOrWhiteSpace(txtTelefono.Text) ? null : txtTelefono.Text.Trim(),
+                Domicilio = string.IsNullOrWhiteSpace(txtDomicilio.Text) ? null : txtDomicilio.Text.Trim(),
                 PresupuestoMensual = numPresupuesto.Value,
                 Activo = chkActivo.Checked
             };
@@ -205,6 +209,7 @@ namespace CAPAS
             txtApellido.Clear();
             txtEmail.Clear();
             txtTelefono.Clear();
+            txtDomicilio.Clear();
             numPresupuesto.Value = 0;
             chkActivo.Checked = true;
             for (int i = 0; i < chkVarietales.Items.Count; i++)

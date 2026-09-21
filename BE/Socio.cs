@@ -10,6 +10,7 @@ namespace BE
         public string Apellido { get; set; }
         public string Email { get; set; }
         public string Telefono { get; set; }
+        public string Domicilio { get; set; }
         public decimal PresupuestoMensual { get; set; }
         public bool Activo { get; set; }
         public DateTime FechaAlta { get; set; }

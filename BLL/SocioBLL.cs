@@ -55,6 +55,8 @@ namespace BLL
                 throw new InvalidOperationException("El nombre es obligatorio.");
             if (string.IsNullOrWhiteSpace(s.Apellido))
                 throw new InvalidOperationException("El apellido es obligatorio.");
+            if (string.IsNullOrWhiteSpace(s.Domicilio))
+                throw new InvalidOperationException("El domicilio es obligatorio.");
             if (s.PresupuestoMensual <= 0)
                 throw new InvalidOperationException("El presupuesto mensual debe ser mayor a cero.");
         }

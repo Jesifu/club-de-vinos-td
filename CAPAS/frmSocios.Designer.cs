@@ -24,6 +24,8 @@ namespace CAPAS
             this.txtEmail = new System.Windows.Forms.TextBox();
             this.lblTelefono = new System.Windows.Forms.Label();
             this.txtTelefono = new System.Windows.Forms.TextBox();
+            this.lblDomicilio = new System.Windows.Forms.Label();
+            this.txtDomicilio = new System.Windows.Forms.TextBox();
             this.lblPresupuesto = new System.Windows.Forms.Label();
             this.numPresupuesto = new System.Windows.Forms.NumericUpDown();
             this.chkActivo = new System.Windows.Forms.CheckBox();
@@ -74,6 +76,8 @@ namespace CAPAS
             this.panelInferior.Controls.Add(this.txtEmail);
             this.panelInferior.Controls.Add(this.lblTelefono);
             this.panelInferior.Controls.Add(this.txtTelefono);
+            this.panelInferior.Controls.Add(this.lblDomicilio);
+            this.panelInferior.Controls.Add(this.txtDomicilio);
             this.panelInferior.Controls.Add(this.lblPresupuesto);
             this.panelInferior.Controls.Add(this.numPresupuesto);
             this.panelInferior.Controls.Add(this.chkActivo);
@@ -152,13 +156,29 @@ namespace CAPAS
             this.txtTelefono.Size = new System.Drawing.Size(190, 26);
             this.txtTelefono.TabIndex = 7;
             //
+            // lblDomicilio
+            //
+            this.lblDomicilio.AutoSize = true;
+            this.lblDomicilio.Location = new System.Drawing.Point(13, 173);
+            this.lblDomicilio.Name = "lblDomicilio";
+            this.lblDomicilio.Size = new System.Drawing.Size(85, 20);
+            this.lblDomicilio.TabIndex = 8;
+            this.lblDomicilio.Text = "Domicilio:";
+            //
+            // txtDomicilio
+            //
+            this.txtDomicilio.Location = new System.Drawing.Point(120, 170);
+            this.txtDomicilio.Name = "txtDomicilio";
+            this.txtDomicilio.Size = new System.Drawing.Size(190, 26);
+            this.txtDomicilio.TabIndex = 9;
+            //
             // lblPresupuesto
             //
             this.lblPresupuesto.AutoSize = true;
             this.lblPresupuesto.Location = new System.Drawing.Point(360, 13);
             this.lblPresupuesto.Name = "lblPresupuesto";
             this.lblPresupuesto.Size = new System.Drawing.Size(140, 20);
-            this.lblPresupuesto.TabIndex = 8;
+            this.lblPresupuesto.TabIndex = 10;
             this.lblPresupuesto.Text = "Presupuesto mensual:";
             //
             // numPresupuesto
@@ -169,7 +189,7 @@ namespace CAPAS
             this.numPresupuesto.Maximum = new decimal(new int[] { 999999, 0, 0, 0 });
             this.numPresupuesto.Name = "numPresupuesto";
             this.numPresupuesto.Size = new System.Drawing.Size(150, 26);
-            this.numPresupuesto.TabIndex = 9;
+            this.numPresupuesto.TabIndex = 11;
             //
             // chkActivo
             //
@@ -179,7 +199,7 @@ namespace CAPAS
             this.chkActivo.Location = new System.Drawing.Point(360, 72);
             this.chkActivo.Name = "chkActivo";
             this.chkActivo.Size = new System.Drawing.Size(80, 24);
-            this.chkActivo.TabIndex = 10;
+            this.chkActivo.TabIndex = 12;
             this.chkActivo.Text = "Activo";
             this.chkActivo.UseVisualStyleBackColor = true;
             //
@@ -189,7 +209,7 @@ namespace CAPAS
             this.lblVarietales.Location = new System.Drawing.Point(360, 102);
             this.lblVarietales.Name = "lblVarietales";
             this.lblVarietales.Size = new System.Drawing.Size(150, 20);
-            this.lblVarietales.TabIndex = 11;
+            this.lblVarietales.TabIndex = 13;
             this.lblVarietales.Text = "Varietales preferidos:";
             //
             // chkVarietales
@@ -199,14 +219,14 @@ namespace CAPAS
             this.chkVarietales.Location = new System.Drawing.Point(360, 126);
             this.chkVarietales.Name = "chkVarietales";
             this.chkVarietales.Size = new System.Drawing.Size(250, 148);
-            this.chkVarietales.TabIndex = 12;
+            this.chkVarietales.TabIndex = 14;
             //
             // btnGuardarSocio
             //
             this.btnGuardarSocio.Location = new System.Drawing.Point(13, 280);
             this.btnGuardarSocio.Name = "btnGuardarSocio";
             this.btnGuardarSocio.Size = new System.Drawing.Size(140, 38);
-            this.btnGuardarSocio.TabIndex = 13;
+            this.btnGuardarSocio.TabIndex = 15;
             this.btnGuardarSocio.Text = "Guardar";
             this.btnGuardarSocio.UseVisualStyleBackColor = true;
             this.btnGuardarSocio.Click += new System.EventHandler(this.btnGuardarSocio_Click);
@@ -216,7 +236,7 @@ namespace CAPAS
             this.btnNuevoSocio.Location = new System.Drawing.Point(160, 280);
             this.btnNuevoSocio.Name = "btnNuevoSocio";
             this.btnNuevoSocio.Size = new System.Drawing.Size(120, 38);
-            this.btnNuevoSocio.TabIndex = 14;
+            this.btnNuevoSocio.TabIndex = 16;
             this.btnNuevoSocio.Text = "Nuevo";
             this.btnNuevoSocio.UseVisualStyleBackColor = true;
             this.btnNuevoSocio.Click += new System.EventHandler(this.btnNuevoSocio_Click);
@@ -227,7 +247,7 @@ namespace CAPAS
             this.btnCerrar.Location = new System.Drawing.Point(597, 280);
             this.btnCerrar.Name = "btnCerrar";
             this.btnCerrar.Size = new System.Drawing.Size(100, 38);
-            this.btnCerrar.TabIndex = 15;
+            this.btnCerrar.TabIndex = 17;
             this.btnCerrar.Text = "Cerrar";
             this.btnCerrar.UseVisualStyleBackColor = true;
             this.btnCerrar.Click += new System.EventHandler(this.btnCerrar_Click);
@@ -268,6 +288,8 @@ namespace CAPAS
         private System.Windows.Forms.TextBox txtEmail;
         private System.Windows.Forms.Label lblTelefono;
         private System.Windows.Forms.TextBox txtTelefono;
+        private System.Windows.Forms.Label lblDomicilio;
+        private System.Windows.Forms.TextBox txtDomicilio;
         private System.Windows.Forms.Label lblPresupuesto;
         private System.Windows.Forms.NumericUpDown numPresupuesto;
         private System.Windows.Forms.CheckBox chkActivo;

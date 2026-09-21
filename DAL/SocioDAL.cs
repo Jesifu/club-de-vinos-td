@@ -155,6 +155,10 @@ namespace DAL
             {
                 Value = (object)s.Telefono ?? DBNull.Value
             });
+            parametros.Add(new SqlParameter("@domicilio", SqlDbType.VarChar, 150)
+            {
+                Value = (object)s.Domicilio ?? DBNull.Value
+            });
 
             return parametros;
         }
@@ -168,6 +172,7 @@ namespace DAL
                 Apellido = fila["APELLIDO"].ToString(),
                 Email = fila["EMAIL"] == DBNull.Value ? null : fila["EMAIL"].ToString(),
                 Telefono = fila["TELEFONO"] == DBNull.Value ? null : fila["TELEFONO"].ToString(),
+                Domicilio = fila["DOMICILIO"] == DBNull.Value ? null : fila["DOMICILIO"].ToString(),
                 PresupuestoMensual = Convert.ToDecimal(fila["PRESUPUESTO_MENSUAL"]),
                 Activo = Convert.ToBoolean(fila["ACTIVO"]),
                 FechaAlta = Convert.ToDateTime(fila["FECHA_ALTA"]),

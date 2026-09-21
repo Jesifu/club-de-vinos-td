@@ -2739,6 +2739,16 @@ CREATE TABLE [dbo].[SOCIO] (
 )
 GO
 
+-- Slice 1 (domicilio-socio, CU-30): domicilio obligatorio en alta/edición, obligatoriedad
+-- forzada en SocioBLL.Validar (RN-13). Insertado in-place (no al final del script, a
+-- diferencia del resto de los bloques de esta migración): SOCIO_INSERTAR (más abajo) ya
+-- referencia DOMICILIO, y SQL Server solo difiere la resolución de nombres de tablas
+-- faltantes, no de columnas de una tabla ya existente — si el ALTER corriera después,
+-- CREATE PROCEDURE SOCIO_INSERTAR fallaría en duro.
+IF COL_LENGTH('dbo.SOCIO', 'DOMICILIO') IS NULL
+    ALTER TABLE [dbo].[SOCIO] ADD [DOMICILIO] VARCHAR(150) NULL
+GO
+
 IF OBJECT_ID('dbo.SOCIO_VARIETAL', 'U') IS NULL
 CREATE TABLE [dbo].[SOCIO_VARIETAL] (
     [SOCIO_ID] INT         NOT NULL,
@@ -2827,11 +2837,12 @@ CREATE PROCEDURE [dbo].[SOCIO_INSERTAR]
     @presupuesto_mensual  DECIMAL(10,2),
     @creado_por           INT,
     @email                VARCHAR(100) = NULL,
-    @telefono             VARCHAR(20)  = NULL
+    @telefono             VARCHAR(20)  = NULL,
+    @domicilio            VARCHAR(150) = NULL
 AS
 BEGIN
-    INSERT INTO SOCIO (NOMBRE, APELLIDO, EMAIL, TELEFONO, PRESUPUESTO_MENSUAL, ACTIVO, FECHA_ALTA, CREADO_POR)
-    VALUES (@nombre, @apellido, @email, @telefono, @presupuesto_mensual, 1, GETDATE(), @creado_por)
+    INSERT INTO SOCIO (NOMBRE, APELLIDO, EMAIL, TELEFONO, DOMICILIO, PRESUPUESTO_MENSUAL, ACTIVO, FECHA_ALTA, CREADO_POR)
+    VALUES (@nombre, @apellido, @email, @telefono, @domicilio, @presupuesto_mensual, 1, GETDATE(), @creado_por)
     SELECT SCOPE_IDENTITY() AS ID
 END
 GO
@@ -2846,10 +2857,11 @@ CREATE PROCEDURE [dbo].[SOCIO_ACTUALIZAR]
     @creado_por           INT,
     @activo               BIT,
     @email                VARCHAR(100) = NULL,
-    @telefono             VARCHAR(20)  = NULL
+    @telefono             VARCHAR(20)  = NULL,
+    @domicilio            VARCHAR(150) = NULL
 AS
     UPDATE SOCIO
-    SET NOMBRE = @nombre, APELLIDO = @apellido, EMAIL = @email, TELEFONO = @telefono,
+    SET NOMBRE = @nombre, APELLIDO = @apellido, EMAIL = @email, TELEFONO = @telefono, DOMICILIO = @domicilio,
         PRESUPUESTO_MENSUAL = @presupuesto_mensual, ACTIVO = @activo
     WHERE ID = @id
 GO
@@ -2859,7 +2871,7 @@ GO
 CREATE PROCEDURE [dbo].[SOCIO_OBTENER_POR_ID]
     @id INT
 AS
-    SELECT s.ID, s.NOMBRE, s.APELLIDO, s.EMAIL, s.TELEFONO, s.PRESUPUESTO_MENSUAL, s.ACTIVO,
+    SELECT s.ID, s.NOMBRE, s.APELLIDO, s.EMAIL, s.TELEFONO, s.DOMICILIO, s.PRESUPUESTO_MENSUAL, s.ACTIVO,
            s.FECHA_ALTA, s.CREADO_POR, u.USUARIO AS CREADO_POR_LOGIN
     FROM SOCIO s
     JOIN USUARIO u ON u.ID = s.CREADO_POR
@@ -2878,7 +2890,7 @@ IF OBJECT_ID('dbo.SOCIO_LISTAR_ACTIVOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[
 GO
 CREATE PROCEDURE [dbo].[SOCIO_LISTAR_ACTIVOS]
 AS
-    SELECT s.ID, s.NOMBRE, s.APELLIDO, s.EMAIL, s.TELEFONO, s.PRESUPUESTO_MENSUAL, s.ACTIVO,
+    SELECT s.ID, s.NOMBRE, s.APELLIDO, s.EMAIL, s.TELEFONO, s.DOMICILIO, s.PRESUPUESTO_MENSUAL, s.ACTIVO,
            s.FECHA_ALTA, s.CREADO_POR, u.USUARIO AS CREADO_POR_LOGIN
     FROM SOCIO s
     JOIN USUARIO u ON u.ID = s.CREADO_POR
@@ -3225,9 +3237,11 @@ EXEC CONTROL_REGISTRAR 'chkActivo',        'Activo'
 EXEC CONTROL_REGISTRAR 'lblVarietales',    'Varietales preferidos:'
 EXEC CONTROL_REGISTRAR 'btnGuardarSocio',  'Guardar'
 EXEC CONTROL_REGISTRAR 'btnNuevoSocio',    'Nuevo'
+EXEC CONTROL_REGISTRAR 'lblDomicilio',     'Domicilio:'
 GO
 
 EXEC CONTROL_REGISTRAR 'colhdr_PresupuestoMensual', 'Presupuesto mensual'
+EXEC CONTROL_REGISTRAR 'colhdr_Domicilio',          'Domicilio'
 GO
 
 -- ------------------------------------------------------------
@@ -3258,9 +3272,13 @@ SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarSocio')
 EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Guardar'
 SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnNuevoSocio')
 EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Nuevo'
+SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblDomicilio')
+EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Domicilio:'
 
 SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_PresupuestoMensual')
 EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Presupuesto mensual'
+SET @cideSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Domicilio')
+EXEC TRADUCCION_GUARDAR @espIdSoc, @cideSoc, 'Domicilio'
 GO
 
 -- ------------------------------------------------------------
@@ -3291,9 +3309,13 @@ SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarSocio')
 EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Save'
 SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnNuevoSocio')
 EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'New'
+SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblDomicilio')
+EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Address:'
 
 SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_PresupuestoMensual')
 EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Monthly budget'
+SET @cidiSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Domicilio')
+EXEC TRADUCCION_GUARDAR @ingIdSoc, @cidiSoc, 'Address'
 GO
 
 -- ------------------------------------------------------------
@@ -3324,9 +3346,13 @@ SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarSocio')
 EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Salvar'
 SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnNuevoSocio')
 EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Novo'
+SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblDomicilio')
+EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Endereço:'
 
 SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_PresupuestoMensual')
 EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Orçamento mensal'
+SET @cidpSoc = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Domicilio')
+EXEC TRADUCCION_GUARDAR @ptIdSoc, @cidpSoc, 'Endereço'
 GO
 
 -- ============================================================
