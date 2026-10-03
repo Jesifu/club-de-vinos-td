@@ -6,28 +6,38 @@ namespace CAPAS
 {
     internal static class AppTheme
     {
-        // Paleta: Rosé Pine Main — oscuro con pasteles rose/iris/foam
-        internal static readonly Color FondoForm      = Color.FromArgb( 25,  23,  36); // base    #191724
-        internal static readonly Color FondoHeader    = Color.FromArgb( 38,  35,  58); // overlay #26233a
-        internal static readonly Color FondoControl   = Color.FromArgb( 31,  29,  46); // surface #1f1d2e
-        internal static readonly Color FondoGrilla    = Color.FromArgb( 31,  29,  46); // surface #1f1d2e
-        internal static readonly Color FondoGrillaAlt = Color.FromArgb( 38,  35,  58); // overlay #26233a
-        internal static readonly Color Acento         = Color.FromArgb(196, 167, 231); // iris    #c4a7e7  ← lavanda pastel
-        internal static readonly Color AcentoHover    = Color.FromArgb(235, 188, 186); // rose    #ebbcba  ← rosa pastel
-        internal static readonly Color TextoPrincipal  = Color.FromArgb(224, 222, 244); // text    #e0def4  ← lavanda claro
-        internal static readonly Color TextoEncabezado = Color.FromArgb(196, 167, 231); // iris    #c4a7e7  ← lavanda pastel
-        internal static readonly Color TextoSecundario = Color.FromArgb(144, 140, 170); // subtle  #908caa  ← gris lavanda
-        internal static readonly Color Borde          = Color.FromArgb(110, 106, 134); // muted   #6e6a86
-        internal static readonly Color Seleccion      = Color.FromArgb( 49, 116, 143); // pine    #31748f  ← teal muted
-        internal static readonly Color SeleccionTexto = Color.FromArgb(224, 222, 244); // text    #e0def4
+        // Paleta: Bordó — fondos bordó, texto rosa pálido y acento dorado (mismos tonos que el ícono)
+        internal static readonly Color FondoForm      = Color.FromArgb( 78,  15,  36); // #4e0f24  bordó profundo
+        internal static readonly Color FondoHeader    = Color.FromArgb(107,  22,  48); // #6b1630  bordó medio (encabezados, menú)
+        internal static readonly Color FondoControl   = Color.FromArgb( 94,  19,  41); // #5e1329  cajas de texto, listas
+        internal static readonly Color FondoGrilla    = Color.FromArgb( 94,  19,  41); // #5e1329
+        internal static readonly Color FondoGrillaAlt = Color.FromArgb(107,  22,  48); // #6b1630  filas alternas
+        internal static readonly Color Acento         = Color.FromArgb(214, 175,  96); // #d6af60  dorado (borde del ícono)
+        internal static readonly Color AcentoHover    = Color.FromArgb(158,  43,  74); // #9e2b4a  bordó claro (lleva texto blanco)
+        internal static readonly Color TextoPrincipal  = Color.FromArgb(248, 221, 228); // #f8dde4  rosa pálido
+        internal static readonly Color TextoEncabezado = Color.FromArgb(242, 184, 198); // #f2b8c6  rosa
+        internal static readonly Color TextoSecundario = Color.FromArgb(212, 154, 170); // #d49aaa  rosa apagado
+        internal static readonly Color Borde          = Color.FromArgb(140,  58,  82); // #8c3a52
+        internal static readonly Color Seleccion      = Color.FromArgb(142,  36,  67); // #8e2443
+        internal static readonly Color SeleccionTexto = Color.FromArgb(255, 241, 244); // #fff1f4
 
         internal static readonly Font FontTitulo = new Font("Segoe UI", 11f, FontStyle.Bold);
         internal static readonly Font FontBold   = new Font("Segoe UI", 10f, FontStyle.Bold);
         internal static readonly Font FontNormal = new Font("Segoe UI", 10f, FontStyle.Regular);
         internal static readonly Font FontMono   = new Font("Consolas",  9f, FontStyle.Regular);
 
+        // Ícono embebido en el .exe (ApplicationIcon); se extrae una sola vez y se comparte entre formularios.
+        // Si la extracción falla, se deja el ícono por defecto: un error acá no debe impedir abrir los formularios.
+        private static readonly Lazy<Icon> _iconoApp = new Lazy<Icon>(() =>
+        {
+            try { return Icon.ExtractAssociatedIcon(Application.ExecutablePath); }
+            catch { return null; }
+        });
+
         internal static void AplicarTema(Form form)
         {
+            if (_iconoApp.Value != null)
+                form.Icon = _iconoApp.Value;
             form.BackColor = FondoForm;
             form.ForeColor = TextoPrincipal;
             EstilizarControles(form.Controls, FondoForm);
@@ -226,7 +236,7 @@ namespace CAPAS
 
         internal static void EstilizarStatusStrip(StatusStrip ss)
         {
-            Color fondoStatus = Color.FromArgb(144, 140, 170); // subtle #908caa  ← gris claro abajo
+            Color fondoStatus = FondoHeader; // misma franja bordó medio que el menú superior
             ss.BackColor  = fondoStatus;
             ss.ForeColor  = TextoSecundario;
             ss.Font       = FontNormal;

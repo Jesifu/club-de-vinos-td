@@ -27,7 +27,7 @@ namespace CAPAS
         }
     }
 
-    internal class FrmMensaje : MaterialForm
+    internal class FrmMensaje : FormBase
     {
         private readonly MsgBox.Botones _botones;
         private readonly MsgBox.Icono _icono;

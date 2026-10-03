@@ -6,7 +6,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmNuevoUsuario : MaterialForm, SeguridadYServicios.IObservadorIdioma
+    public partial class frmNuevoUsuario : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private readonly BLL.PerfilBLL _perfilBll = new BLL.PerfilBLL();
 

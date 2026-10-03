@@ -6,7 +6,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmSocios : MaterialForm, SeguridadYServicios.IObservadorIdioma
+    public partial class frmSocios : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private readonly BLL.SocioBLL _bll = new BLL.SocioBLL();
         private readonly Dictionary<string, Control> _controles = new Dictionary<string, Control>();

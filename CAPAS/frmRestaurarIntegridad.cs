@@ -5,7 +5,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmRestaurarIntegridad : MaterialForm
+    public partial class frmRestaurarIntegridad : FormBase
     {
         private readonly BLL.ResultadoIntegridad _resultado;
         private readonly BLL.UsuarioBLL _usuarioBll = new BLL.UsuarioBLL();

@@ -20,11 +20,12 @@ namespace CAPAS
 
             var skin = MaterialSkinManager.Instance;
             skin.Theme = MaterialSkinManager.Themes.DARK;
+            // Barra de título y controles Material con la misma paleta bordó de AppTheme.
             skin.ColorScheme = new MaterialColorScheme(
-                MaterialPrimary.Grey800,
-                MaterialPrimary.Grey900,
-                MaterialPrimary.Grey600,
-                MaterialAccent.Orange200,
+                AppTheme.FondoHeader,
+                AppTheme.FondoForm,
+                AppTheme.Borde,
+                AppTheme.Acento,
                 MaterialTextShade.WHITE
             );
 

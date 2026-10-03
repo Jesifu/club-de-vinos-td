@@ -9,7 +9,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmArmarCaja : MaterialForm, SeguridadYServicios.IObservadorIdioma
+    public partial class frmArmarCaja : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private readonly BLL.CajaMensualBLL _bll = new BLL.CajaMensualBLL();
         private readonly BLL.SocioBLL _socioBll = new BLL.SocioBLL();

@@ -7,7 +7,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmBitacora : MaterialForm, SeguridadYServicios.IObservadorIdioma
+    public partial class frmBitacora : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private const string OPCION_TODOS = "(Todos)";
         private const int TAMANIO_PAGINA = 30;

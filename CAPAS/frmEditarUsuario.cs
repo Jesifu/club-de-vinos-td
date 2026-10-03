@@ -6,7 +6,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmEditarUsuario : MaterialForm, SeguridadYServicios.IObservadorIdioma
+    public partial class frmEditarUsuario : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private readonly BE.USUARIO _usuario;
 

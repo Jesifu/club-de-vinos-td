@@ -7,7 +7,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmMenu : MaterialForm, SeguridadYServicios.IObservadorIdioma
+    public partial class frmMenu : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private readonly Dictionary<string, ToolStripItem> _menuItems = new Dictionary<string, ToolStripItem>();
         private readonly Dictionary<string, string> _menuDefaults = new Dictionary<string, string>();

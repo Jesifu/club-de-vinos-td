@@ -7,7 +7,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmRegistrarEntradaStock : MaterialForm, SeguridadYServicios.IObservadorIdioma
+    public partial class frmRegistrarEntradaStock : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private readonly BLL.MovimientoStockBLL _bll = new BLL.MovimientoStockBLL();
         private readonly BLL.VinoBLL _vinoBll = new BLL.VinoBLL();

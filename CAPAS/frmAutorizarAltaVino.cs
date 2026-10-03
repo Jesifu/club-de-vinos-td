@@ -6,7 +6,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmAutorizarAltaVino : MaterialForm, SeguridadYServicios.IObservadorIdioma
+    public partial class frmAutorizarAltaVino : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private readonly BLL.VinoBLL _bll = new BLL.VinoBLL();
         private readonly Dictionary<string, Control> _controles = new Dictionary<string, Control>();

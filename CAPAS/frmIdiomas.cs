@@ -7,7 +7,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmIdiomas : MaterialForm, SeguridadYServicios.IObservadorIdioma
+    public partial class frmIdiomas : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private readonly BLL.IdiomaBLL _bll = new BLL.IdiomaBLL();
         private IDIOMA _idiomaSeleccionado;

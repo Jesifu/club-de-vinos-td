@@ -60,7 +60,7 @@ CAPAS (UI/WinForms)
 - `ValidadorContrasena` — Password rules (min 6 chars, uppercase, digit).
 - `CalculadorDVH` — Static utility. `Calcular(string[])` for DVH; `CalcularVertical(List<string[]>, int)` for DVV. Formula: `Σ Unicode(char) × posAtributo × posChar` (1-based).
 
-**CAPAS** — Windows Forms. References BLL and SeguridadYServicios. Every `Form` that should react to language changes implements `IObservadorIdioma`. All forms inherit from `ReaLTaiizor.Forms.MaterialForm` (not `System.Windows.Forms.Form`).
+**CAPAS** — Windows Forms. References BLL and SeguridadYServicios. Every `Form` that should react to language changes implements `IObservadorIdioma`. All forms inherit from `FormBase` (a `ReaLTaiizor.Forms.MaterialForm` subclass), not `System.Windows.Forms.Form`.
 
 ## UI theme (ReaLTaiizor)
 
@@ -69,11 +69,13 @@ The app uses **ReaLTaiizor 3.8.1.8** (NuGet, .NET Framework 4.8). Two layers coo
 **MaterialSkinManager** (global, `Program.cs`) — configured once before `Application.Run`:
 ```csharp
 var skin = MaterialSkinManager.Instance;
-skin.Theme = MaterialSkinManager.Themes.LIGHT;
+skin.Theme = MaterialSkinManager.Themes.DARK;
 skin.ColorScheme = new MaterialColorScheme(
-    MaterialPrimary.Blue700, MaterialPrimary.Blue900, MaterialPrimary.Blue200,
-    MaterialAccent.LightBlue200, MaterialTextShade.LIGHT);
+    AppTheme.FondoHeader, AppTheme.FondoForm, AppTheme.Borde,
+    AppTheme.Acento, MaterialTextShade.WHITE);
 ```
+
+**`FormBase`** (`CAPAS/FormBase.cs`) — every form inherits `FormBase`, never `MaterialForm` directly. `MaterialForm.OnPaint` clears the whole form with the Material theme backdrop (gray) and never calls `base.OnPaint`, so neither `BackColor` nor the `Paint` event can change it. `FormBase.OnPaint` lets Material draw (title bar, buttons) and then fills `UserArea` with `AppTheme.FondoForm`.
 
 **Per-form** — every form's `Load` event must call, in this order:
 ```csharp
@@ -81,7 +83,9 @@ MaterialSkinManager.Instance.AddFormToManage(this);
 AppTheme.AplicarTema(this);
 ```
 
-**`AppTheme.AplicarTema(form)`** (`CAPAS/AppTheme.cs`) — applies the corporate palette to Button, TextBox, Label, DataGridView, TreeView, ComboBox, Panel, GroupBox, MenuStrip, StatusStrip, and DateTimePicker controls recursively. Color constants: `FondoForm=#F5F7FA`, header/accent `#1565C0`.
+**`AppTheme.AplicarTema(form)`** (`CAPAS/AppTheme.cs`) — sets the app icon and applies the palette to Button, TextBox, Label, DataGridView, TreeView, ComboBox, Panel, GroupBox, MenuStrip, StatusStrip, and DateTimePicker controls recursively. Palette "Bordó" (matches the app icon): background `FondoForm=#4E0F24`, header/menu/status bar `FondoHeader=#6B1630`, text pale pink `#F8DDE4`, accent gold `#D6AF60`. `AcentoHover` (`#9E2B4A`) must stay dark: the menu renderer draws white text over it.
+
+**App icon** — `CAPAS/Resources/ClubDeVinos.ico` (16–256 px). Embedded in `CAPAS.exe` via `<ApplicationIcon>` in `UI.csproj`; forms take it from the executable in `AplicarTema`; the installer uses it for both shortcuts and the Apps & features entry (`ARPPRODUCTICON`).
 
 **Critical layout constraint** — `MaterialForm` renders its own title bar (~64 px) **inside** the client area at `y=0`. Controls in `.Designer.cs` must have `Location.Y ≥ ~70` or they will be hidden under the title bar. When designing a new form or adjusting an existing one, offset all content controls by at least 70 px from the top of the client area. The `ClientSize.Height` must be increased by the same amount relative to the visible content.
 
@@ -231,7 +235,7 @@ The system protects **USUARIO** against unauthorized out-of-system DB modificati
 
 ## Adding a new form with language support
 
-1. Inherit from `ReaLTaiizor.Forms.MaterialForm` (not `Form`). Add `using ReaLTaiizor.Forms; using ReaLTaiizor.Manager;` at the top.
+1. Inherit from `FormBase` (not `MaterialForm` or `Form`, see UI theme). Add `using ReaLTaiizor.Manager;` at the top.
 2. Implement `SeguridadYServicios.IObservadorIdioma`.
 3. Add `Dictionary<string, Control> _controles` and `Dictionary<string, string> _defaults` fields.
 4. In `Load`:

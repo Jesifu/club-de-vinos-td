@@ -6,7 +6,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmContraseña : MaterialForm, SeguridadYServicios.IObservadorIdioma
+    public partial class frmContraseña : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private readonly Dictionary<string, Control> _controles = new Dictionary<string, Control>();
         private readonly Dictionary<string, string> _defaults = new Dictionary<string, string>();

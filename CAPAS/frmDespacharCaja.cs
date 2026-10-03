@@ -7,7 +7,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmDespacharCaja : MaterialForm, SeguridadYServicios.IObservadorIdioma
+    public partial class frmDespacharCaja : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private readonly BLL.CajaMensualBLL _bll = new BLL.CajaMensualBLL();
         private readonly Dictionary<string, Control> _controles = new Dictionary<string, Control>();

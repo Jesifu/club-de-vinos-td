@@ -9,7 +9,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmPerfiles : MaterialForm, SeguridadYServicios.IObservadorIdioma
+    public partial class frmPerfiles : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private readonly BLL.PerfilBLL _bll = new BLL.PerfilBLL();
         private readonly Dictionary<string, Control> _controles = new Dictionary<string, Control>();

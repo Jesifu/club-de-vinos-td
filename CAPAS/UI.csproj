@@ -12,6 +12,7 @@
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
+    <ApplicationIcon>Resources\ClubDeVinos.ico</ApplicationIcon>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -168,6 +169,9 @@
       <DependentUpon>LogIn.cs</DependentUpon>
     </Compile>
     <Compile Include="AppTheme.cs" />
+    <Compile Include="FormBase.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="IdiomaUIHelper.cs" />
     <Compile Include="MsgBox.cs" />
     <Compile Include="RemitoDespachoPdf.cs" />
@@ -259,6 +263,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\login bg.jpg" />
+    <Content Include="Resources\ClubDeVinos.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

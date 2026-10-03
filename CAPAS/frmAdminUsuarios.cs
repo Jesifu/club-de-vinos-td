@@ -7,7 +7,7 @@ using ReaLTaiizor.Manager;
 
 namespace CAPAS
 {
-    public partial class frmAdminUsuarios : MaterialForm, SeguridadYServicios.IObservadorIdioma
+    public partial class frmAdminUsuarios : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private const int TAMANIO_PAGINA = 15;
 
