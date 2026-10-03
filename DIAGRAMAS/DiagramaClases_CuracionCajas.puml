@@ -24,26 +24,34 @@ package "BE" #FEFECE {
     + Apellido : string
     + Email : string
     + Telefono : string
+    + Domicilio : string
     + PresupuestoMensual : decimal
     + Activo : bool
     + FechaAlta : DateTime
     + CreadoPor : int
+    + CreadoPorLogin : string
     + VarietalesPreferidos : List<string>
   }
 
   class CajaMensual {
     + Id : int
     + SocioId : int
+    + SocioNombre : string
+    + SocioDomicilio : string
+    + SocioTelefono : string
     + Periodo : string
     + Estado : EstadoCaja
     + PresupuestoSnapshot : decimal
     + FechaArmado : DateTime
     + ArmadoPor : int
+    + ArmadoPorLogin : string
     + FechaDespacho : DateTime?
     + DespachadoPor : int?
+    + DespachadoPorLogin : string
     + FechaCancelacion : DateTime?
     + CanceladaPor : int?
     + MotivoCancelacion : string
+    + Lineas : List<CajaVino>
   }
 
   class CajaVino {
@@ -53,6 +61,11 @@ package "BE" #FEFECE {
     + Cantidad : int
     + NombreSnapshot : string
     + PrecioSnapshot : decimal
+    + VinoEfectivoId : int
+    + NombreEfectivo : string
+    + PrecioEfectivo : decimal
+    + Sustituido : bool
+    + StockDisponible : int
   }
 
   class Sustitucion {
@@ -64,12 +77,17 @@ package "BE" #FEFECE {
     + PrecioSnapshot : decimal
     + Motivo : string
     + ResponsableId : int
+    + ResponsableLogin : string
     + Fecha : DateTime
   }
 
   class VinoCandidato {
-    + VinoId : int
+    + Id : int
+    + Codigo : string
     + Nombre : string
+    + BodegaNombre : string
+    + Varietal : string
+    + Aniada : int
     + Precio : decimal
     + Stock : int
     + Preferido : bool
@@ -87,8 +105,13 @@ package "BE" #FEFECE {
 package "DAL" #E8E8F4 {
 
   class Acceso <<existente>> {
-    + Leer(sp : string, params : List<SqlParameter>?) : DataTable
-    + Escribir(sp : string, params : List<SqlParameter>?) : int
+    + Abrir() : void
+    + Cerrar() : void
+    + IniciarTx() : void
+    + ConfirmarTX() : void
+    + DeshacerTX() : void
+    + Leer(sql : string, parametros : List<SqlParameter>) : DataTable
+    + Escribir(sql : string, parametros : List<SqlParameter>) : int
   }
 
   class SocioDAL {
@@ -97,18 +120,15 @@ package "DAL" #E8E8F4 {
     + Actualizar(s : Socio) : void
     + ObtenerPorId(id : int) : Socio
     + ListarActivos() : List<Socio>
-    + LimpiarVarietales(socioId : int) : void
-    + InsertarVarietal(socioId : int, varietal : string) : void
-    + ListarCatalogoVarietales() : List<string>
+    + ListarVarietalesDeCatalogo() : List<string>
   }
 
   class CajaMensualDAL {
     - _acceso : Acceso
     + Armar(caja : CajaMensual) : int
-    + ObtenerConComposicionEfectiva(cajaId : int) : CajaMensual
     + ObtenerPorId(id : int) : CajaMensual
+    + ListarComposicionEfectiva(cajaId : int) : List<CajaVino>
     + ListarPorEstado(estado : string) : List<CajaMensual>
-    + ListarPorSocio(socioId : int) : List<CajaMensual>
     + Despachar(cajaId : int, despachadoPor : int, responsableLogin : string) : int
     + Cancelar(cajaId : int, motivo : string, canceladaPor : int) : int
   }
@@ -123,10 +143,15 @@ package "DAL" #E8E8F4 {
     + ListarCandidatos(socioId : int) : List<VinoCandidato>
   }
 
+  class BitacoraDAL <<existente>> {
+    + Registrar(usuario : string, accion : string) : void
+  }
+
   SocioDAL       --> Acceso
   CajaMensualDAL --> Acceso
   SustitucionDAL --> Acceso
   VinoDAL        --> Acceso
+  BitacoraDAL    --> Acceso
 }
 
 ' ─────────────────────────────────────────
@@ -134,31 +159,47 @@ package "DAL" #E8E8F4 {
 ' ─────────────────────────────────────────
 package "BLL" #E8F4E8 {
 
+  class BitacoraBLL <<existente>> {
+    - _dal : BitacoraDAL
+    + RegistrarAccion(usuario : string, accion : string) : void
+  }
+
   class SocioBLL {
     - _dal : SocioDAL
+    - _bitacora : BitacoraBLL
     + ListarActivos() : List<Socio>
     + ObtenerPorId(id : int) : Socio
     + ListarVarietalesDeCatalogo() : List<string>
-    + Registrar(s : Socio, sesion : BE.USUARIO) : void
-    + Actualizar(s : Socio, sesion : BE.USUARIO) : void
+    + Registrar(s : Socio, sesion : USUARIO) : void
+    + Actualizar(s : Socio, sesion : USUARIO) : void
   }
 
   class CajaMensualBLL {
     - _dal : CajaMensualDAL
+    - _socioDal : SocioDAL
+    - _vinoDal : VinoDAL
+    - _sustitucionDal : SustitucionDAL
+    - _bitacora : BitacoraBLL
     + ListarCandidatos(socioId : int) : List<VinoCandidato>
     + CalcularTotal(lineas : IEnumerable<CajaVino>) : decimal
-    + Armar(caja : CajaMensual, sesion : BE.USUARIO) : int
+    + ListarArmadas() : List<CajaMensual>
+    + ListarDespachadas() : List<CajaMensual>
+    + Armar(caja : CajaMensual, sesion : USUARIO) : int
     + ObtenerConComposicionEfectiva(cajaId : int) : CajaMensual
-    + RegistrarSustitucion(cajaVinoId : int, vinoReemplazoId : int, motivo : string, sesion : BE.USUARIO) : void
-    + Despachar(cajaId : int, sesion : BE.USUARIO) : void
-    + Cancelar(cajaId : int, motivo : string, sesion : BE.USUARIO) : void
+    + ListarTrazaSustituciones(cajaId : int) : List<Sustitucion>
+    + RegistrarSustitucion(cajaId : int, cajaVinoId : int, vinoReemplazoId : int, motivo : string, sesion : USUARIO) : void
+    + Despachar(cajaId : int, sesion : USUARIO) : void
+    + Cancelar(cajaId : int, motivo : string, sesion : USUARIO) : void
   }
 
   SocioBLL       --> SocioDAL
+  SocioBLL       --> BitacoraBLL
+  BitacoraBLL    --> BitacoraDAL
   CajaMensualBLL --> CajaMensualDAL
   CajaMensualBLL --> SocioDAL
   CajaMensualBLL --> VinoDAL
   CajaMensualBLL --> SustitucionDAL
+  CajaMensualBLL --> BitacoraBLL
 }
 
 ' ─────────────────────────────────────────
@@ -178,12 +219,22 @@ package "CAPAS" #F4E8E8 {
   class frmDespacharCaja {
     + ActualizarIdioma() : void
   }
+  class frmHistorialDespachos {
+    + ActualizarIdioma() : void
+  }
+  class RemitoDespachoPdf <<static>> {
+    ~ Generar(caja : CajaMensual) : string
+    ~ Abrir(rutaPdf : string) : void
+  }
 
-  frmSocios      --> SocioBLL
-  frmArmarCaja   --> CajaMensualBLL
-  frmArmarCaja   --> SocioBLL
-  frmPickingCaja --> CajaMensualBLL
-  frmDespacharCaja --> CajaMensualBLL
+  frmSocios             --> SocioBLL
+  frmArmarCaja          --> CajaMensualBLL
+  frmArmarCaja          --> SocioBLL
+  frmPickingCaja        --> CajaMensualBLL
+  frmDespacharCaja      --> CajaMensualBLL
+  frmDespacharCaja      --> RemitoDespachoPdf
+  frmHistorialDespachos --> CajaMensualBLL
+  frmHistorialDespachos --> RemitoDespachoPdf
 }
 
 @enduml
