@@ -1,45 +1,69 @@
 @startuml DiagramaSecuencia_CU24_SolicitarDescontinuacion
 
-title CU-24 — Solicitar Descontinuación de Vino — Diagrama de Secuencia
+title CU-24 — Solicitar Descontinuación de Vino — Diagrama de Secuencia (diseño)
 
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.8
+scale 0.75
 
-actor       ":Usuario"              as U
-participant ":frmCatalogoVinos"     as FC #FEFECE
-participant ":VinoBLL"              as VB #E8F4E8
-participant ":VinoDAL"              as VD #E8E8F4
-database    ":DB"                   as DB #EEEEEE
+actor       ":Usuario"             as U
+participant ":frmCatalogoVinos"    as FC #FEFECE
+participant ":VinoBLL"             as VB #E8F4E8
+participant ":BitacoraBLL"         as BB #E8F4E8
+participant ":VinoDAL"             as VD #E8E8F4
+participant ":BitacoraDAL"         as TD #E8E8F4
+database    ":DB"                  as DB #EEEEEE
 
 note over FC
-  Precondición: sesión activa,
-  permiso "Gestionar catálogo de vinos",
-  vino en ESTADO = 'Activo'.
+  Diseño, pendiente de implementación (la entrega actual implementa CU-21, CU-22 y CU-23).
+  Precondición: sesión activa; permiso "Gestionar catálogo de vinos";
+  vino autorizado con ESTADO = 'Activo'.
 end note
 
-U -> FC : seleccionar vino activo + click\n"Solicitar descontinuación"
+U -> FC : seleccionar vino activo + click "Solicitar descontinuación"
 activate FC
-FC -> VB : SolicitarBaja(vinoId, solicitanteId)
+FC -> VB : SolicitarBaja(vino.Id, sesion)
 activate VB
+VB -> VD : ObtenerPorId(vinoId)
+activate VD
+VD -> DB : VINO_OBTENER_POR_ID(@id)
+DB --> VD : filas
+VD --> VB : Vino (o null)
+deactivate VD
 
-alt 1a. el vino ya está descontinuado o con baja ya solicitada
+alt 3a. el vino no existe, ya está descontinuado o ya tiene una baja solicitada
   VB --> FC : InvalidOperationException
-  FC --> U : "Este vino ya no está activo o ya tiene\nuna solicitud de baja pendiente."
+  FC --> U : mensaje de la excepción
 else vino activo, sin solicitud previa
-  VB -> VD : SolicitarBaja(vinoId, solicitanteId)
+  VB -> VD : SolicitarBaja(vinoId, sesion.Id)
   activate VD
-  VD -> DB : VINO_SOLICITAR_BAJA(vinoId, solicitanteId,\nFECHA_SOLICITUD_BAJA = ahora)
-  DB --> VD : OK
-  VD --> VB : void
+  VD -> DB : VINO_SOLICITAR_BAJA(@id,@solicitante_id)
+  DB --> VD : filas afectadas
+  VD --> VB : int
   deactivate VD
-  VB --> FC : true
-  deactivate VB
-  FC --> U : "Descontinuación solicitada,\npendiente de autorización."
-  deactivate FC
+
+  alt 3b. 0 filas afectadas (el estado cambió entre la lectura y la escritura)
+    VB --> FC : InvalidOperationException
+    FC --> U : mensaje de la excepción
+  else 1 fila afectada
+    VB -> BB : RegistrarAccion(sesion.Usuario,\n"BAJA_SOLICITADA_VINO:" + vino.Codigo)
+    activate BB
+    BB -> TD : Registrar(usuario, accion)
+    activate TD
+    TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+    DB --> TD : filas afectadas
+    TD --> BB : void
+    deactivate TD
+    BB --> VB : void
+    deactivate BB
+    VB --> FC : void
+    FC --> U : "Descontinuación solicitada, pendiente de autorización."
+  end
 end
+deactivate VB
+deactivate FC
 
 @enduml

@@ -8,7 +8,10 @@ skinparam shadowing false
 skinparam roundcorner 6
 skinparam linetype ortho
 hide empty members
-scale 0.7
+scale 0.6
+
+' Implementado: CU-21, CU-22 y CU-23.
+' Diseño pendiente (marcado «no implementado»): CU-24, CU-25 y CU-27.
 
 package "BE" #FEFECE {
 
@@ -27,6 +30,7 @@ package "BE" #FEFECE {
     + Codigo : string
     + Nombre : string
     + BodegaId : int
+    + BodegaNombre : string
     + Varietal : string
     + Aniada : int
     + Precio : decimal
@@ -35,13 +39,11 @@ package "BE" #FEFECE {
     + Maridaje : string
     + Puntaje : int?
     + CreadoPor : int
+    + CreadoPorLogin : string
     + FechaAlta : DateTime
     + AutorizadoPor : int?
+    + AutorizadoPorLogin : string
     + FechaAutorizacion : DateTime?
-    + BajaSolicitadaPor : int?
-    + FechaSolicitudBaja : DateTime?
-    + DescontinuadoPor : int?
-    + FechaDescontinuacion : DateTime?
   }
 
   class Bodega {
@@ -50,11 +52,13 @@ package "BE" #FEFECE {
     + Pais : string
     + Region : string
     + Habilitado : bool
+    + ToString() : string
   }
 
   class MovimientoStock {
     + Id : int
     + VinoId : int
+    + VinoNombre : string
     + Fecha : DateTime
     + Tipo : TipoMovimiento
     + Cantidad : int
@@ -64,46 +68,23 @@ package "BE" #FEFECE {
     + ReferenciaId : int?
   }
 
-  Vino "1" o-- "0..*" MovimientoStock
-  Vino --> EstadoVino
-  Vino --> Bodega : BodegaId >
+  class USUARIO <<existente>> {
+    + Id : int
+    + Usuario : string
+  }
+
+  Bodega "1" o-- "0..*" Vino            : BodegaId >
+  Vino   "1" o-- "0..*" MovimientoStock : VinoId >
+  Vino            --> EstadoVino
   MovimientoStock --> TipoMovimiento
-}
 
-' ─────────────────────────────────────────
-' CAPA BLL
-' ─────────────────────────────────────────
-package "BLL" #E8F4E8 {
-
-  class VinoBLL {
-    - _dal : VinoDAL
-    + Proponer(vino : Vino, propuestoPorId : int) : bool
-    + Autorizar(vinoId : int, administradorId : int) : void
-    + SolicitarBaja(vinoId : int, solicitanteId : int) : void
-    + AutorizarBaja(vinoId : int, administradorId : int) : void
-    + ListarCatalogoPublicado() : List<Vino>
-    + ListarPendientes() : List<Vino>
-    + ListarPendientesDeBaja() : List<Vino>
-  }
-
-  class BodegaBLL {
-    - _dal : BodegaDAL
-    + ListarHabilitadas() : List<Bodega>
-    + Crear(bodega : Bodega) : int
-  }
-
-  class StockBLL {
-    - _dal : StockDAL
-    + RegistrarEntrada(mov : MovimientoStock) : void
-    + RegistrarSalida(mov : MovimientoStock) : void
-    + ObtenerStockActual(vinoId : int) : int
-    + ListarKardex(vinoId : int) : List<MovimientoStock>
-    + ListarBajoStockMinimo() : List<Vino>
-  }
-
-  VinoBLL --> VinoDAL
-  BodegaBLL --> BodegaDAL
-  StockBLL --> StockDAL
+  note bottom of Vino
+    La tabla VINO ya tiene las columnas de baja
+    (BAJA_SOLICITADA_POR, FECHA_SOLICITUD_BAJA,
+    DESCONTINUADO_POR, FECHA_DESCONTINUACION),
+    pero BE.Vino todavía no las mapea: se agregarán
+    al implementar CU-24 y CU-25.
+  end note
 }
 
 ' ─────────────────────────────────────────
@@ -112,40 +93,96 @@ package "BLL" #E8F4E8 {
 package "DAL" #E8E8F4 {
 
   class Acceso <<existente>> {
-    + Leer(sp : string, params : List<SqlParameter>?) : DataTable
-    + Escribir(sp : string, params : List<SqlParameter>?) : int
+    + Abrir() : void
+    + Cerrar() : void
+    + Leer(sql : string, parametros : List<SqlParameter>) : DataTable
+    + Escribir(sql : string, parametros : List<SqlParameter>) : int
+    + CrearParametro(nombre : string, valor : string) : SqlParameter
+    + CrearParametro(nombre : string, valor : int) : SqlParameter
   }
 
   class VinoDAL {
     - _acceso : Acceso
-    + Insertar(vino : Vino) : int
-    + ExisteCodigo(codigo : string) : bool
-    + Autorizar(vinoId : int, administradorId : int) : void
-    + SolicitarBaja(vinoId : int, solicitanteId : int) : void
-    + AutorizarBaja(vinoId : int, administradorId : int) : void
-    + ListarPublicados() : List<Vino>
-    + ListarPendientes() : List<Vino>
-    + ListarPendientesDeBaja() : List<Vino>
+    + Insertar(v : Vino) : void
+    + ObtenerPorCodigo(codigo : string) : Vino
     + ObtenerPorId(id : int) : Vino
+    + ListarPendientes() : List<Vino>
+    + ListarAutorizados() : List<Vino>
+    + Autorizar(vinoId : int, adminId : int) : int
+    .. usado por CajaMensualBLL (CU-28) ..
+    + ListarCandidatos(socioId : int) : List<VinoCandidato>
+    .. «no implementado» (CU-24 y CU-25) ..
+    + SolicitarBaja(vinoId : int, solicitanteId : int) : int
+    + ListarPendientesDeBaja() : List<Vino>
+    + AutorizarBaja(vinoId : int, adminId : int) : int
   }
 
   class BodegaDAL {
     - _acceso : Acceso
     + ListarHabilitadas() : List<Bodega>
-    + Insertar(bodega : Bodega) : int
   }
 
-  class StockDAL {
+  class MovimientoStockDAL {
     - _acceso : Acceso
-    + Insertar(mov : MovimientoStock) : void
-    + ObtenerStockActual(vinoId : int) : int
+    + Insertar(m : MovimientoStock) : void
     + ListarPorVino(vinoId : int) : List<MovimientoStock>
-    + ListarBajoStockMinimo() : List<Vino>
+    + ObtenerStockActual(vinoId : int) : int
   }
 
-  VinoDAL --> Acceso
-  BodegaDAL --> Acceso
-  StockDAL --> Acceso
+  class BitacoraDAL <<existente>> {
+    - _acceso : Acceso
+    + Registrar(usuario : string, accion : string) : void
+  }
+
+  VinoDAL            --> Acceso
+  BodegaDAL          --> Acceso
+  MovimientoStockDAL --> Acceso
+  BitacoraDAL        --> Acceso
+}
+
+' ─────────────────────────────────────────
+' CAPA BLL
+' ─────────────────────────────────────────
+package "BLL" #E8F4E8 {
+
+  class BitacoraBLL <<existente>> {
+    - _dal : BitacoraDAL
+    + RegistrarAccion(usuario : string, accion : string) : void
+  }
+
+  class VinoBLL {
+    - _dal : VinoDAL
+    - _bodegaDal : BodegaDAL
+    - _bitacora : BitacoraBLL
+    + ListarBodegas() : List<Bodega>
+    + ProponerAlta(v : Vino, sesion : USUARIO) : void
+    + ListarPendientes() : List<Vino>
+    + ListarAutorizados() : List<Vino>
+    + Autorizar(vinoId : int, sesion : USUARIO) : void
+    .. «no implementado» (CU-24 y CU-25) ..
+    + SolicitarBaja(vinoId : int, sesion : USUARIO) : void
+    + ListarPendientesDeBaja() : List<Vino>
+    + AutorizarBaja(vinoId : int, sesion : USUARIO) : void
+  }
+
+  class MovimientoStockBLL {
+    - _dal : MovimientoStockDAL
+    - _vinoDal : VinoDAL
+    - _bitacora : BitacoraBLL
+    + RegistrarEntrada(m : MovimientoStock, sesion : USUARIO) : void
+    + ObtenerStockActual(vinoId : int) : int
+    + ObtenerMovimientos(vinoId : int) : List<MovimientoStock>
+    .. «no implementado» (CU-27) ..
+    + RegistrarSalida(m : MovimientoStock, sesion : USUARIO) : void
+  }
+
+  VinoBLL            --> VinoDAL
+  VinoBLL            --> BodegaDAL
+  VinoBLL            --> BitacoraBLL
+  MovimientoStockBLL --> MovimientoStockDAL
+  MovimientoStockBLL --> VinoDAL
+  MovimientoStockBLL --> BitacoraBLL
+  BitacoraBLL        --> BitacoraDAL
 }
 
 ' ─────────────────────────────────────────
@@ -153,32 +190,66 @@ package "DAL" #E8E8F4 {
 ' ─────────────────────────────────────────
 package "CAPAS" #F4E8E8 {
 
-  class frmCatalogoVinos {
-    + ActualizarIdioma() : void
+  class FormBase <<existente>> {
   }
-  class frmNuevoVino {
-    + ActualizarIdioma() : void
-  }
-  class frmAutorizarVinos {
-    + ActualizarIdioma() : void
-  }
-  class frmMovimientoStock {
-    + ActualizarIdioma() : void
-  }
-  class frmKardexVino {
-    + ActualizarIdioma() : void
-  }
-  class frmAlertaStockMinimo {
+
+  interface IObservadorIdioma <<existente>> {
     + ActualizarIdioma() : void
   }
 
-  frmCatalogoVinos    --> VinoBLL
-  frmNuevoVino         --> VinoBLL
-  frmNuevoVino         --> BodegaBLL
-  frmAutorizarVinos    --> VinoBLL
-  frmMovimientoStock   --> StockBLL
-  frmKardexVino        --> StockBLL
-  frmAlertaStockMinimo --> StockBLL
+  class frmCatalogoVinos {
+    - _bll : VinoBLL
+    + ActualizarIdioma() : void
+    - btnGuardarVino_Click() : void
+    .. «no implementado» (CU-24) ..
+    - btnSolicitarBaja_Click() : void
+  }
+
+  class frmAutorizarAltaVino {
+    - _bll : VinoBLL
+    + ActualizarIdioma() : void
+    - btnAutorizar_Click() : void
+  }
+
+  class frmRegistrarEntradaStock {
+    - _bll : MovimientoStockBLL
+    - _vinoBll : VinoBLL
+    + ActualizarIdioma() : void
+    - btnRegistrarEntrada_Click() : void
+  }
+
+  class frmAutorizarBajaVino <<no implementado>> {
+    - _bll : VinoBLL
+    + ActualizarIdioma() : void
+    - btnAutorizarBaja_Click() : void
+  }
+
+  class frmRegistrarAjusteInventario <<no implementado>> {
+    - _bll : MovimientoStockBLL
+    - _vinoBll : VinoBLL
+    + ActualizarIdioma() : void
+    - btnRegistrarAjuste_Click() : void
+  }
+
+  FormBase <|-- frmCatalogoVinos
+  FormBase <|-- frmAutorizarAltaVino
+  FormBase <|-- frmRegistrarEntradaStock
+  FormBase <|-- frmAutorizarBajaVino
+  FormBase <|-- frmRegistrarAjusteInventario
+
+  IObservadorIdioma <|.. frmCatalogoVinos
+  IObservadorIdioma <|.. frmAutorizarAltaVino
+  IObservadorIdioma <|.. frmRegistrarEntradaStock
+  IObservadorIdioma <|.. frmAutorizarBajaVino
+  IObservadorIdioma <|.. frmRegistrarAjusteInventario
+
+  frmCatalogoVinos            --> VinoBLL
+  frmAutorizarAltaVino        --> VinoBLL
+  frmRegistrarEntradaStock    --> MovimientoStockBLL
+  frmRegistrarEntradaStock    --> VinoBLL
+  frmAutorizarBajaVino        --> VinoBLL
+  frmRegistrarAjusteInventario --> MovimientoStockBLL
+  frmRegistrarAjusteInventario --> VinoBLL
 }
 
 @enduml

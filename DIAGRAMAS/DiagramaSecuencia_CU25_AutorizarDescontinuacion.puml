@@ -1,57 +1,85 @@
 @startuml DiagramaSecuencia_CU25_AutorizarDescontinuacion
 
-title CU-25 — Autorizar Descontinuación de Vino — Diagrama de Secuencia
+title CU-25 — Autorizar Descontinuación de Vino — Diagrama de Secuencia (diseño)
 
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.8
+scale 0.75
 
-actor       ":Administrador"        as A
-participant ":frmAutorizarVinos"    as FA #FEFECE
-participant ":VinoBLL"              as VB #E8F4E8
-participant ":VinoDAL"              as VD #E8E8F4
-database    ":DB"                   as DB #EEEEEE
+actor       ":Administrador"           as A
+participant ":frmAutorizarBajaVino"    as FA #FEFECE
+participant ":VinoBLL"                 as VB #E8F4E8
+participant ":BitacoraBLL"             as BB #E8F4E8
+participant ":VinoDAL"                 as VD #E8E8F4
+participant ":BitacoraDAL"             as TD #E8E8F4
+database    ":DB"                      as DB #EEEEEE
 
 note over FA
-  Precondición: sesión activa,
-  permiso "Autorizar catálogo de vinos",
-  existe al menos un vino con solicitud de baja pendiente.
+  Diseño, pendiente de implementación (la entrega actual implementa CU-21, CU-22 y CU-23).
+  Precondición: sesión activa; permiso de autorización de catálogo;
+  existe al menos un vino con baja solicitada y sin descontinuar.
 end note
 
-A -> FA : abrir "Descontinuaciones pendientes"
+A -> FA : abrir "Autorizar descontinuación de vino"
 activate FA
 FA -> VB : ListarPendientesDeBaja()
+activate VB
 VB -> VD : ListarPendientesDeBaja()
 activate VD
 VD -> DB : VINO_LISTAR_PENDIENTES_BAJA
-DB --> VD : filas con BAJA_SOLICITADA_POR IS NOT NULL\nAND DESCONTINUADO_POR IS NULL
+DB --> VD : filas con BAJA_SOLICITADA_POR IS NOT NULL\ny DESCONTINUADO_POR IS NULL
 VD --> VB : List<Vino>
 deactivate VD
 VB --> FA : List<Vino>
-FA -> FA : refrescar grilla
+deactivate VB
+FA -> FA : mostrar grilla
 
 A -> FA : seleccionar vino + click "Autorizar baja"
-FA -> VB : AutorizarBaja(vinoId, administradorId)
+FA -> VB : AutorizarBaja(vino.Id, sesion)
 activate VB
+VB -> VD : ObtenerPorId(vinoId)
+activate VD
+VD -> DB : VINO_OBTENER_POR_ID(@id)
+DB --> VD : filas
+VD --> VB : Vino (o null)
+deactivate VD
 
-alt 3a. el administrador es el mismo que solicitó la baja (RN-01)
+alt 3a. el vino no existe o no tiene una baja solicitada pendiente
   VB --> FA : InvalidOperationException
-  FA --> A : "No podés autorizar una descontinuación\nque vos mismo solicitaste."
-  note right of FA : el flujo vuelve al paso 2
-else separación de funciones OK
-  VB -> VD : AutorizarBaja(vinoId, administradorId)
+  FA --> A : mensaje de la excepción
+else 3b. el administrador es quien solicitó la baja (RN-01, capa BLL)
+  VB --> FA : InvalidOperationException
+  FA --> A : mensaje de la excepción
+else baja pendiente y separación de funciones OK
+  VB -> VD : AutorizarBaja(vinoId, sesion.Id)
   activate VD
-  VD -> DB : VINO_AUTORIZAR_BAJA(vinoId, administradorId,\nESTADO = 'Descontinuado',\nFECHA_DESCONTINUACION = ahora)
-  DB --> VD : OK
-  VD --> VB : void
+  VD -> DB : VINO_AUTORIZAR_BAJA(@id,@admin_id)
+  DB --> VD : filas afectadas
+  VD --> VB : int
   deactivate VD
-  VB --> FA : true
-  deactivate VB
-  FA --> A : "Vino descontinuado. Ya no aparece\nen el catálogo vendible."
-  deactivate FA
+
+  alt 3c. 0 filas afectadas (RN-01, backstop de la SP)
+    VB --> FA : InvalidOperationException
+    FA --> A : mensaje de la excepción
+  else 1 fila afectada
+    VB -> BB : RegistrarAccion(sesion.Usuario,\n"AUTORIZACION_BAJA_VINO:" + vino.Codigo)
+    activate BB
+    BB -> TD : Registrar(usuario, accion)
+    activate TD
+    TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+    DB --> TD : filas afectadas
+    TD --> BB : void
+    deactivate TD
+    BB --> VB : void
+    deactivate BB
+    VB --> FA : void
+    FA --> A : "Vino descontinuado correctamente."
+  end
 end
+deactivate VB
+deactivate FA
 
 @enduml

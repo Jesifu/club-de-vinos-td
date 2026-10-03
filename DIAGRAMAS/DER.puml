@@ -6,8 +6,8 @@ hide empty methods
 entity USUARIO {
   * ID : INT <<PK>>
   --
-  USUARIO : VARCHAR(50)
-  PASS : VARCHAR(64)
+  USUARIO : VARCHAR(50) <<nullable>>
+  PASS : VARCHAR(64) <<nullable>>
   INTENTOS_FALLIDOS : INT
   BLOQUEADO : BIT
   ROL : VARCHAR(20)
@@ -35,7 +35,7 @@ entity PERMISO {
 }
 
 entity USUARIO_PERFIL {
-  * USUARIO_ID : INT <<PK, FK>>
+  * USUARIO_ID : INT <<PK>>
   * PERFIL_ID : INT <<PK, FK>>
 }
 
@@ -47,9 +47,9 @@ entity ROL_PERMISO {
 entity BITACORA {
   * ID : INT <<PK>>
   --
-  USUARIO : VARCHAR(50)
-  ACCION : VARCHAR(50)
-  FECHA : DATETIME
+  USUARIO : VARCHAR(50) <<nullable>>
+  ACCION : VARCHAR(50) <<nullable>>
+  FECHA : DATETIME <<nullable>>
 }
 
 entity IDIOMA {
@@ -57,6 +57,7 @@ entity IDIOMA {
   --
   NOMBRE : VARCHAR(50)
   HABILITADO : BIT
+  PREDETERMINADO : BIT
 }
 
 entity CONTROL_IDIOMA {
@@ -145,7 +146,7 @@ entity MOVIMIENTO_STOCK {
   REFERENCIA_ID : INT <<nullable>>
 }
 
-USUARIO        ||--o{ USUARIO_PERFIL  : "tiene >"
+USUARIO        ..o{ USUARIO_PERFIL  : "referencia logica (sin FK) >"
 ROL            ||--o{ USUARIO_PERFIL  : "< rol asignado a"
 ROL            ||--o{ ROL_PERMISO     : "ROL_ID >"
 PERMISO        ||--o{ ROL_PERMISO     : "< PERMISO_ID"
@@ -174,7 +175,8 @@ entity SOCIO {
   NOMBRE : VARCHAR(50)
   APELLIDO : VARCHAR(50)
   EMAIL : VARCHAR(100) <<nullable>>
-  TELEFONO : VARCHAR(30) <<nullable>>
+  TELEFONO : VARCHAR(20) <<nullable>>
+  DOMICILIO : VARCHAR(150) <<nullable>>
   PRESUPUESTO_MENSUAL : DECIMAL(10,2)
   ACTIVO : BIT
   FECHA_ALTA : DATETIME
@@ -227,7 +229,7 @@ entity SUSTITUCION {
   NOMBRE_SNAPSHOT : VARCHAR(100)
   PRECIO_SNAPSHOT : DECIMAL(10,2)
   MOTIVO : VARCHAR(200)
-  RESPONSABLE_ID : INT <<FK>>
+  RESPONSABLE_ID : INT
   FECHA : DATETIME
 }
 
@@ -240,7 +242,7 @@ VINO         ||--o{ SUSTITUCION    : "VINO_ORIGINAL_ID >"
 VINO         ||--o{ SUSTITUCION    : "VINO_REEMPLAZO_ID >"
 USUARIO      ||--o{ SOCIO          : "CREADO_POR >"
 USUARIO      ||--o{ CAJA_MENSUAL   : "ARMADO_POR / DESPACHADO_POR / CANCELADA_POR >"
-USUARIO      ||--o{ SUSTITUCION    : "RESPONSABLE_ID >"
+USUARIO      ..o{ SUSTITUCION    : "RESPONSABLE_ID (referencia logica, sin FK) >"
 CAJA_MENSUAL ..o{ MOVIMIENTO_STOCK : "REFERENCIA_TIPO='CAJA', REFERENCIA_ID (soft link, RN-09)"
 
 @enduml

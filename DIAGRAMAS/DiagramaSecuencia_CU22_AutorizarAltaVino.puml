@@ -7,23 +7,25 @@ skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.8
+scale 0.75
 
-actor       ":Administrador"     as A
-participant ":frmAutorizarVinos" as FA #FEFECE
-participant ":VinoBLL"           as VB #E8F4E8
-participant ":VinoDAL"           as VD #E8E8F4
-database    ":DB"                as DB #EEEEEE
+actor       ":Administrador"           as A
+participant ":frmAutorizarAltaVino"    as FA #FEFECE
+participant ":VinoBLL"                 as VB #E8F4E8
+participant ":BitacoraBLL"             as BB #E8F4E8
+participant ":VinoDAL"                 as VD #E8E8F4
+participant ":BitacoraDAL"             as TD #E8E8F4
+database    ":DB"                      as DB #EEEEEE
 
 note over FA
-  Precondición: sesión activa,
-  permiso "Autorizar catálogo de vinos",
+  Precondición: sesión activa; permiso "Autorizar alta de vinos";
   existe al menos un vino con AUTORIZADO_POR nulo.
 end note
 
-A -> FA : abrir "Vinos pendientes de autorización"
+A -> FA : abrir "Autorizar alta de vino"
 activate FA
 FA -> VB : ListarPendientes()
+activate VB
 VB -> VD : ListarPendientes()
 activate VD
 VD -> DB : VINO_LISTAR_PENDIENTES
@@ -31,35 +33,67 @@ DB --> VD : filas con AUTORIZADO_POR IS NULL
 VD --> VB : List<Vino>
 deactivate VD
 VB --> FA : List<Vino>
-FA -> FA : refrescar grilla
+deactivate VB
+FA -> FA : mostrar grilla; habilitar "Autorizar" solo si\nvino.CreadoPor <> sesion.Id (RN-01, capa UI)
 
 A -> FA : seleccionar vino + click "Autorizar"
-FA -> VB : Autorizar(vinoId, administradorId)
+FA -> VB : Autorizar(vino.Id, sesion)
 activate VB
+VB -> VD : ObtenerPorId(vinoId)
+activate VD
+VD -> DB : VINO_OBTENER_POR_ID(@id)
+DB --> VD : filas
+VD --> VB : Vino (o null)
+deactivate VD
 
-alt 3a. el administrador es el mismo que propuso el alta (RN-01)
+alt 3a. el vino no existe
   VB --> FA : InvalidOperationException
-  FA --> A : "No podés autorizar un vino que vos mismo diste de alta."
-  note right of FA : el flujo vuelve al paso 2
-else separación de funciones OK
-  VB -> VD : Autorizar(vinoId, administradorId)
+  FA --> A : mensaje de la excepción
+else 3b. el vino ya fue autorizado
+  VB --> FA : InvalidOperationException
+  FA --> A : mensaje de la excepción
+else 3c. el administrador es quien dio de alta el vino (RN-01, capa BLL)
+  VB --> FA : InvalidOperationException
+  FA --> A : mensaje de la excepción
+else vino pendiente y separación de funciones OK
+  VB -> VD : Autorizar(vinoId, sesion.Id)
   activate VD
-  VD -> DB : VINO_AUTORIZAR(vinoId, administradorId,\nFECHA_AUTORIZACION = ahora)
-  DB --> VD : OK
-  VD --> VB : void
+  VD -> DB : VINO_AUTORIZAR(@id,@admin_id)
+  DB --> VD : filas afectadas
+  VD --> VB : int
   deactivate VD
-  VB --> FA : true
-  deactivate VB
-  FA --> A : "Vino autorizado y publicado en el catálogo."
-  FA -> VB : ListarPendientes()
-  VB -> VD : ListarPendientes()
-  activate VD
-  VD -> DB : VINO_LISTAR_PENDIENTES
-  DB --> VD : página actualizada
-  VD --> VB : List<Vino>
-  deactivate VD
-  VB --> FA : List<Vino>
-  deactivate FA
+
+  alt 3d. 0 filas afectadas (RN-01, backstop de la SP)
+    VB --> FA : InvalidOperationException
+    FA --> A : mensaje de la excepción
+  else 1 fila afectada
+    VB -> BB : RegistrarAccion(sesion.Usuario, "AUTORIZACION_VINO:" + vino.Codigo)
+    activate BB
+    BB -> TD : Registrar(usuario, accion)
+    activate TD
+    TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+    DB --> TD : filas afectadas
+    TD --> BB : void
+    deactivate TD
+    BB --> VB : void
+    deactivate BB
+    VB --> FA : void
+    deactivate VB
+    FA --> A : "Vino autorizado correctamente."
+
+    FA -> VB : ListarPendientes()
+    activate VB
+    VB -> VD : ListarPendientes()
+    activate VD
+    VD -> DB : VINO_LISTAR_PENDIENTES
+    DB --> VD : filas
+    VD --> VB : List<Vino>
+    deactivate VD
+    VB --> FA : List<Vino>
+    deactivate VB
+    FA -> FA : refrescar grilla
+  end
 end
+deactivate FA
 
 @enduml
