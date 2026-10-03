@@ -2124,7 +2124,7 @@ CUS = [
         "postcondiciones_exito": [
             "La caja pasa a estado Despachada.",
             "Se crea un MOVIMIENTO_STOCK de tipo Salida por cada línea efectiva de la caja, referenciando la caja (REFERENCIA_TIPO='CAJA', REFERENCIA_ID=caja).",
-            "Se genera y abre el Remito de Despacho en PDF (Remitos/Remito_Caja{id}.pdf); si la generación falla, el despacho ya confirmado no se revierte (RN-11).",
+            "Se genera y abre el Remito de Despacho en PDF (Documentos\\ClubDeVinos\\Remitos\\Remito_Caja{id}.pdf); si la generación falla, el despacho ya confirmado no se revierte (RN-11).",
         ],
         "postcondiciones_fallo": [
             "Si la caja no está en estado Armada: se rechaza y no se genera ningún movimiento.",
@@ -2198,7 +2198,7 @@ CUS = [
         ],
         "postcondiciones_exito": [
             "El Remito de Despacho de la caja seleccionada se regenera, sobrescribiendo "
-            "Remitos/Remito_Caja{id}.pdf en el mismo path, sin sufijo de timestamp (RN-12), y se abre.",
+            "Documentos\\ClubDeVinos\\Remitos\\Remito_Caja{id}.pdf en el mismo path, sin sufijo de timestamp (RN-12), y se abre.",
         ],
         "postcondiciones_fallo": [
             "Si la generación del PDF falla: se muestra un mensaje de error y no se abre ningún "

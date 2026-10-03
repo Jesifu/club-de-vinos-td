@@ -1,0 +1,48 @@
+<Project Sdk="WixToolset.Sdk/7.0.0">
+  <PropertyGroup>
+    <OutputName>ClubDeVinos</OutputName>
+    <OutputType>Package</OutputType>
+    <!-- WIX8601: the optional app.publish and Remitos exclusions may not exist in the output folder. -->
+    <SuppressSpecificWarnings>8601</SuppressSpecificWarnings>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <!-- Output of the Release build of TP_IS.sln (build.ps1 builds it first). -->
+    <AppBinDir>$(MSBuildThisFileDirectory)..\CAPAS\bin\Release</AppBinDir>
+    <DefineConstants>$(DefineConstants);AppBinDir=$(AppBinDir)</DefineConstants>
+    <!-- Build-time UTF-16 LE copy of DAL\script.sql (the source file is never modified). -->
+    <SqlScriptSource>$(MSBuildThisFileDirectory)..\DAL\script.sql</SqlScriptSource>
+    <SqlScriptUtf16>$(MSBuildThisFileDirectory)obj\script.utf16.sql</SqlScriptUtf16>
+    <DefineConstants>$(DefineConstants);SqlScriptUtf16=$(SqlScriptUtf16)</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="7.0.0" />
+    <PackageReference Include="WixToolset.Sql.wixext" Version="7.0.0" />
+  </ItemGroup>
+
+  <!--
+    The WiX SQL custom action does not decode UTF-8, and DAL\script.sql is UTF-8 with BOM.
+    Convert it to UTF-16 LE with BOM before compiling so 'Español' / 'Inglés' survive.
+  -->
+  <UsingTask TaskName="ConvertToUtf16" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Source ParameterType="System.String" Required="true" />
+      <Destination ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Text" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        string text = File.ReadAllText(Source, new UTF8Encoding(true));
+        Directory.CreateDirectory(Path.GetDirectoryName(Destination));
+        File.WriteAllText(Destination, text, new UnicodeEncoding(false, true));
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="ConvertSqlScript" BeforeTargets="BeforeBuild"
+          Inputs="$(SqlScriptSource)" Outputs="$(SqlScriptUtf16)">
+    <ConvertToUtf16 Source="$(SqlScriptSource)" Destination="$(SqlScriptUtf16)" />
+  </Target>
+</Project>

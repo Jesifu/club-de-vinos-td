@@ -542,7 +542,7 @@ def contenido():
         [4.5*cm, 10.5*cm],
     ), sp(0.2)]
     e += [nota(
-        "Los errores se registran en integridad_error.log junto al .exe "
+        "Los errores se registran en integridad_error.log en %LocalAppData%\\ClubDeVinos"
         "cada vez que frmRestaurarIntegridad se carga."
     ), sp(0.3)]
 

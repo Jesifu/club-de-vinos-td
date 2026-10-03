@@ -1,0 +1,79 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:sql="http://wixtoolset.org/schemas/v4/wxs/sql">
+
+  <Package Name="Club de Vinos"
+           Manufacturer="Club de Vinos"
+           Version="1.1.0.0"
+           UpgradeCode="7C1F3A52-9B0E-4D6A-8E21-5A4D0C9B7E13"
+           Scope="perMachine"
+           Compressed="yes">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Club de Vinos is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Icon for the shortcuts and the "Apps & features" entry. -->
+    <Icon Id="AppIcon.ico" SourceFile="..\CAPAS\Resources\ClubDeVinos.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+
+    <!-- Dialog set with install directory selection. The license page is skipped (see UI below). -->
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <UI>
+      <ui:WixUI Id="WixUI_InstallDir" />
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg"
+               Order="2" Condition="NOT Installed" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg"
+               Order="2" />
+    </UI>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Club de Vinos" />
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Club de Vinos" Level="1" AllowAbsent="no">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="DatabaseComponent" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Component Id="MainExecutable" Bitness="always64">
+        <File Id="CapasExe" Source="$(AppBinDir)\CAPAS.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Club de Vinos"
+                    WorkingDirectory="INSTALLFOLDER" Advertise="yes" Icon="AppIcon.ico" />
+          <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="Club de Vinos"
+                    WorkingDirectory="INSTALLFOLDER" Advertise="yes" Icon="AppIcon.ico" />
+        </File>
+      </Component>
+
+      <!-- Everything else the app needs at runtime: config, DLLs and the 'de' satellite folder. -->
+      <Files Include="$(AppBinDir)\**">
+        <Exclude Files="$(AppBinDir)\CAPAS.exe" />
+        <Exclude Files="$(AppBinDir)\**\*.pdb" />
+        <Exclude Files="$(AppBinDir)\app.publish\**" />
+        <Exclude Files="$(AppBinDir)\Remitos\**" />
+      </Files>
+    </ComponentGroup>
+  </Fragment>
+
+  <Fragment>
+    <!--
+      The database is created if missing and NEVER dropped on uninstall: the same BDCAPAS
+      may hold real data. Windows authentication (no User element), default local instance.
+    -->
+    <Component Id="DatabaseComponent" Directory="INSTALLFOLDER" Bitness="always64"
+               Guid="3E8B6D14-52A7-4C90-B1F8-6D2A9E407C55">
+      <RegistryValue Root="HKLM" Key="Software\Club de Vinos" Name="DatabaseInstalled"
+                     Type="integer" Value="1" KeyPath="yes" />
+      <sql:SqlDatabase Id="CapasDatabase" Server="." Database="BDCAPAS"
+                       CreateOnInstall="yes" DropOnInstall="no"
+                       DropOnUninstall="no" CreateOnUninstall="no" />
+      <sql:SqlScript Id="CapasSchemaScript" SqlDb="CapasDatabase" BinaryRef="CapasSchemaBinary"
+                     ExecuteOnInstall="yes" ContinueOnError="no" />
+    </Component>
+
+    <!-- UTF-16 LE copy generated at build time by Instalador.wixproj. -->
+    <Binary Id="CapasSchemaBinary" SourceFile="$(SqlScriptUtf16)" />
+  </Fragment>
+</Wix>

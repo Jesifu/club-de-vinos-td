@@ -14,6 +14,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 The entry point is `CAPAS` (outputs `CAPAS.exe`). There are no automated tests; verification is manual via the running application.
 
+## Installer
+
+`Instalador/` holds a WiX 7 MSI project (`Instalador.wixproj` + `Package.wxs`), deliberately outside `TP_IS.sln`. Build with `Instalador/build.ps1` (Release solution build via MSBuild, then the MSI at `Instalador/bin/x64/Release/ClubDeVinos.msi`). It installs to Program Files, creates `BDCAPAS` if missing and runs `DAL/script.sql` (converted to UTF-16 LE at build time in `Instalador/obj`; the WiX SQL action does not read UTF-8). The database is never dropped on uninstall. Because Program Files is read-only for regular users, the app must not write to the app folder: remitos go to `Documents\ClubDeVinos\Remitos` and the integrity log to `%LocalAppData%\ClubDeVinos`. Requires `wix eula accept wix7` once per machine.
+
 ## Database setup
 
 Run the full script against the local SQL Server instance (Windows Auth, database `BDCAPAS`):
@@ -186,7 +190,7 @@ The system protects **USUARIO** against unauthorized out-of-system DB modificati
 - **Restaurar desde historial**: opens `frmHistorialUsuario` for each affected user so the admin can roll back to a prior snapshot. Disabled if no affected user has any history records. After restoring, recalculates and proceeds to `frmMenu`.
 - **Cancelar**: clears the session, returns to the login form.
 
-**Integrity errors are logged** to `integridad_error.log` in the same folder as the `.exe` (via `Program.GuardarLogIntegridad`), with timestamp, each time `frmRestaurarIntegridad` loads.
+**Integrity errors are logged** to `%LocalAppData%\ClubDeVinos\integridad_error.log` (via `Program.GuardarLogIntegridad`), with timestamp, each time `frmRestaurarIntegridad` loads.
 
 **After every mutation of USUARIO**, the appropriate recalculation method must be called:
 

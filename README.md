@@ -302,7 +302,7 @@ Muestra los errores y ofrece tres opciones:
 | Restaurar desde historial | Abre `frmHistorialUsuario` por cada usuario afectado para hacer rollback. Deshabilitado si no hay historial. |
 | Cancelar | Cierra sesión y vuelve al login. |
 
-Los errores se loguean en `integridad_error.log` junto al `.exe`.
+Los errores se loguean en `%LocalAppData%\ClubDeVinos\integridad_error.log`.
 
 ### Cuándo recalcular
 

@@ -16,12 +16,16 @@ namespace CAPAS
     {
         private static readonly CultureInfo _cultura = CultureInfo.GetCultureInfo("es-AR");
 
-        // Construye el documento y lo guarda en Remitos\Remito_Caja{id}.pdf, devolviendo
-        // la ruta completa. Propaga IOException/UnauthorizedAccessException si Remitos\
-        // no es escribible — el caller decide cómo informarlo (best-effort, RN-11).
+        // Construye el documento y lo guarda en Documentos\ClubDeVinos\Remitos\Remito_Caja{id}.pdf,
+        // devolviendo la ruta completa. Se usa la carpeta Documentos del usuario y no la carpeta
+        // de la aplicación, porque bajo Program Files un usuario sin privilegios no puede escribir.
+        // Propaga IOException/UnauthorizedAccessException si la carpeta no es escribible —
+        // el caller decide cómo informarlo (best-effort, RN-11).
         internal static string Generar(BE.CajaMensual caja)
         {
-            string carpeta = Path.Combine(Application.StartupPath, "Remitos");
+            string carpeta = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "ClubDeVinos", "Remitos");
             Directory.CreateDirectory(carpeta);
             string ruta = Path.Combine(carpeta, $"Remito_Caja{caja.Id}.pdf");
 
@@ -137,7 +141,7 @@ namespace CAPAS
             }
             catch
             {
-                // best-effort: el archivo ya existe en Remitos\, solo falló abrirlo.
+                // best-effort: el archivo ya existe en la carpeta de remitos, solo falló abrirlo.
             }
         }
     }
