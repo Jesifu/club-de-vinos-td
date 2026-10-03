@@ -5,19 +5,21 @@ title CU-10 — Ver Historial de Usuario — Diagrama de Secuencia
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.85
+scale 0.8
 
 ' ─────────────────────────────────────────
 ' Participantes en orden de aparición
 ' ─────────────────────────────────────────
-actor       ":Administrador"       as A
-participant ":frmAdminUsuarios"    as FA #FEFECE
+actor       ":Administrador"         as A
+participant ":frmAdminUsuarios"      as FA #FEFECE
 participant ":frmHistorial\nUsuario" as FH #FEFECE
-participant ":UsuarioHistorialBLL" as UH #E8F4E8
-database    ":DB"                  as DB #E8E8F4
+participant ":UsuarioBLL"            as UB #E8F4E8
+participant ":UsuarioHistorialBLL"   as UH #E8F4E8
+participant ":UsuarioDAL"            as UD #E8E8F4
+participant ":UsuarioHistorialDAL"   as UHD #E8E8F4
+database    ":DB"                    as DB #EEEEEE
 
 note over FA
   Precondición: sesión activa,
@@ -25,9 +27,6 @@ note over FA
   el usuario a consultar existe.
 end note
 
-' ─────────────────────────────────────────
-' APERTURA DEL FORMULARIO
-' ─────────────────────────────────────────
 == 1. Apertura del formulario ==
 
 A -> FA : seleccionar usuario en la grilla\n+ click "Historial"
@@ -40,18 +39,18 @@ end
 FA -> FH : new frmHistorialUsuario(usuario)\n.ShowDialog()
 activate FH
 
-' ─────────────────────────────────────────
-' CARGA DEL HISTORIAL
-' ─────────────────────────────────────────
 == 2. Carga del historial ==
 
-FH -> UH : ObtenerHistorial(usuario.Id)
-UH -> DB : USUARIO_HISTORIAL_LISTAR(usuario.Id)
-DB --> UH : filas ordenadas por fecha
-UH --> FH : List<UsuarioHistorial>
+FH -> FH : CargarHistorial()
+FH -> UH : ObtenerHistorialPaginado(usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
+UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
+UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
+DB --> UHD : filas + TOTAL_FILAS
+UHD --> UH : PaginaResultado<UsuarioHistorial>
+UH --> FH : PaginaResultado<UsuarioHistorial>
 
-FH -> FH : dgvHistorial.DataSource = lista
-FH -> FH : ocultar columnas técnicas\n(Id, UsuarioId, UsuarioLogin)
+FH -> FH : dgvHistorial.DataSource = resultado.Items
+FH -> FH : ocultar columnas técnicas\n(Id, UsuarioId, UsuarioLogin, RolId)
 FH -> FH : ActualizarEncabezados()
 note right of FH
   Fecha, Tipo, Rol, Nombre, Apellido,
@@ -65,11 +64,20 @@ alt 3a. el usuario no tiene historial
   FH --> A : grilla vacía,\nbotón Rollback deshabilitado
 
 else el usuario tiene historial
-  FH --> A : grilla con las entradas\ndel historial
+  FH --> A : grilla con las entradas\ndel historial (paginadas)
 
-  ' ─────────────────────────────────────────
-  ' SELECCIÓN DE UNA ENTRADA
-  ' ─────────────────────────────────────────
+  opt navegación entre páginas
+    A -> FH : click "Página siguiente" /\n"Página anterior"
+    FH -> FH : _paginaActual++ / _paginaActual--\nCargarHistorial()
+    FH -> UH : ObtenerHistorialPaginado(usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
+    UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
+    UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
+    DB --> UHD : filas + TOTAL_FILAS
+    UHD --> UH : PaginaResultado<UsuarioHistorial>
+    UH --> FH : PaginaResultado<UsuarioHistorial>
+    FH --> A : grilla con la página solicitada
+  end
+
   == 3. Selección de una entrada ==
 
   A -> FH : seleccionar una fila de la grilla
@@ -82,7 +90,7 @@ else el usuario tiene historial
       estado conocido antes de eliminar
       al usuario — no es restaurable.
     end note
-  else otro tipo (ALTA, BLOQUEO, DESBLOQUEO,\nCAMBIO_CLAVE, ASIGNACION_PERFIL, ROLLBACK)
+  else otro tipo (ALTA, BLOQUEO, DESBLOQUEO,\nCAMBIO_CLAVE, ASIGNACION_PERFIL,\nEDICION_DATOS, ROLLBACK)
     FH -> FH : btnRollback.Enabled = true
     note right of FH
       Habilita CU-11 — Restaurar
@@ -91,14 +99,17 @@ else el usuario tiene historial
   end
 end
 
-' ─────────────────────────────────────────
-' CIERRE
-' ─────────────────────────────────────────
 == 4. Cierre ==
 
 A -> FH : click "Cerrar"
 FH --> FA : (form cerrado)
 deactivate FH
 FA -> FA : CargarUsuarios()
+FA -> UB : ListarPaginado(_busquedaActual,\n_paginaActual, TAMANIO_PAGINA)
+UB -> UD : ListarPaginado(busqueda, pagina, tamanio)
+UD -> DB : USUARIO_LISTAR_PAGINADO(@busqueda,\n@pagina, @tamanio)
+DB --> UD : filas + TOTAL_FILAS
+UD --> UB : PaginaResultado<USUARIO>
+UB --> FA : PaginaResultado<USUARIO>
 
 @enduml

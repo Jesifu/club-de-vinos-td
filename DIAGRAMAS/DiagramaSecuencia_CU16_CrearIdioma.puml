@@ -5,7 +5,6 @@ title CU-16 — Crear Idioma — Diagrama de Secuencia
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
 scale 0.85
@@ -16,16 +15,14 @@ scale 0.85
 actor       ":Administrador" as A
 participant ":frmIdiomas"    as FI #FEFECE
 participant ":IdiomaBLL"     as IB #E8F4E8
-database    ":DB"            as DB #E8E8F4
+participant ":IdiomaDAL"     as IDD #E8E8F4
+database    ":DB"            as DB #EEEEEE
 
 note over FI
   Precondición: sesión activa,
   permiso "Gestión de idiomas".
 end note
 
-' ─────────────────────────────────────────
-' SOLICITUD
-' ─────────────────────────────────────────
 == 1. Solicitud ==
 
 A -> FI : click "Agregar idioma"
@@ -37,15 +34,16 @@ opt 3a. nombre vacío (o cancelado)
   note right of FI : el caso de uso termina
 end
 
-' ─────────────────────────────────────────
-' CREACIÓN
-' ─────────────────────────────────────────
 == 2. Creación ==
 
 FI -> IB : Crear(nombre, habilitado: false)
-IB -> DB : Insertar(nombre, habilitado)\n(tabla IDIOMA)
-DB --> IB : nuevo Id
+activate IB
+IB -> IDD : Insertar(nombre, habilitado)
+IDD -> DB : IDIOMA_INSERTAR(@nombre, @habilitado)
+DB --> IDD : ID del nuevo idioma
+IDD --> IB : int id
 IB --> FI : new IDIOMA { Id, Nombre,\nHabilitado = false }
+deactivate IB
 
 note right of IB
   RN-01: el idioma nace
@@ -56,14 +54,14 @@ note right of IB
   traducción (CU-19).
 end note
 
-' ─────────────────────────────────────────
-' ACTUALIZACIÓN DE LA GRILLA
-' ─────────────────────────────────────────
 == 3. Actualización de la grilla ==
 
+FI -> FI : CargarIdiomas()
 FI -> IB : ListarTodos()
-IB -> DB : SELECT * FROM IDIOMA
-DB --> IB : filas
+IB -> IDD : ListarTodos()
+IDD -> DB : IDIOMA_LISTAR_TODOS
+DB --> IDD : filas de IDIOMA
+IDD --> IB : List<IDIOMA>
 IB --> FI : List<IDIOMA>
 FI -> FI : dgvIdiomas.DataSource = idiomas
 FI --> A : grilla refrescada con el\nnuevo idioma (deshabilitado)

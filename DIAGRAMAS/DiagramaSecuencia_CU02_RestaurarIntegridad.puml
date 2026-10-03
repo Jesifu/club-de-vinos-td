@@ -5,24 +5,27 @@ title CU-02 — Restaurar Integridad del Sistema — Diagrama de Secuencia
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.8
+scale 0.7
 
 ' ─────────────────────────────────────────
 ' Participantes en orden de aparición
 ' ─────────────────────────────────────────
-actor       ":Administrador"              as A
-participant ":LogIn"                      as L  #FEFECE
-participant ":frmRestaurar\nIntegridad"   as FR #FEFECE
-participant ":Program"                    as P  #FEFECE
-participant ":IntegridadBLL"              as IB #E8F4E8
-participant ":UsuarioBLL"                 as UB #E8F4E8
-participant ":frmHistorial\nUsuario"      as FH #FEFECE
-participant ":UsuarioHistorialBLL"        as UH #E8F4E8
-participant ":SessionManager"             as SM #F4E8E8
-database    ":DB"                         as DB #E8E8F4
+actor       ":Administrador"            as A
+participant ":LogIn"                    as L   #FEFECE
+participant ":frmRestaurar\nIntegridad" as FR  #FEFECE
+participant ":Program"                  as P   #FEFECE
+participant ":frmHistorial\nUsuario"    as FH  #FEFECE
+participant ":UsuarioBLL"               as UB  #E8F4E8
+participant ":UsuarioHistorialBLL"      as UH  #E8F4E8
+participant ":IntegridadBLL"            as IB  #E8F4E8
+participant ":SessionManager"           as SM  #F4E8E8
+participant ":UsuarioDAL"               as UD  #E8E8F4
+participant ":UsuarioHistorialDAL"      as UHD #E8E8F4
+participant ":UsuarioPerfilDAL"         as UPD #E8E8F4
+participant ":IntegridadDAL"            as IND #E8E8F4
+database    ":DB"                       as DB  #EEEEEE
 
 note over L, FR
   Precondición: login exitoso (CU-01),
@@ -30,9 +33,6 @@ note over L, FR
   no figura en IdsUsuariosAfectados.
 end note
 
-' ─────────────────────────────────────────
-' APERTURA DEL FORMULARIO
-' ─────────────────────────────────────────
 == 1. Apertura del formulario ==
 
 L -> FR : new frmRestaurarIntegridad(resultado)\n.ShowDialog()
@@ -44,31 +44,57 @@ note right of P
   escribe a
   integridad_error.log
 end note
-FR -> FR : habilitar btnRestaurar si\nIdsUsuariosAfectados > 0
+FR -> FR : btnRestaurar.Enabled =\nIdsUsuariosAfectados.Count > 0
 
-' ─────────────────────────────────────────
-' DECISIÓN DEL ADMINISTRADOR
-' ─────────────────────────────────────────
 == 2. Decisión del administrador ==
 
 alt admin elige "Recalcular y continuar"
   A -> FR : click Recalcular
   FR -> IB : RecalcularIntegridadUsuarios()
-  IB -> DB : actualizar DVH / DVV
+  activate IB
+  IB -> IND : ListarUsuariosParaIntegridad()
+  IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
+  DB --> IND : filas de USUARIO
+  IND --> IB : DataTable
+  IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
+  UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+  DB --> UPD : PERFIL_ID
+  UPD --> IB : List<int>
+  IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
+  IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
+  IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+  IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
+  IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+  IB --> FR : (DVH / DVV recalculados)
+  deactivate IB
   FR --> L : DialogResult.OK
 
 else 4a. admin elige "Restaurar desde historial"
   A -> FR : click Restaurar
   loop por cada id en IdsUsuariosAfectados
     FR -> UB : ObtenerPorId(id)
+    UB -> UD : ObtenerPorId(id)
+    UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+    DB --> UD : fila de USUARIO
+    UD --> UB : BE.USUARIO
     UB --> FR : usuario
 
     FR -> UH : ObtenerHistorial(id)
+    UH -> UHD : ListarPorUsuario(usuarioId)
+    UHD -> DB : USUARIO_HISTORIAL_LISTAR(@usuario_id)
+    DB --> UHD : filas de USUARIO_HISTORIAL
+    UHD --> UH : List<UsuarioHistorial>
     UH --> FR : List<UsuarioHistorial>
 
     alt 4a.i. el usuario tiene historial
       FR -> FH : new frmHistorialUsuario(usuario)\n.ShowDialog()
       activate FH
+      FH -> UH : ObtenerHistorialPaginado(usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
+      UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
+      UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
+      DB --> UHD : filas + TOTAL_FILAS
+      UHD --> UH : PaginaResultado<UsuarioHistorial>
+      UH --> FH : PaginaResultado<UsuarioHistorial>
       A -> FH : seleccionar versión\n+ click Rollback
       note right of FH
         las entradas de tipo BAJA no
@@ -81,18 +107,61 @@ else 4a. admin elige "Restaurar desde historial"
       else entrada restaurable
         FH --> A : solicitar confirmación
         A --> FH : confirmar
+        FH -> SM : getUsuario()
+        SM --> FH : administrador actual
         FH -> UH : Rollback(historialId, admin)
-        UH -> DB : aplicar estado del snapshot\n+ reasignar perfiles\n+ restaurar Nombre/Apellido/\nTelefono/Email\n+ registrar ROLLBACK
+        activate UH
+        note right of UH : detalle completo en CU-11\n(Restaurar Usuario desde Historial)
+        UH -> UHD : ObtenerPorId(historialId)
+        UHD -> DB : USUARIO_HISTORIAL_OBTENER(@id)
+        DB --> UHD : snapshot
+        UHD --> UH : UsuarioHistorial
+        UH -> UD : AplicarEstado(usuarioId, rol, bloqueado,\nintentosFallidos, rolId)
+        UD -> DB : USUARIO_APLICAR_ESTADO(...)
+        UH -> UPD : BorrarTodos(usuarioId) + Asignar(usuarioId, perfilId)\n(por cada perfil del snapshot)
+        UPD -> DB : USUARIO_PERFIL_BORRAR_TODOS /\nUSUARIO_PERFIL_ASIGNAR
+        UH -> UD : ActualizarDatos(usuarioId, nombre,\napellido, telefono, email)
+        UD -> DB : USUARIO_ACTUALIZAR_DATOS(...)
+        UH -> UHD : Insertar(UsuarioHistorial "ROLLBACK",\nVersionOrigen = historialId)\n(vía RegistrarCambio)
+        UHD -> DB : USUARIO_HISTORIAL_INSERTAR(...)
         UH -> IB : RecalcularIntegridadUsuarios()
-        IB -> DB : actualizar DVH / DVV
+        activate IB
+        IB -> IND : ListarUsuariosParaIntegridad()
+        IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
+        DB --> IND : filas de USUARIO
+        IND --> IB : DataTable
+        IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
+        UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+        DB --> UPD : PERFIL_ID
+        UPD --> IB : List<int>
+        IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
+        IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
+        IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+        IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
+        IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+        IB --> UH : (DVH / DVV recalculados)
+        deactivate IB
         opt usuario restaurado == admin logueado
-          UH -> SM : setUsuario(usuarioActualizado)\n+ setPermisos(permisosActualizados)
+          UH -> SM : getUsuario()
+          SM --> UH : usuarioSesion
+          UH -> UD : ObtenerPorId(usuarioId)
+          UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+          DB --> UD : fila de USUARIO
+          UD --> UH : usuarioActualizado
+          UH -> SM : setUsuario(usuarioActualizado)
+          UH -> UPD : ListarPermisosDeUsuario(usuarioId)
+          UPD -> DB : USUARIO_PERMISOS_LISTAR(@usuario_id)
+          DB --> UPD : NOMBRE de cada permiso
+          UPD --> UH : permisosActualizados
+          UH -> SM : setPermisos(permisosActualizados)
           note right of SM
             refresco en caliente: no hace
             falta desloguearse y volver
             a entrar
           end note
         end
+        UH --> FH : (rollback aplicado)
+        deactivate UH
       end
       FH --> FR : (form cerrado)
       deactivate FH
@@ -104,9 +173,24 @@ else 4a. admin elige "Restaurar desde historial"
 
   opt al menos un usuario tenía historial
     FR -> IB : RecalcularIntegridadUsuarios()
-    IB -> DB : actualizar DVH / DVV
+    activate IB
+    IB -> IND : ListarUsuariosParaIntegridad()
+    IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
+    DB --> IND : filas de USUARIO
+    IND --> IB : DataTable
+    IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
+    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+    DB --> UPD : PERFIL_ID
+    UPD --> IB : List<int>
+    IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
+    IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
+    IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+    IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
+    IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    IB --> FR : (DVH / DVV recalculados)
+    deactivate IB
+    FR --> L : DialogResult.OK
   end
-  FR --> L : DialogResult.OK
 
 else 4b. admin elige Cancelar
   A -> FR : click Cancelar
@@ -116,13 +200,10 @@ else 4b. admin elige Cancelar
 end
 deactivate FR
 
-' ─────────────────────────────────────────
-' CONTINUACIÓN
-' ─────────────────────────────────────────
 == 3. Continuación ==
 
 opt DialogResult == OK
-  L -> L : continuar flujo de CU-01\n(paso 11 — abrir frmMenu)
+  L -> L : continuar flujo de CU-01\n(mostrar "Bienvenido" y abrir frmMenu)
 end
 
 @enduml

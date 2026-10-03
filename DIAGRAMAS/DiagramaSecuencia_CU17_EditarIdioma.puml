@@ -5,7 +5,6 @@ title CU-17 — Editar Idioma (renombrar o habilitar/deshabilitar) — Diagrama 
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
 scale 0.85
@@ -16,7 +15,8 @@ scale 0.85
 actor       ":Administrador" as A
 participant ":frmIdiomas"    as FI #FEFECE
 participant ":IdiomaBLL"     as IB #E8F4E8
-database    ":DB"            as DB #E8E8F4
+participant ":IdiomaDAL"     as IDD #E8E8F4
+database    ":DB"            as DB #EEEEEE
 
 note over FI
   Precondición: sesión activa,
@@ -24,9 +24,6 @@ note over FI
   existe al menos un idioma.
 end note
 
-' ─────────────────────────────────────────
-' SELECCIÓN
-' ─────────────────────────────────────────
 == 1. Selección ==
 
 A -> FI : seleccionar un idioma en la grilla
@@ -41,9 +38,6 @@ end
 
 alt acción = Renombrar
 
-  ' ─────────────────────────────────────────
-  ' RENOMBRAR
-  ' ─────────────────────────────────────────
   == 2a. Renombrar ==
 
   FI --> A : InputBox "Nuevo nombre:"\n(valor actual precargado)
@@ -55,17 +49,16 @@ alt acción = Renombrar
   end
 
   FI -> IB : Renombrar(id, nuevoNombre)
-  IB -> DB : UPDATE IDIOMA SET NOMBRE = nuevoNombre\nWHERE ID = id
+  IB -> IDD : Renombrar(id, nombre)
+  IDD -> DB : IDIOMA_RENOMBRAR(@id, @nombre)
 
 else acción = Habilitar/Deshabilitar
 
-  ' ─────────────────────────────────────────
-  ' ALTERNAR ESTADO
-  ' ─────────────────────────────────────────
   == 2b. Alternar estado ==
 
   FI -> IB : ActualizarEstado(id, !habilitadoActual)
-  IB -> DB : UPDATE IDIOMA SET HABILITADO = !habilitadoActual\nWHERE ID = id
+  IB -> IDD : ActualizarEstado(id, habilitado)
+  IDD -> DB : IDIOMA_ACTUALIZAR_ESTADO(@id, @habilitado)
 
   note right of IB
     RN-01: solo los idiomas
@@ -77,14 +70,14 @@ else acción = Habilitar/Deshabilitar
   end note
 end
 
-' ─────────────────────────────────────────
-' ACTUALIZACIÓN DE LA GRILLA
-' ─────────────────────────────────────────
 == 3. Actualización de la grilla ==
 
+FI -> FI : CargarIdiomas()
 FI -> IB : ListarTodos()
-IB -> DB : SELECT * FROM IDIOMA
-DB --> IB : filas
+IB -> IDD : ListarTodos()
+IDD -> DB : IDIOMA_LISTAR_TODOS
+DB --> IDD : filas de IDIOMA
+IDD --> IB : List<IDIOMA>
 IB --> FI : List<IDIOMA>
 FI -> FI : dgvIdiomas.DataSource = idiomas
 FI --> A : grilla refrescada con\nel nuevo nombre / estado

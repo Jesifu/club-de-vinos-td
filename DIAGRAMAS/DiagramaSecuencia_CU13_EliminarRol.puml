@@ -5,27 +5,24 @@ title CU-13 — Eliminar Rol — Diagrama de Secuencia
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.85
+scale 0.8
 
 ' ─────────────────────────────────────────
 ' Participantes en orden de aparición
 ' ─────────────────────────────────────────
-actor       ":Administrador"  as A
-participant ":frmPerfiles"    as FP #FEFECE
-participant ":PerfilBLL"      as PB #E8F4E8
-database    ":DB"             as DB #E8E8F4
+actor       ":Administrador" as A
+participant ":frmPerfiles"   as FP #FEFECE
+participant ":PerfilBLL"     as PB #E8F4E8
+participant ":PerfilDAL"     as PD #E8E8F4
+database    ":DB"            as DB #EEEEEE
 
 note over FP
   Precondición: sesión activa,
   permiso "Gestión de roles".
 end note
 
-' ─────────────────────────────────────────
-' SELECCIÓN Y SOLICITUD
-' ─────────────────────────────────────────
 == 1. Selección y solicitud ==
 
 A -> FP : seleccionar un nodo en el árbol
@@ -60,16 +57,15 @@ else el nodo es un rol no protegido
   else el administrador confirma
     A --> FP : Sí
 
-    ' ─────────────────────────────────────────
-    ' ELIMINACIÓN
-    ' ─────────────────────────────────────────
     == 2. Eliminación ==
 
     FP -> PB : Eliminar(id)
     activate PB
 
-    PB -> DB : ListarRoles()
-    DB --> PB : todos los roles
+    PB -> PD : ListarRoles()
+    PD -> DB : ROL_LISTAR_TODOS
+    DB --> PD : filas de ROL
+    PD --> PB : List<NodoPermiso>
     PB -> PB : nodo = todos.FirstOrDefault(id)
 
     alt 5a (defensa). nodo.Protegido == true
@@ -77,15 +73,18 @@ else el nodo es un rol no protegido
       FP --> A : MessageBox de error
 
     else nodo no protegido
-      PB -> DB : TieneUsuariosAsignados(id)\n(CTE recursiva sobre el subárbol)
-      DB --> PB : bool
+      PB -> PD : TieneUsuariosAsignados(id)
+      PD -> DB : ROL_TIENE_USUARIOS(@rol_id)\n(CTE recursiva sobre el subárbol)
+      DB --> PD : TOTAL
+      PD --> PB : bool (TOTAL > 0)
 
       alt 5b. hay usuarios asignados en el subárbol
         PB --> FP : throw InvalidOperationException\n("No se puede eliminar un rol que tiene\nusuarios asignados. Reasignálos primero.")
         FP --> A : MessageBox de error
 
       else sin usuarios asignados
-        PB -> DB : Eliminar(id)\n(ROL_ELIMINAR)
+        PB -> PD : Eliminar(id)
+        PD -> DB : ROL_ELIMINAR(@id)
         note right of DB
           RN-03: CTE recursiva — borra
           el subárbol completo de
@@ -93,20 +92,25 @@ else el nodo es un rol no protegido
           vínculos en ROL_PERMISO
           y USUARIO_PERFIL.
         end note
+        PB --> FP : (rol eliminado)
         deactivate PB
 
         FP -> FP : panelPermisos.Visible = false
 
-        ' ─────────────────────────────────────────
-        ' ACTUALIZACIÓN DEL ÁRBOL
-        ' ─────────────────────────────────────────
         == 3. Actualización del árbol ==
 
-        FP -> PB : ObtenerArbol()
-        PB -> DB : ListarRoles() + ListarRolPermisos()
-        DB --> PB : filas
-        PB --> FP : List<NodoPermiso> (árbol actualizado)
         FP -> FP : CargarArbol()
+        FP -> PB : ObtenerArbol()
+        PB -> PD : ListarRoles()
+        PD -> DB : ROL_LISTAR_TODOS
+        DB --> PD : filas de ROL
+        PD --> PB : List<NodoPermiso>
+        PB -> PD : ListarRolPermisos()
+        PD -> DB : ROL_PERMISO_LISTAR_TODOS
+        DB --> PD : filas de ROL_PERMISO + PERMISO
+        PD --> PB : List<Permiso>
+        PB -> PB : armar árbol en memoria\n(PadreId → Agregar hijos)
+        PB --> FP : List<NodoPermiso> (raíces)
         FP --> A : árbol refrescado
       end
     end

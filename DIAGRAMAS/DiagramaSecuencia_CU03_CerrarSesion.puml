@@ -5,7 +5,6 @@ title CU-03 — Cerrar Sesión — Diagrama de Secuencia
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
 scale 0.85
@@ -15,10 +14,11 @@ scale 0.85
 ' ─────────────────────────────────────────
 actor       ":Usuario"        as U
 participant ":frmMenu"        as FM #FEFECE
-participant ":SessionManager" as SM #F4E8E8
-participant ":BitacoraBLL"    as BB #E8F4E8
 participant ":LogIn"          as L  #FEFECE
-database    ":DB"             as DB #E8E8F4
+participant ":BitacoraBLL"    as BB #E8F4E8
+participant ":SessionManager" as SM #F4E8E8
+participant ":BitacoraDAL"    as BD #E8E8F4
+database    ":DB"             as DB #EEEEEE
 
 note over FM
   Precondición: sesión activa,
@@ -36,7 +36,11 @@ SM --> FM : usuarioActual
 == 2. Registro y cierre de sesión ==
 
 FM -> BB : RegistrarLogout(usuario)
-BB -> DB : insertar evento LOGOUT en BITACORA
+activate BB
+BB -> BD : Registrar(usuario, "LOGOUT")
+BD -> DB : BITACORA_INSERTAR(@usuario, @accion)
+BB --> FM : (evento registrado)
+deactivate BB
 
 FM -> SM : cerrarSesion()
 note right of SM

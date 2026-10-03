@@ -5,23 +5,27 @@ title CU-09 — Asignar Perfiles a Usuario — Diagrama de Secuencia
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.8
+scale 0.7
 
 ' ─────────────────────────────────────────
 ' Participantes en orden de aparición
 ' ─────────────────────────────────────────
-actor       ":Administrador"       as A
-participant ":frmAdminUsuarios"    as FA #FEFECE
+actor       ":Administrador"        as A
+participant ":frmAdminUsuarios"     as FA #FEFECE
 participant ":frmAsignar\nPerfiles" as FP #FEFECE
-participant ":PerfilBLL"           as PB #E8F4E8
-participant ":UsuarioPerfilBLL"    as UP #E8F4E8
-participant ":IntegridadBLL"       as IB #E8F4E8
-participant ":SessionManager"      as SM #F4E8E8
-participant ":UsuarioHistorialBLL" as UH #E8F4E8
-database    ":DB"                  as DB #E8E8F4
+participant ":PerfilBLL"            as PB #E8F4E8
+participant ":UsuarioPerfilBLL"     as UP #E8F4E8
+participant ":IntegridadBLL"        as IB #E8F4E8
+participant ":UsuarioHistorialBLL"  as UH #E8F4E8
+participant ":SessionManager"       as SM #F4E8E8
+participant ":PerfilDAL"            as PD #E8E8F4
+participant ":UsuarioPerfilDAL"     as UPD #E8E8F4
+participant ":UsuarioDAL"           as UD #E8E8F4
+participant ":UsuarioHistorialDAL"  as UHD #E8E8F4
+participant ":IntegridadDAL"        as IND #E8E8F4
+database    ":DB"                   as DB #EEEEEE
 
 note over FA
   Precondición: sesión activa,
@@ -30,9 +34,6 @@ note over FA
   menos un rol en el sistema.
 end note
 
-' ─────────────────────────────────────────
-' APERTURA DEL FORMULARIO
-' ─────────────────────────────────────────
 == 1. Apertura del formulario ==
 
 A -> FA : seleccionar usuario en la grilla\n+ click "Modificar perfiles"
@@ -45,15 +46,19 @@ end
 FA -> FP : new frmAsignarPerfiles(usuario)\n.ShowDialog()
 activate FP
 
-' ─────────────────────────────────────────
-' CARGA DEL ÁRBOL DE ROLES
-' ─────────────────────────────────────────
 == 2. Carga del árbol de roles ==
 
 FP -> PB : ObtenerArbol()
-PB -> DB : ListarRoles() + ListarRolPermisos()
-DB --> PB : filas
-PB --> FP : List<NodoPermiso> (árbol de roles)
+PB -> PD : ListarRoles()
+PD -> DB : ROL_LISTAR_TODOS
+DB --> PD : filas de ROL
+PD --> PB : List<NodoPermiso>
+PB -> PD : ListarRolPermisos()
+PD -> DB : ROL_PERMISO_LISTAR_TODOS
+DB --> PD : filas de ROL_PERMISO + PERMISO
+PD --> PB : List<Permiso>
+PB -> PB : armar árbol en memoria\n(PadreId → Agregar hijos)
+PB --> FP : List<NodoPermiso> (raíces)
 note right of FP
   Solo se muestran nodos
   rama (roles), no las hojas
@@ -62,14 +67,13 @@ note right of FP
 end note
 
 FP -> UP : ObtenerPerfilesAsignados(usuario.Id)
-UP -> DB : ListarPerfilesPorUsuario(usuario.Id)
-DB --> UP : List<int> asignados
+UP -> UPD : ListarPerfilesPorUsuario(usuarioId)
+UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+DB --> UPD : PERFIL_ID
+UPD --> UP : List<int> asignados
 UP --> FP : asignados
 FP -> FP : marcar checks de los\nroles ya asignados
 
-' ─────────────────────────────────────────
-' EDICIÓN DE LA SELECCIÓN
-' ─────────────────────────────────────────
 == 3. Edición de la selección ==
 
 A -> FP : marcar / desmarcar roles\nen el árbol
@@ -83,18 +87,17 @@ alt 6a. el administrador cierra sin guardar
 else el administrador guarda
   A -> FP : click "Guardar"
 
-  ' ─────────────────────────────────────────
-  ' PERSISTENCIA DE LAS ASIGNACIONES
-  ' ─────────────────────────────────────────
   == 4. Persistencia de las asignaciones ==
 
   FP -> FP : recolectar IDs de roles\nmarcados (checkeados)
   FP -> UP : GuardarAsignaciones(usuario.Id, idsSeleccionados)
   activate UP
 
-  UP -> DB : BorrarTodos(usuario.Id)\n(USUARIO_PERFIL)
+  UP -> UPD : BorrarTodos(usuario.Id)
+  UPD -> DB : USUARIO_PERFIL_BORRAR_TODOS(@usuario_id)
   loop por cada id en idsSeleccionados
-    UP -> DB : Asignar(usuario.Id, id)
+    UP -> UPD : Asignar(usuario.Id, id)
+    UPD -> DB : USUARIO_PERFIL_ASIGNAR(@usuario_id, @perfil_id)
   end
   note right of DB
     Reemplazo completo de
@@ -104,16 +107,53 @@ else el administrador guarda
   end note
 
   UP -> IB : RecalcularIntegridadUsuarios()
-  IB -> DB : actualizar DVH / DVV\n(PERFILES forma parte del DVH)
+  activate IB
+  IB -> IND : ListarUsuariosParaIntegridad()
+  IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
+  DB --> IND : filas de USUARIO
+  IND --> IB : DataTable
+  IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
+  UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+  DB --> UPD : PERFIL_ID
+  UPD --> IB : List<int>
+  IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
+  IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
+  IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+  IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
+  IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+  IB --> UP : (DVH / DVV recalculados)
+  deactivate IB
+  note right of IB : PERFILES forma parte del DVH
 
   UP -> SM : getUsuario()
   SM --> UP : administrador actual
 
   UP -> UH : RegistrarCambio(usuario.Id, "ASIGNACION_PERFIL", admin)
-  UH -> DB : insertar snapshot en USUARIO_HISTORIAL
+  UH -> UD : ObtenerPorId(usuarioId)
+  UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+  DB --> UD : fila de USUARIO
+  UD --> UH : BE.USUARIO
+  UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
+  UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+  DB --> UPD : PERFIL_ID
+  UPD --> UH : List<int> perfiles
+  UH -> UHD : Insertar(UsuarioHistorial)
+  UHD -> DB : USUARIO_HISTORIAL_INSERTAR(snapshot,\n@tipo_cambio, @realizado_por)
+
+  UP -> SM : getUsuario()
+  SM --> UP : usuarioSesion
 
   opt usuario.Id == administrador logueado
+    UP -> UD : ObtenerPorId(usuario.Id)
+    UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+    DB --> UD : fila de USUARIO
+    UD --> UP : usuarioActualizado
     UP -> SM : setUsuario(usuarioActualizado)
+
+    UP -> UPD : ListarPermisosDeUsuario(usuario.Id)
+    UPD -> DB : USUARIO_PERMISOS_LISTAR(@usuario_id)
+    DB --> UPD : NOMBRE de cada permiso
+    UPD --> UP : permisosActualizados
     UP -> SM : setPermisos(permisosActualizados)
     note right of SM
       Si el admin se reasigna
@@ -124,6 +164,7 @@ else el administrador guarda
       un relogueo.
     end note
   end
+  UP --> FP : (asignaciones guardadas)
   deactivate UP
 
   FP --> A : "Asignaciones guardadas."

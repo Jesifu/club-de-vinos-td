@@ -5,10 +5,9 @@ title CU-08 — Desbloquear Usuario — Diagrama de Secuencia
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.85
+scale 0.7
 
 ' ─────────────────────────────────────────
 ' Participantes en orden de aparición
@@ -16,20 +15,22 @@ scale 0.85
 actor       ":Administrador"       as A
 participant ":frmAdminUsuarios"    as FA #FEFECE
 participant ":UsuarioBLL"          as UB #E8F4E8
-participant ":SessionManager"      as SM #F4E8E8
 participant ":BitacoraBLL"         as BB #E8F4E8
 participant ":IntegridadBLL"       as IB #E8F4E8
 participant ":UsuarioHistorialBLL" as UH #E8F4E8
-database    ":DB"                  as DB #E8E8F4
+participant ":SessionManager"      as SM #F4E8E8
+participant ":UsuarioDAL"          as UD #E8E8F4
+participant ":BitacoraDAL"         as BD #E8E8F4
+participant ":UsuarioPerfilDAL"    as UPD #E8E8F4
+participant ":UsuarioHistorialDAL" as UHD #E8E8F4
+participant ":IntegridadDAL"       as IND #E8E8F4
+database    ":DB"                  as DB #EEEEEE
 
 note over FA
   Precondición: sesión activa,
   permiso "Administrar usuarios".
 end note
 
-' ─────────────────────────────────────────
-' SELECCIÓN Y SOLICITUD
-' ─────────────────────────────────────────
 == 1. Selección y solicitud ==
 
 A -> FA : seleccionar usuario en la grilla\n+ click "Desbloquear seleccionado"
@@ -39,9 +40,6 @@ opt 1a. ningún usuario seleccionado
   note right of FA : el caso de uso termina
 end
 
-' ─────────────────────────────────────────
-' VALIDACIÓN Y CONFIRMACIÓN
-' ─────────────────────────────────────────
 == 2. Validación y confirmación ==
 
 alt 3a. el usuario no está bloqueado
@@ -58,15 +56,13 @@ else el usuario está bloqueado (RN-01)
   else el administrador confirma
     A --> FA : Sí
 
-    ' ─────────────────────────────────────────
-    ' DESBLOQUEO
-    ' ─────────────────────────────────────────
     == 3. Desbloqueo ==
 
     FA -> UB : Desbloquear(usuario)
     activate UB
 
-    UB -> DB : USUARIO_DESBLOQUEAR(usuario)
+    UB -> UD : Desbloquear(usuario)
+    UD -> DB : USUARIO_DESBLOQUEAR(@usuario)
     note right of DB
       BLOQUEADO = 0,
       INTENTOS_FALLIDOS = 0
@@ -77,19 +73,54 @@ else el usuario está bloqueado (RN-01)
     SM --> UB : administrador actual
 
     UB -> BB : RegistrarAccion(admin,\n"DESBLOQUEO_USUARIO:" + usuario)
-    BB -> DB : insertar evento en BITACORA
+    BB -> BD : Registrar(admin, accion)
+    BD -> DB : BITACORA_INSERTAR(@usuario, @accion)
 
     UB -> IB : RecalcularIntegridadUsuarios()
-    IB -> DB : actualizar DVH / DVV
+    activate IB
+    IB -> IND : ListarUsuariosParaIntegridad()
+    IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
+    DB --> IND : filas de USUARIO
+    IND --> IB : DataTable
+    IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
+    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+    DB --> UPD : PERFIL_ID
+    UPD --> IB : List<int>
+    IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
+    IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
+    IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+    IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
+    IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    IB --> UB : (DVH / DVV recalculados)
+    deactivate IB
+
+    UB -> UD : ObtenerIdPorNombre(usuario)
+    UD -> DB : USUARIO_OBTENER_ID_POR_NOMBRE(@usuario)
+    DB --> UD : ID
+    UD --> UB : int?
 
     UB -> UH : RegistrarCambio(usuarioId, "DESBLOQUEO", admin)
-    UH -> DB : insertar snapshot en USUARIO_HISTORIAL
+    UH -> UD : ObtenerPorId(usuarioId)
+    UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+    DB --> UD : fila de USUARIO
+    UD --> UH : BE.USUARIO
+    UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
+    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+    DB --> UPD : PERFIL_ID
+    UPD --> UH : List<int> perfiles
+    UH -> UHD : Insertar(UsuarioHistorial)
+    UHD -> DB : USUARIO_HISTORIAL_INSERTAR(snapshot,\n@tipo_cambio, @realizado_por)
     note right of UH : RN-03: queda registrado\nel admin que ejecutó la acción
+    UB --> FA : (usuario desbloqueado)
     deactivate UB
 
     FA --> A : "Usuario desbloqueado."
-    FA -> DB : CargarUsuarios()\n(USUARIO_LISTAR_PAGINADO,\ncon búsqueda y paginado)
-    DB --> FA : página de usuarios
+    FA -> UB : ListarPaginado(_busquedaActual,\n_paginaActual, TAMANIO_PAGINA)
+    UB -> UD : ListarPaginado(busqueda, pagina, tamanio)
+    UD -> DB : USUARIO_LISTAR_PAGINADO(@busqueda,\n@pagina, @tamanio)
+    DB --> UD : filas + TOTAL_FILAS
+    UD --> UB : PaginaResultado<USUARIO>
+    UB --> FA : PaginaResultado<USUARIO>
     FA -> FA : refrescar grilla
   end
 end

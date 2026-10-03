@@ -5,7 +5,6 @@ title CU-19 — Cargar o Editar Traducciones — Diagrama de Secuencia
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
 scale 0.8
@@ -17,7 +16,8 @@ actor       ":Administrador" as A
 participant ":frmIdiomas"    as FI #FEFECE
 participant ":IdiomaBLL"     as IB #E8F4E8
 participant ":IdiomaManager" as IM #F4E8E8
-database    ":DB"            as DB #E8E8F4
+participant ":IdiomaDAL"     as IDD #E8E8F4
+database    ":DB"            as DB #EEEEEE
 
 note over FI
   Precondición: sesión activa,
@@ -27,9 +27,6 @@ note over FI
   están registrados en la BD.
 end note
 
-' ─────────────────────────────────────────
-' SELECCIÓN DEL IDIOMA
-' ─────────────────────────────────────────
 == 1. Selección del idioma ==
 
 A -> FI : seleccionar un idioma en\nla grilla superior
@@ -37,24 +34,22 @@ FI -> FI : dgvIdiomas_SelectionChanged\n→ _idiomaSeleccionado
 FI -> FI : CargarTraducciones()
 
 FI -> IB : ListarControlesConTraduccion(idiomaId)
-IB -> DB : controles + traducción actual\n(LEFT JOIN CONTROL_IDIOMA)
-DB --> IB : filas
+activate IB
+IB -> IDD : ListarControlesConTraduccion(idiomaId)
+IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)\n(controles + traducción actual)
+DB --> IDD : filas (ID, CLAVE, TEXTO_DEFAULT,\nTEXTO_TRADUCCION)
+IDD --> IB : List<CONTROL_IDIOMA>
 IB --> FI : List<CONTROL_IDIOMA>
+deactivate IB
 FI -> FI : dgvTraducciones.DataSource = controles\n(Clave y TextoDefault de solo lectura,\nTextoTraduccion editable)
 FI --> A : grilla inferior con clave,\ntexto por defecto y\ntraducción actual
 
-' ─────────────────────────────────────────
-' EDICIÓN
-' ─────────────────────────────────────────
 == 2. Edición ==
 
 A -> FI : editar la columna "Traducción"\nen las filas deseadas
 A -> FI : click "Guardar traducciones"
 FI -> FI : dgvTraducciones.CommitEdit(Commit)
 
-' ─────────────────────────────────────────
-' PERSISTENCIA
-' ─────────────────────────────────────────
 == 3. Persistencia ==
 
 loop por cada fila de dgvTraducciones
@@ -69,15 +64,13 @@ loop por cada fila de dgvTraducciones
     end note
   else TextoTraduccion no vacío
     FI -> IB : GuardarTraduccion(idiomaId,\ncontrol.Id, control.TextoTraduccion)
-    IB -> DB : upsert en CONTROL_IDIOMA
+    IB -> IDD : GuardarTraduccion(idiomaId, controlId, texto)
+    IDD -> DB : TRADUCCION_GUARDAR(@idioma_id,\n@control_id, @texto)\n(upsert en TRADUCCION)
   end
 end
 
 FI --> A : "Traducciones guardadas." (Éxito)
 
-' ─────────────────────────────────────────
-' REFRESCO SI ES EL IDIOMA ACTIVO
-' ─────────────────────────────────────────
 == 4. Refresco si es el idioma activo ==
 
 FI -> IM : IdiomaActivo
@@ -85,10 +78,15 @@ IM --> FI : idioma activo (o null)
 
 opt el idioma editado coincide con el activo
   FI -> IB : CargarTraducciones(idiomaId)
-  IB -> DB : TRADUCCION_LISTAR_CONTROLES(idiomaId)\n(mismo SP del paso 1, LEFT JOIN)
-  DB --> IB : filas
-  IB -> IB : por cada control:\nvalor = TextoTraduccion si no está\nvacío; si no, TextoDefault (fallback)
+  activate IB
+  IB -> IDD : CargarTraducciones(idiomaId)
+  IDD -> IDD : ListarControlesConTraduccion(idiomaId)
+  IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)\n(mismo SP del paso 1, LEFT JOIN)
+  DB --> IDD : filas
+  IDD -> IDD : por cada control:\nvalor = TextoTraduccion si no está\nvacío; si no, TextoDefault (fallback)
+  IDD --> IB : Dictionary<string, string>
   IB --> FI : Dictionary<string, string>\n(incluye texto por defecto para\ncontroles sin traducción)
+  deactivate IB
   FI -> IM : CambiarIdioma(idioma, traducciones)
   IM -> IM : Notificar()\n→ ActualizarIdioma() en cada\nformulario registrado
   note right of IM

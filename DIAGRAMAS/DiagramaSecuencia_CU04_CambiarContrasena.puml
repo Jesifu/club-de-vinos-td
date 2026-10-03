@@ -5,40 +5,39 @@ title CU-04 — Cambiar Contraseña — Diagrama de Secuencia
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.85
+scale 0.8
 
 ' ─────────────────────────────────────────
 ' Participantes en orden de aparición
 ' ─────────────────────────────────────────
-actor       ":Usuario"                as U
-participant ":frmContraseña"          as FC #FEFECE
-participant ":UsuarioBLL"             as UB #E8F4E8
-participant ":ValidadorContrasena"    as VC #F4E8E8
-participant ":SessionManager"         as SM #F4E8E8
-participant ":BitacoraBLL"            as BB #E8F4E8
-participant ":UsuarioHistorialBLL"    as UH #E8F4E8
-participant ":IntegridadBLL"          as IB #E8F4E8
-database    ":DB"                     as DB #E8E8F4
+actor       ":Usuario"             as U
+participant ":frmContraseña"       as FC #FEFECE
+participant ":UsuarioBLL"          as UB #E8F4E8
+participant ":BitacoraBLL"         as BB #E8F4E8
+participant ":IntegridadBLL"       as IB #E8F4E8
+participant ":UsuarioHistorialBLL" as UH #E8F4E8
+participant ":ValidadorContrasena" as VC #F4E8E8
+participant ":SessionManager"      as SM #F4E8E8
+participant ":Hasher"              as H  #F4E8E8
+participant ":UsuarioDAL"          as UD #E8E8F4
+participant ":BitacoraDAL"         as BD #E8E8F4
+participant ":UsuarioHistorialDAL" as UHD #E8E8F4
+participant ":UsuarioPerfilDAL"    as UPD #E8E8F4
+participant ":IntegridadDAL"       as IND #E8E8F4
+database    ":DB"                  as DB #EEEEEE
 
 note over FC
   Precondición: sesión activa,
   permiso "Cambiar contraseña".
 end note
 
-' ─────────────────────────────────────────
-' INGRESO DE DATOS
-' ─────────────────────────────────────────
 == 1. Ingreso de datos ==
 
 U -> FC : ingresar contraseña actual,\nnueva contraseña y confirmación\n+ click Continuar
 activate FC
 
-' ─────────────────────────────────────────
-' VALIDACIONES LOCALES
-' ─────────────────────────────────────────
 == 2. Validaciones locales ==
 
 opt 3a. algún campo vacío
@@ -59,34 +58,38 @@ opt 5a. la nueva contraseña no cumple las reglas de fortaleza
   note right of FC : el flujo aborta y\nvuelve al paso 1
 end
 
-' ─────────────────────────────────────────
-' VERIFICACIÓN DE LA CONTRASEÑA ACTUAL
-' ─────────────────────────────────────────
 == 3. Verificación de la contraseña actual ==
 
 FC -> SM : getUsuario()
 SM --> FC : usuarioActual
 
 FC -> UB : VerificarContrasena(usuario, passActual)
-UB -> DB : hash(passActual) == PASS almacenado ?
-DB --> UB : resultado
-UB --> FC : true / false
+activate UB
+UB -> H : Hashear(passActual)
+H --> UB : hash SHA-256
+UB -> UD : ObtenerPorCredenciales(usuario, hash)
+UD -> DB : USUARIO_LOGIN(@usuario, @pass)
+DB --> UD : fila de USUARIO / vacío
+UD --> UB : BE.USUARIO / null
+UB --> FC : true / false (u != null)
+deactivate UB
 
 opt 6a. la contraseña actual es incorrecta
   FC --> U : "La contraseña actual es incorrecta."
   note right of FC : el flujo aborta y\nvuelve al paso 1
 end
 
-' ─────────────────────────────────────────
-' ACTUALIZACIÓN DE LA CONTRASEÑA
-' ─────────────────────────────────────────
 == 4. Actualización de la contraseña ==
 
 FC -> UB : CambiarContrasena(usuario, nuevaPass)
 activate UB
 
-UB -> DB : UPDATE USUARIO\nSET PASS = hash(nuevaPass)
-DB --> UB : filas afectadas
+UB -> H : Hashear(nuevaPass)
+H --> UB : hash SHA-256
+UB -> UD : CambiarContrasena(usuario, nuevaPassHash)
+UD -> DB : USUARIO_CAMBIAR_PASS(@usuario, @pass)
+DB --> UD : filas afectadas
+UD --> UB : bool (filas > 0)
 
 alt 7a. error al persistir el cambio
   UB --> FC : false
@@ -95,13 +98,43 @@ alt 7a. error al persistir el cambio
 
 else cambio aplicado correctamente
   UB -> BB : RegistrarAccion(usuario, "CAMBIO_CONTRASENA")
-  BB -> DB : insertar evento en BITACORA
+  BB -> BD : Registrar(usuario, "CAMBIO_CONTRASENA")
+  BD -> DB : BITACORA_INSERTAR(@usuario, @accion)
 
   UB -> IB : RecalcularIntegridadUsuarios()
-  IB -> DB : actualizar DVH / DVV
+  activate IB
+  IB -> IND : ListarUsuariosParaIntegridad()
+  IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
+  DB --> IND : filas de USUARIO
+  IND --> IB : DataTable
+  IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
+  UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+  DB --> UPD : PERFIL_ID
+  UPD --> IB : List<int>
+  IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
+  IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
+  IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+  IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
+  IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+  IB --> UB : (DVH / DVV recalculados)
+  deactivate IB
+
+  UB -> UD : ObtenerIdPorNombre(usuario)
+  UD -> DB : USUARIO_OBTENER_ID_POR_NOMBRE(@usuario)
+  DB --> UD : ID
+  UD --> UB : int?
 
   UB -> UH : RegistrarCambio(usuarioId, "CAMBIO_CLAVE", usuario)
-  UH -> DB : insertar snapshot en USUARIO_HISTORIAL
+  UH -> UD : ObtenerPorId(usuarioId)
+  UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+  DB --> UD : fila de USUARIO
+  UD --> UH : BE.USUARIO
+  UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
+  UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+  DB --> UPD : PERFIL_ID
+  UPD --> UH : List<int> perfiles
+  UH -> UHD : Insertar(UsuarioHistorial)
+  UHD -> DB : USUARIO_HISTORIAL_INSERTAR(snapshot,\n@tipo_cambio, @realizado_por)
 
   UB --> FC : true
   FC --> U : "Contraseña cambiada exitosamente."

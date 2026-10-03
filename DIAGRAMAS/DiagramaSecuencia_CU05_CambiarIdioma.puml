@@ -5,21 +5,23 @@ title CU-05 — Cambiar Idioma — Diagrama de Secuencia
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.85
+scale 0.8
 
 ' ─────────────────────────────────────────
 ' Participantes en orden de aparición
 ' ─────────────────────────────────────────
-actor       ":Usuario"             as U
-participant ":FormularioActual"    as F  #FEFECE
-participant ":IdiomaBLL"           as IB #E8F4E8
-participant ":IdiomaManager"       as IM #F4E8E8
+actor       ":Usuario"                 as U
+participant ":FormularioActual"        as F  #FEFECE
 participant ":OtroFormulario\nAbierto" as F2 #FEFECE
-participant ":UsuarioBLL"          as UB #E8F4E8
-database    ":DB"                  as DB #E8E8F4
+participant ":IdiomaBLL"               as IB #E8F4E8
+participant ":UsuarioBLL"              as UB #E8F4E8
+participant ":IdiomaManager"           as IM #F4E8E8
+participant ":SessionManager"          as SM #F4E8E8
+participant ":IdiomaDAL"               as IDD #E8E8F4
+participant ":UsuarioDAL"              as UD #E8E8F4
+database    ":DB"                      as DB #EEEEEE
 
 note over F
   Precondición: usuario autenticado.
@@ -29,9 +31,6 @@ note over F
   idiomas habilitados (RN-01).
 end note
 
-' ─────────────────────────────────────────
-' SELECCIÓN DE IDIOMA
-' ─────────────────────────────────────────
 == 1. Selección de idioma ==
 
 U -> F : desplegar combo de idiomas\n+ seleccionar un idioma
@@ -45,28 +44,32 @@ opt 2a. el idioma seleccionado es el mismo que el activo
   end note
 end
 
-' ─────────────────────────────────────────
-' CARGA DE TRADUCCIONES
-' ─────────────────────────────────────────
 == 2. Carga de traducciones ==
 
-F -> IB : CargarTraducciones(idioma.Id)
-IB -> DB : SELECT clave, texto\nde CONTROL_IDIOMA / TRADUCCION
-DB --> IB : filas
-IB --> F : Dictionary<clave, texto>
+opt el selector es el de frmMenu
+  loop por cada ítem de menú
+    F -> IB : RegistrarControl(clave, "[" + textoDefault + "]")
+    IB -> IDD : RegistrarControl(clave, textoDefault)
+    IDD -> DB : CONTROL_REGISTRAR(@clave, @texto_default)
+  end
+end
 
-' ─────────────────────────────────────────
-' ACTUALIZACIÓN DEL IDIOMA ACTIVO
-' ─────────────────────────────────────────
+F -> IB : CargarTraducciones(idioma.Id)
+activate IB
+IB -> IDD : CargarTraducciones(idiomaId)
+IDD -> IDD : ListarControlesConTraduccion(idiomaId)
+IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)
+DB --> IDD : filas (CLAVE, TEXTO_DEFAULT, TEXTO_TRADUCCION)
+IDD --> IB : Dictionary<clave, texto>
+IB --> F : Dictionary<clave, texto>
+deactivate IB
+
 == 3. Actualización del idioma activo ==
 
 F -> IM : CambiarIdioma(idioma, traducciones)
 activate IM
 IM -> IM : _idiomaActivo = idioma\n_traducciones = traducciones
 
-' ─────────────────────────────────────────
-' NOTIFICACIÓN A LOS OBSERVADORES
-' ─────────────────────────────────────────
 == 4. Notificación a los formularios registrados ==
 
 loop por cada formulario registrado (incluye F)
@@ -83,19 +86,22 @@ loop por cada formulario registrado (incluye F)
     F2 -> F2 : ActualizarEncabezados()
   end
 
+  F2 --> IM : (formulario actualizado)
   deactivate F2
 end
+IM --> F : (observadores notificados)
 deactivate IM
 
-' ─────────────────────────────────────────
-' PERSISTENCIA DE LA PREFERENCIA DE IDIOMA
-' ─────────────────────────────────────────
 == 5. Persistencia de la preferencia del usuario ==
+
+F -> SM : getUsuario()
+SM --> F : usuario / null
 
 opt hay un usuario logueado
   F -> UB : ActualizarIdioma(usuario.Id, idioma.Id)
   activate UB
-  UB -> DB : USUARIO_ACTUALIZAR_IDIOMA
+  UB -> UD : ActualizarIdioma(id, idiomaId)
+  UD -> DB : USUARIO_ACTUALIZAR_IDIOMA(@id, @idioma_id)
   deactivate UB
 
   note right of F

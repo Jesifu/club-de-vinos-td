@@ -5,10 +5,9 @@ title CU-07 — Eliminar Usuario — Diagrama de Secuencia
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.85
+scale 0.75
 
 ' ─────────────────────────────────────────
 ' Participantes en orden de aparición
@@ -16,19 +15,20 @@ scale 0.85
 actor       ":Administrador"       as A
 participant ":frmAdminUsuarios"    as FA #FEFECE
 participant ":UsuarioBLL"          as UB #E8F4E8
-participant ":SessionManager"      as SM #F4E8E8
 participant ":UsuarioHistorialBLL" as UH #E8F4E8
 participant ":IntegridadBLL"       as IB #E8F4E8
-database    ":DB"                  as DB #E8E8F4
+participant ":SessionManager"      as SM #F4E8E8
+participant ":UsuarioDAL"          as UD #E8E8F4
+participant ":UsuarioPerfilDAL"    as UPD #E8E8F4
+participant ":UsuarioHistorialDAL" as UHD #E8E8F4
+participant ":IntegridadDAL"       as IND #E8E8F4
+database    ":DB"                  as DB #EEEEEE
 
 note over FA
   Precondición: sesión activa,
   permiso "Administrar usuarios".
 end note
 
-' ─────────────────────────────────────────
-' SELECCIÓN Y SOLICITUD
-' ─────────────────────────────────────────
 == 1. Selección y solicitud ==
 
 A -> FA : seleccionar usuario en la grilla\n+ click "Eliminar"
@@ -38,9 +38,6 @@ opt 1a. ningún usuario seleccionado
   note right of FA : el caso de uso termina
 end
 
-' ─────────────────────────────────────────
-' VALIDACIONES
-' ─────────────────────────────────────────
 == 2. Validaciones ==
 
 FA -> SM : getUsuario()
@@ -60,9 +57,6 @@ else el usuario seleccionado es distinto al propio
   else el administrador confirma
     A --> FA : Sí
 
-    ' ─────────────────────────────────────────
-    ' ELIMINACIÓN
-    ' ─────────────────────────────────────────
     == 3. Eliminación ==
 
     FA -> UB : Eliminar(id)
@@ -72,15 +66,25 @@ else el usuario seleccionado es distinto al propio
     SM --> UB : administrador actual
 
     UB -> UH : RegistrarCambio(id, "BAJA", admin)
+    UH -> UD : ObtenerPorId(usuarioId)
+    UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+    DB --> UD : fila de USUARIO
+    UD --> UH : BE.USUARIO
+    UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
+    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+    DB --> UPD : PERFIL_ID
+    UPD --> UH : List<int> perfiles
+    UH -> UHD : Insertar(UsuarioHistorial)
+    UHD -> DB : USUARIO_HISTORIAL_INSERTAR(snapshot,\n@tipo_cambio, @realizado_por)
     note right of UH
       Snapshot del último
       estado conocido (RN-02),
       registrado antes de
       eliminar el registro.
     end note
-    UH -> DB : insertar snapshot en USUARIO_HISTORIAL
 
-    UB -> DB : USUARIO_ELIMINAR(id)
+    UB -> UD : Eliminar(id)
+    UD -> DB : USUARIO_ELIMINAR(@id)
     note right of DB
       Cascada del SP: borra
       también las filas del
@@ -90,11 +94,31 @@ else el usuario seleccionado es distinto al propio
     end note
 
     UB -> IB : RecalcularIntegridadUsuarios()
-    IB -> DB : actualizar DVH / DVV
+    activate IB
+    IB -> IND : ListarUsuariosParaIntegridad()
+    IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
+    DB --> IND : filas de USUARIO
+    IND --> IB : DataTable
+    IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
+    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+    DB --> UPD : PERFIL_ID
+    UPD --> IB : List<int>
+    IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
+    IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
+    IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+    IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
+    IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    IB --> UB : (DVH / DVV recalculados)
+    deactivate IB
+    UB --> FA : (usuario eliminado)
     deactivate UB
 
-    FA -> DB : CargarUsuarios()\n(USUARIO_LISTAR_PAGINADO,\ncon búsqueda y paginado)
-    DB --> FA : página de usuarios
+    FA -> UB : ListarPaginado(_busquedaActual,\n_paginaActual, TAMANIO_PAGINA)
+    UB -> UD : ListarPaginado(busqueda, pagina, tamanio)
+    UD -> DB : USUARIO_LISTAR_PAGINADO(@busqueda,\n@pagina, @tamanio)
+    DB --> UD : filas + TOTAL_FILAS
+    UD --> UB : PaginaResultado<USUARIO>
+    UB --> FA : PaginaResultado<USUARIO>
     FA -> FA : refrescar grilla
   end
 end

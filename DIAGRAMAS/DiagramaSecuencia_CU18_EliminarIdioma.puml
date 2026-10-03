@@ -5,7 +5,6 @@ title CU-18 — Eliminar Idioma — Diagrama de Secuencia
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
 scale 0.85
@@ -15,9 +14,9 @@ scale 0.85
 ' ─────────────────────────────────────────
 actor       ":Administrador" as A
 participant ":frmIdiomas"    as FI #FEFECE
-participant ":IdiomaManager" as IM #F4E8E8
 participant ":IdiomaBLL"     as IB #E8F4E8
-database    ":DB"            as DB #E8E8F4
+participant ":IdiomaDAL"     as IDD #E8E8F4
+database    ":DB"            as DB #EEEEEE
 
 note over FI
   Precondición: sesión activa,
@@ -25,9 +24,6 @@ note over FI
   existe al menos un idioma.
 end note
 
-' ─────────────────────────────────────────
-' SELECCIÓN Y SOLICITUD
-' ─────────────────────────────────────────
 == 1. Selección y solicitud ==
 
 A -> FI : seleccionar un idioma en la grilla
@@ -40,9 +36,6 @@ opt 1a. ningún idioma seleccionado
   note right of FI : el caso de uso termina
 end
 
-' ─────────────────────────────────────────
-' VALIDACIONES DE NEGOCIO
-' ─────────────────────────────────────────
 == 1b. Validaciones de negocio ==
 
 opt 1b-1. el idioma es el predeterminado del sistema
@@ -55,12 +48,16 @@ opt 1b-1. el idioma es el predeterminado del sistema
   note right of FI : el caso de uso termina
 end
 
-opt 1b-2. el idioma está en uso por algún usuario
-  FI -> IB : EstaEnUso(id)
-  IB -> DB : IDIOMA_ESTA_EN_USO(id)
-  DB --> IB : cantidad de usuarios
-  IB --> FI : bool
+FI -> IB : EstaEnUso(id)
+activate IB
+IB -> IDD : EstaEnUso(id)
+IDD -> DB : IDIOMA_ESTA_EN_USO(@id)
+DB --> IDD : TOTAL (cantidad de usuarios)
+IDD --> IB : bool (TOTAL > 0)
+IB --> FI : bool
+deactivate IB
 
+opt 1b-2. el idioma está en uso por algún usuario
   FI --> A : "No se puede eliminar un idioma\nque está en uso por algún usuario." (Aviso)
   note right of FI
     RN-04: no se puede eliminar un idioma
@@ -80,53 +77,32 @@ alt 4a. el administrador cancela
 else el administrador confirma
   A --> FI : Sí
 
-  ' ─────────────────────────────────────────
-  ' DESACTIVACIÓN SI ES EL IDIOMA ACTIVO
-  ' ─────────────────────────────────────────
-  == 2. Desactivación si es el idioma activo ==
-
-  FI -> IM : IdiomaActivo
-  IM --> FI : idioma activo (o null)
-
-  opt el idioma seleccionado es el activo
-    FI -> IM : CambiarIdioma(null, null)
-    IM -> IM : Notificar()\n→ ActualizarIdioma() en cada\nformulario registrado
-    note right of IM
-      RN-02: si el idioma a eliminar
-      es el activo, primero se
-      desactiva en IdiomaManager
-      (los formularios vuelven a
-      sus textos de diseño por
-      defecto) antes de borrar
-      la BD.
-    end note
-  end
-
-  ' ─────────────────────────────────────────
-  ' ELIMINACIÓN
-  ' ─────────────────────────────────────────
-  == 3. Eliminación ==
+  == 2. Eliminación ==
 
   FI -> IB : Eliminar(id)
-  IB -> DB : DELETE FROM CONTROL_IDIOMA\nWHERE IDIOMA_ID = id
-  IB -> DB : DELETE FROM IDIOMA WHERE ID = id
+  activate IB
+  IB -> IDD : Eliminar(id)
+  IDD -> DB : IDIOMA_ELIMINAR(@id)
   note right of DB
     RN-01: operación irreversible —
-    se borran el idioma y todas
-    sus traducciones.
+    el SP borra las filas de
+    TRADUCCION del idioma y luego
+    el propio IDIOMA.
   end note
+  IB --> FI : (idioma eliminado)
+  deactivate IB
 
   FI -> FI : _idiomaSeleccionado = null
   FI -> FI : dgvTraducciones.DataSource = null
 
-  ' ─────────────────────────────────────────
-  ' ACTUALIZACIÓN DE LA GRILLA
-  ' ─────────────────────────────────────────
-  == 4. Actualización de la grilla ==
+  == 3. Actualización de la grilla ==
 
+  FI -> FI : CargarIdiomas()
   FI -> IB : ListarTodos()
-  IB -> DB : SELECT * FROM IDIOMA
-  DB --> IB : filas
+  IB -> IDD : ListarTodos()
+  IDD -> DB : IDIOMA_LISTAR_TODOS
+  DB --> IDD : filas de IDIOMA
+  IDD --> IB : List<IDIOMA>
   IB --> FI : List<IDIOMA>
   FI -> FI : dgvIdiomas.DataSource = idiomas
   FI --> A : grilla de idiomas refrescada,\ngrilla de traducciones vacía

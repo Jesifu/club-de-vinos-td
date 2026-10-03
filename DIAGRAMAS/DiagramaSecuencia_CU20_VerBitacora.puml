@@ -5,7 +5,6 @@ title CU-20 — Ver Bitácora — Diagrama de Secuencia
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
-skinparam ParticipantPadding 14
 skinparam sequenceMessageAlign center
 hide footbox
 scale 0.85
@@ -17,16 +16,14 @@ actor       ":Administrador" as A
 participant ":frmMenu"       as FM #FEFECE
 participant ":frmBitacora"   as FB #FEFECE
 participant ":BitacoraBLL"   as BB #E8F4E8
-database    ":DB"            as DB #E8E8F4
+participant ":BitacoraDAL"   as BD #E8E8F4
+database    ":DB"            as DB #EEEEEE
 
 note over FM
   Precondición: sesión activa,
   permiso "Ver bitácora".
 end note
 
-' ─────────────────────────────────────────
-' APERTURA
-' ─────────────────────────────────────────
 == 1. Apertura ==
 
 A -> FM : seleccionar "Bitácora" en\nel menú principal
@@ -40,23 +37,24 @@ note right of FB
   TAMANIO_PAGINA = 30
 end note
 
-' ─────────────────────────────────────────
-' POBLADO DE FILTROS Y CARGA INICIAL
-' ─────────────────────────────────────────
 == 2. Poblado de filtros y carga inicial ==
 
 FB -> FB : PoblarFiltros()
 FB -> BB : ListarUsuariosDistinct()
-BB -> DB : BITACORA_LISTAR_USUARIOS_DISTINCT
-DB --> BB : valores distintos
+BB -> BD : ListarUsuariosDistinct()
+BD -> DB : BITACORA_LISTAR_USUARIOS_DISTINCT
+DB --> BD : valores distintos
+BD --> BB : List<string>
 BB --> FB : List<string>
-FB -> FB : cmbUsuario.Items\n= "(Todos)" + valores
+FB -> FB : cmbUsuario.Items = "(Todos)" + valores
 
 FB -> BB : ListarAccionesDistinct()
-BB -> DB : BITACORA_LISTAR_ACCIONES_DISTINCT
-DB --> BB : valores distintos
+BB -> BD : ListarAccionesDistinct()
+BD -> DB : BITACORA_LISTAR_ACCIONES_DISTINCT
+DB --> BD : valores distintos
+BD --> BB : List<string>
 BB --> FB : List<string>
-FB -> FB : cmbAccion.Items\n= "(Todos)" + valores
+FB -> FB : cmbAccion.Items = "(Todos)" + valores
 note right of FB
   Los combos se cargan con
   consultas propias a la BD
@@ -69,14 +67,13 @@ end note
 
 FB -> FB : Refrescar()\n(sin filtros activos)
 
-' ─────────────────────────────────────────
-' CONSULTA PAGINADA AL SERVIDOR
-' ─────────────────────────────────────────
 == 3. Consulta paginada al servidor (Refrescar) ==
 
 FB -> FB : armar parámetros:\nusuario, accion, desde, hasta\n(null si no hay filtro activo)
 FB -> BB : ListarPaginado(usuario, accion,\ndesde, hasta, _paginaActual,\nTAMANIO_PAGINA)
-BB -> DB : BITACORA_LISTAR_PAGINADO\n(usuario, accion, desde, hasta,\npagina, tamanio)
+activate BB
+BB -> BD : ListarPaginado(usuario, accion,\ndesde, hasta, pagina, tamanio)
+BD -> DB : BITACORA_LISTAR_PAGINADO(@usuario, @accion,\n@fecha_desde, @fecha_hasta,\n@pagina, @tamanio)
 note right of DB
   El filtrado y la paginación
   se resuelven en el SP con
@@ -91,16 +88,15 @@ note right of DB
   siguiente a "Hasta"
   (Fecha < Hasta + 1 día).
 end note
-DB --> BB : filas de la página\n+ total de páginas
+DB --> BD : filas de la página\n+ TOTAL_FILAS
+BD --> BB : PaginaResultado<BITACORA>
 BB --> FB : PaginaResultado<BITACORA>\n(Items, TotalPaginas)
+deactivate BB
 
 FB -> FB : _totalPaginas = resultado.TotalPaginas\ndataGridView1.DataSource = resultado.Items
 FB -> FB : ActualizarControlesPaginacion()\nlblPagina.Text = "Página {0} de {1}"
 FB --> A : grilla con la página\nactual de entradas
 
-' ─────────────────────────────────────────
-' APLICAR FILTROS
-' ─────────────────────────────────────────
 == 4. Aplicar filtros ==
 
 A -> FB : ajustar combos (Usuario / Acción)\ny/o fechas Desde / Hasta
@@ -108,11 +104,9 @@ A -> FB : click "Filtrar"
 
 FB -> FB : btnFiltrar_Click:\n_paginaActual = 1
 FB -> FB : Refrescar()
+note right of FB : repite la consulta paginada del paso 3\ncon los filtros activos (BB → BD → DB)
 FB --> A : grilla filtrada\n(primera página)
 
-' ─────────────────────────────────────────
-' NAVEGACIÓN ENTRE PÁGINAS
-' ─────────────────────────────────────────
 == 5. Navegación entre páginas ==
 
 opt click "Página siguiente" (si _paginaActual < _totalPaginas)
@@ -129,9 +123,6 @@ opt click "Página anterior" (si _paginaActual > 1)
   FB --> A : grilla con la\npágina anterior
 end
 
-' ─────────────────────────────────────────
-' LIMPIAR FILTROS
-' ─────────────────────────────────────────
 opt 6a. el administrador presiona "Limpiar filtros"
   A -> FB : click "Limpiar filtros"
   FB -> FB : btnLimpiar_Click:\ncmbUsuario / cmbAccion → "(Todos)"\ndtpDesde.Checked = dtpHasta.Checked = false\n_paginaActual = 1
@@ -145,5 +136,7 @@ note over BB, DB
   pueden editar ni eliminar
   entradas.
 end note
+
+deactivate FB
 
 @enduml
