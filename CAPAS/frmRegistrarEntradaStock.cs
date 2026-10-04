@@ -32,6 +32,9 @@ namespace CAPAS
             // _controles, un cambio de idioma lo pisaría (mismo criterio que frmCatalogoVinos).
             _controles.Remove("numCantidad");
             _defaults.Remove("numCantidad");
+            // Mismo criterio para el stock mostrado: es un dato calculado, no un texto traducible.
+            _controles.Remove("lblStockActualValor");
+            _defaults.Remove("lblStockActualValor");
 
             _controles[this.Name] = this;
             _defaults[this.Name] = this.Text;

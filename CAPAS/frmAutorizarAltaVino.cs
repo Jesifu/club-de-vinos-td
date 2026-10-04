@@ -28,6 +28,11 @@ namespace CAPAS
             _defaults[this.Name] = this.Text;
             SeguridadYServicios.IdiomaManager.getInstance().Registrar(this);
             ActualizarIdioma();
+            // En Load la grilla todavía no tiene fila actual: si hay una sola fila, SelectionChanged
+            // no vuelve a dispararse y el botón quedaría deshabilitado. Se reevalúa al terminar el
+            // enlace de datos y al mostrarse el formulario.
+            dgvPendientes.DataBindingComplete += (s, ev) => ActualizarEstadoBoton();
+            this.Shown += (s, ev) => ActualizarEstadoBoton();
             CargarPendientes();
             IdiomaUIHelper.AgregarSelector(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
