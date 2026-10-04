@@ -117,6 +117,10 @@ namespace CAPAS
                 dgvVinos.Columns["FechaAutorizacion"].HeaderText = mgr.Traducir("colhdr_FechaAutorizacion") ?? "Fecha de autorización";
             if (dgvVinos.Columns["Estado"] != null)
                 dgvVinos.Columns["Estado"].HeaderText = mgr.Traducir("colhdr_Estado") ?? "Estado";
+            if (dgvVinos.Columns["BajaSolicitadaPorLogin"] != null)
+                dgvVinos.Columns["BajaSolicitadaPorLogin"].HeaderText = mgr.Traducir("colhdr_BajaSolicitadaPor") ?? "Baja solicitada por";
+            if (dgvVinos.Columns["FechaSolicitudBaja"] != null)
+                dgvVinos.Columns["FechaSolicitudBaja"].HeaderText = mgr.Traducir("colhdr_FechaSolicitudBaja") ?? "Fecha de solicitud de baja";
         }
 
         private void GuardarDefaults(Control.ControlCollection controles)
@@ -155,8 +159,59 @@ namespace CAPAS
                 if (dgvVinos.Columns["BodegaId"] != null) dgvVinos.Columns["BodegaId"].Visible = false;
                 if (dgvVinos.Columns["CreadoPor"] != null) dgvVinos.Columns["CreadoPor"].Visible = false;
                 if (dgvVinos.Columns["AutorizadoPor"] != null) dgvVinos.Columns["AutorizadoPor"].Visible = false;
+                if (dgvVinos.Columns["BajaSolicitadaPor"] != null) dgvVinos.Columns["BajaSolicitadaPor"].Visible = false;
+                if (dgvVinos.Columns["DescontinuadoPor"] != null) dgvVinos.Columns["DescontinuadoPor"].Visible = false;
+                if (dgvVinos.Columns["FechaDescontinuacion"] != null) dgvVinos.Columns["FechaDescontinuacion"].Visible = false;
                 ActualizarEncabezados();
             }
+
+            ActualizarEstadoBajaBoton();
+        }
+
+        private void dgvVinos_SelectionChanged(object sender, EventArgs e)
+        {
+            ActualizarEstadoBajaBoton();
+        }
+
+        // CU-24: la solicitud solo aplica a un vino autorizado, activo y sin baja pendiente.
+        private void ActualizarEstadoBajaBoton()
+        {
+            BE.Vino seleccionado = dgvVinos.CurrentRow?.DataBoundItem as BE.Vino;
+            btnSolicitarBaja.Enabled = seleccionado != null
+                                       && seleccionado.AutorizadoPor.HasValue
+                                       && seleccionado.Estado == BE.EstadoVino.Activo
+                                       && !seleccionado.BajaSolicitadaPor.HasValue;
+        }
+
+        private void btnSolicitarBaja_Click(object sender, EventArgs e)
+        {
+            BE.Vino seleccionado = dgvVinos.CurrentRow?.DataBoundItem as BE.Vino;
+            if (seleccionado == null)
+            {
+                MsgBox.Show("Seleccioná un vino.", "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                return;
+            }
+
+            if (MsgBox.Show("¿Solicitar la descontinuación del vino '" + seleccionado.Nombre + "'?",
+                "Confirmar", MsgBox.Botones.SiNo, MsgBox.Icono.Pregunta) != DialogResult.Yes)
+                return;
+
+            BE.USUARIO sesion = SeguridadYServicios.SessionManager.getInstance().getUsuario();
+
+            try
+            {
+                _bll.SolicitarBaja(seleccionado.Id, sesion);
+            }
+            catch (InvalidOperationException ex)
+            {
+                MsgBox.Show(ex.Message, "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                CargarVinos();
+                return;
+            }
+
+            MsgBox.Show("Descontinuación solicitada, pendiente de autorización.", "Éxito",
+                MsgBox.Botones.OK, MsgBox.Icono.Exito);
+            CargarVinos();
         }
 
         private void chkPuntaje_CheckedChanged(object sender, EventArgs e)

@@ -22,5 +22,11 @@ namespace BE
         public int? AutorizadoPor { get; set; }
         public string AutorizadoPorLogin { get; set; }
         public DateTime? FechaAutorizacion { get; set; }
+        // Descontinuación (CU-24/25): solicitud pendiente mientras BajaSolicitadaPor != null y Estado == Activo.
+        public int? BajaSolicitadaPor { get; set; }
+        public string BajaSolicitadaPorLogin { get; set; }
+        public DateTime? FechaSolicitudBaja { get; set; }
+        public int? DescontinuadoPor { get; set; }
+        public DateTime? FechaDescontinuacion { get; set; }
     }
 }

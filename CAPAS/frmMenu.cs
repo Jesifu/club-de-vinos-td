@@ -55,7 +55,10 @@ namespace CAPAS
 
             catalogoVinosToolStripMenuItem.Visible = puedeCatalogo;
             entradaStockToolStripMenuItem.Visible = puedeCatalogo;
+            ajusteInventarioToolStripMenuItem.Visible = puedeCatalogo;
+            alertaStockToolStripMenuItem.Visible = puedeCatalogo;
             autorizarVinoToolStripMenuItem.Visible = puedeAutorizarCatalogo;
+            autorizarBajaVinoToolStripMenuItem.Visible = puedeAutorizarCatalogo;
             catalogoToolStripMenuItem.Visible = puedeCatalogo || puedeAutorizarCatalogo;
 
             // CU-28/29/31: los ítems ya existen y quedan visibles-pero-inertes hasta
@@ -175,6 +178,21 @@ namespace CAPAS
         private void entradaStockToolStripMenuItem_Click(object sender, EventArgs e)
         {
             new frmRegistrarEntradaStock().ShowDialog();
+        }
+
+        private void ajusteInventarioToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new frmRegistrarAjusteInventario().ShowDialog();
+        }
+
+        private void alertaStockToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new frmAlertaStockMinimo().ShowDialog();
+        }
+
+        private void autorizarBajaVinoToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new frmAutorizarBajaVino().ShowDialog();
         }
 
         private void sociosToolStripMenuItem_Click(object sender, EventArgs e)

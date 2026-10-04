@@ -1577,11 +1577,14 @@ AS
     SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
            v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
            v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
-           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION
+           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION,
+           v.BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN, v.FECHA_SOLICITUD_BAJA,
+           v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION
     FROM VINO v
     JOIN BODEGA b ON b.ID = v.BODEGA_ID
     JOIN USUARIO uc ON uc.ID = v.CREADO_POR
     LEFT JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
+    LEFT JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
     WHERE v.CODIGO = @codigo
 GO
 
@@ -1593,11 +1596,14 @@ AS
     SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
            v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
            v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
-           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION
+           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION,
+           v.BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN, v.FECHA_SOLICITUD_BAJA,
+           v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION
     FROM VINO v
     JOIN BODEGA b ON b.ID = v.BODEGA_ID
     JOIN USUARIO uc ON uc.ID = v.CREADO_POR
     LEFT JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
+    LEFT JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
     WHERE v.ID = @id
 GO
 
@@ -1608,10 +1614,13 @@ AS
     SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
            v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
            v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
-           v.AUTORIZADO_POR, CAST(NULL AS VARCHAR(50)) AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION
+           v.AUTORIZADO_POR, CAST(NULL AS VARCHAR(50)) AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION,
+           v.BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN, v.FECHA_SOLICITUD_BAJA,
+           v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION
     FROM VINO v
     JOIN BODEGA b ON b.ID = v.BODEGA_ID
     JOIN USUARIO uc ON uc.ID = v.CREADO_POR
+    LEFT JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
     WHERE v.AUTORIZADO_POR IS NULL
     ORDER BY v.FECHA_ALTA
 GO
@@ -1623,11 +1632,14 @@ AS
     SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
            v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
            v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
-           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION
+           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION,
+           v.BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN, v.FECHA_SOLICITUD_BAJA,
+           v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION
     FROM VINO v
     JOIN BODEGA b ON b.ID = v.BODEGA_ID
     JOIN USUARIO uc ON uc.ID = v.CREADO_POR
     JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
+    LEFT JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
     WHERE v.AUTORIZADO_POR IS NOT NULL AND v.ESTADO = 'Activo'
     ORDER BY v.FECHA_AUTORIZACION DESC
 GO
@@ -3781,4 +3793,349 @@ SET @cidpHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaDespac
 EXEC TRADUCCION_GUARDAR @ptIdHist, @cidpHist, 'Data de despacho'
 SET @cidpHist = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_DespachadoPor')
 EXEC TRADUCCION_GUARDAR @ptIdHist, @cidpHist, 'Despachada por'
+GO
+
+-- ============================================================
+-- CATÁLOGO Y STOCK DE VINOS (CU-24/25/26/27) — Descontinuación, alerta de stock y ajustes
+-- Las columnas de baja de VINO ya existen (bloque de tablas); los SPs de lectura
+-- de VINO las devuelven (BAJA_SOLICITADA_POR[_LOGIN], FECHA_SOLICITUD_BAJA,
+-- DESCONTINUADO_POR, FECHA_DESCONTINUACION).
+-- Decisión de TIPO para ajustes (CU-27): un ajuste se guarda como TIPO = 'Entrada'
+-- (aumenta) o 'Salida' (disminuye) con REFERENCIA_TIPO = 'AJUSTE'. Así la expresión
+-- SUM(CASE WHEN TIPO = 'Entrada' THEN CANTIDAD ELSE -CANTIDAD END) usada en
+-- STOCK_ACTUAL_OBTENER, VINO_LISTAR_CANDIDATOS y CAJA_VINO_LISTAR_EFECTIVO sigue
+-- siendo correcta sin tocar ningún SP existente.
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- STORED PROCEDURES — CU-24 / CU-25 (descontinuación con separación de funciones)
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.VINO_SOLICITAR_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_SOLICITAR_BAJA]
+GO
+-- Solo un vino autorizado, activo y sin solicitud previa admite la solicitud (0 filas = rechazado)
+CREATE PROCEDURE [dbo].[VINO_SOLICITAR_BAJA]
+    @id             INT,
+    @solicitante_id INT
+AS
+    UPDATE VINO
+    SET BAJA_SOLICITADA_POR = @solicitante_id, FECHA_SOLICITUD_BAJA = GETDATE()
+    WHERE ID = @id
+      AND ESTADO = 'Activo'
+      AND AUTORIZADO_POR IS NOT NULL
+      AND BAJA_SOLICITADA_POR IS NULL
+      -- RN-15: solo se solicita la baja de un vino sin stock en depósito
+      AND ISNULL((SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END)
+                  FROM MOVIMIENTO_STOCK m WHERE m.VINO_ID = @id), 0) = 0
+GO
+
+IF OBJECT_ID('dbo.VINO_LISTAR_PENDIENTES_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_LISTAR_PENDIENTES_BAJA]
+GO
+CREATE PROCEDURE [dbo].[VINO_LISTAR_PENDIENTES_BAJA]
+AS
+    SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
+           v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
+           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
+           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION,
+           v.BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN, v.FECHA_SOLICITUD_BAJA,
+           v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION
+    FROM VINO v
+    JOIN BODEGA b ON b.ID = v.BODEGA_ID
+    JOIN USUARIO uc ON uc.ID = v.CREADO_POR
+    LEFT JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
+    JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
+    WHERE v.BAJA_SOLICITADA_POR IS NOT NULL
+      AND v.DESCONTINUADO_POR IS NULL
+      AND v.ESTADO = 'Activo'
+    ORDER BY v.FECHA_SOLICITUD_BAJA
+GO
+
+IF OBJECT_ID('dbo.VINO_AUTORIZAR_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_AUTORIZAR_BAJA]
+GO
+-- RN-01 backstop: quien solicitó la baja no puede autorizarla. RN-04: baja lógica (ESTADO), nunca DELETE.
+CREATE PROCEDURE [dbo].[VINO_AUTORIZAR_BAJA]
+    @id       INT,
+    @admin_id INT
+AS
+    UPDATE VINO
+    SET ESTADO = 'Descontinuado',
+        DESCONTINUADO_POR = @admin_id,
+        FECHA_DESCONTINUACION = GETDATE()
+    WHERE ID = @id
+      AND ESTADO = 'Activo'
+      AND BAJA_SOLICITADA_POR IS NOT NULL
+      AND DESCONTINUADO_POR IS NULL
+      AND BAJA_SOLICITADA_POR <> @admin_id
+      -- RN-15: solo se descontinúa un vino sin stock en depósito
+      AND ISNULL((SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END)
+                  FROM MOVIMIENTO_STOCK m WHERE m.VINO_ID = @id), 0) = 0
+GO
+
+IF OBJECT_ID('dbo.VINO_RECHAZAR_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_RECHAZAR_BAJA]
+GO
+-- Rechazo: limpia la solicitud y el vino sigue Activo (la traza queda en BITACORA)
+CREATE PROCEDURE [dbo].[VINO_RECHAZAR_BAJA]
+    @id INT
+AS
+    UPDATE VINO
+    SET BAJA_SOLICITADA_POR = NULL, FECHA_SOLICITUD_BAJA = NULL
+    WHERE ID = @id
+      AND ESTADO = 'Activo'
+      AND BAJA_SOLICITADA_POR IS NOT NULL
+      AND DESCONTINUADO_POR IS NULL
+GO
+
+-- ------------------------------------------------------------
+-- STORED PROCEDURES — CU-26 (alerta pasiva de stock mínimo)
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.VINO_LISTAR_STOCK_BAJO', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_LISTAR_STOCK_BAJO]
+GO
+-- Stock derivado del kardex (misma expresión que VINO_LISTAR_CANDIDATOS)
+CREATE PROCEDURE [dbo].[VINO_LISTAR_STOCK_BAJO]
+AS
+    SELECT v.ID, v.CODIGO, v.NOMBRE, b.NOMBRE AS BODEGA_NOMBRE, v.STOCK_MINIMO,
+           ISNULL(k.STOCK, 0) AS STOCK_ACTUAL,
+           v.STOCK_MINIMO - ISNULL(k.STOCK, 0) AS FALTANTE
+    FROM VINO v
+    JOIN BODEGA b ON b.ID = v.BODEGA_ID
+    OUTER APPLY (SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END) AS STOCK
+                 FROM MOVIMIENTO_STOCK m WHERE m.VINO_ID = v.ID) k
+    WHERE v.ESTADO = 'Activo' AND v.AUTORIZADO_POR IS NOT NULL
+      AND ISNULL(k.STOCK, 0) < v.STOCK_MINIMO
+    ORDER BY FALTANTE DESC, v.NOMBRE
+GO
+
+-- ------------------------------------------------------------
+-- STORED PROCEDURES — CU-27 (ajuste negativo con backstop de RN-03)
+-- ------------------------------------------------------------
+
+-- Índice por vino: el chequeo de stock de las salidas usa UPDLOCK/HOLDLOCK filtrando por VINO_ID;
+-- sin índice, ese bloqueo de rango abarca toda la tabla de movimientos.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_MOVSTOCK_VINO' AND object_id = OBJECT_ID('dbo.MOVIMIENTO_STOCK'))
+    CREATE INDEX IX_MOVSTOCK_VINO ON [dbo].[MOVIMIENTO_STOCK] ([VINO_ID])
+GO
+
+IF OBJECT_ID('dbo.MOVIMIENTO_STOCK_REGISTRAR_SALIDA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[MOVIMIENTO_STOCK_REGISTRAR_SALIDA]
+GO
+-- RN-03 backstop: inserta la Salida solo si el stock derivado alcanza (0 filas = rechazado).
+-- La suma y el INSERT van en la misma transacción con UPDLOCK/HOLDLOCK para que dos
+-- salidas concurrentes no puedan dejar el stock en negativo. Sigue siendo append-only.
+CREATE PROCEDURE [dbo].[MOVIMIENTO_STOCK_REGISTRAR_SALIDA]
+    @vino_id         INT,
+    @cantidad        INT,
+    @motivo          VARCHAR(100),
+    @responsable     VARCHAR(50),
+    @referencia_tipo VARCHAR(20) = NULL,
+    @referencia_id   INT = NULL
+AS
+BEGIN
+    BEGIN TRANSACTION
+    INSERT INTO MOVIMIENTO_STOCK (VINO_ID, FECHA, TIPO, CANTIDAD, MOTIVO, RESPONSABLE, REFERENCIA_TIPO, REFERENCIA_ID)
+    SELECT @vino_id, GETDATE(), 'Salida', @cantidad, @motivo, @responsable, @referencia_tipo, @referencia_id
+    WHERE (SELECT ISNULL(SUM(CASE WHEN TIPO = 'Entrada' THEN CANTIDAD ELSE -CANTIDAD END), 0)
+           FROM MOVIMIENTO_STOCK WITH (UPDLOCK, HOLDLOCK)
+           WHERE VINO_ID = @vino_id) >= @cantidad
+    COMMIT TRANSACTION
+END
+GO
+
+-- ============================================================
+-- i18n — CATÁLOGO DE VINOS, bloque D (CU-24 baja, CU-25 autorización de baja, CU-26 alerta, CU-27 ajuste)
+-- ============================================================
+EXEC CONTROL_REGISTRAR 'autorizarBajaVinoToolStripMenuItem', 'Autorizar descontinuación de vinos'
+EXEC CONTROL_REGISTRAR 'ajusteInventarioToolStripMenuItem', 'Registrar ajuste de inventario'
+EXEC CONTROL_REGISTRAR 'alertaStockToolStripMenuItem', 'Consultar alerta de stock mínimo'
+EXEC CONTROL_REGISTRAR 'btnSolicitarBaja', 'Solicitar descontinuación'
+EXEC CONTROL_REGISTRAR 'colhdr_BajaSolicitadaPor', 'Baja solicitada por'
+EXEC CONTROL_REGISTRAR 'colhdr_FechaSolicitudBaja', 'Fecha de solicitud de baja'
+EXEC CONTROL_REGISTRAR 'frmAutorizarBajaVino', 'Autorizar descontinuación de vinos'
+EXEC CONTROL_REGISTRAR 'lblTitulo_AutorizarBajaVino', 'Autorizar descontinuación de vinos'
+EXEC CONTROL_REGISTRAR 'lblAyudaBaja', 'No puede autorizar una descontinuación que usted mismo solicitó.'
+EXEC CONTROL_REGISTRAR 'btnAutorizarBaja', 'Autorizar baja'
+EXEC CONTROL_REGISTRAR 'btnRechazarBaja', 'Rechazar baja'
+EXEC CONTROL_REGISTRAR 'frmRegistrarAjusteInventario', 'Registrar ajuste de inventario'
+EXEC CONTROL_REGISTRAR 'lblTitulo_AjusteInventario', 'Registrar ajuste de inventario'
+EXEC CONTROL_REGISTRAR 'lblSentidoAjuste', 'Sentido:'
+EXEC CONTROL_REGISTRAR 'rdoAjustePositivo', 'Aumenta el stock'
+EXEC CONTROL_REGISTRAR 'rdoAjusteNegativo', 'Disminuye el stock'
+EXEC CONTROL_REGISTRAR 'lblAyudaAjuste', 'Motivos habituales: rotura, merma, corrección de conteo.'
+EXEC CONTROL_REGISTRAR 'btnRegistrarAjuste', 'Registrar ajuste'
+EXEC CONTROL_REGISTRAR 'frmAlertaStockMinimo', 'Alerta de stock mínimo'
+EXEC CONTROL_REGISTRAR 'lblTitulo_AlertaStock', 'Alerta de stock mínimo'
+EXEC CONTROL_REGISTRAR 'lblAyudaAlertaStock', 'Vinos activos cuyo stock actual está por debajo del stock mínimo.'
+EXEC CONTROL_REGISTRAR 'lblSinAlertas', 'No hay vinos por debajo del stock mínimo.'
+EXEC CONTROL_REGISTRAR 'colhdr_StockActual', 'Stock actual'
+EXEC CONTROL_REGISTRAR 'colhdr_Faltante', 'Faltante'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — ESPAÑOL
+-- ------------------------------------------------------------
+
+DECLARE @idiomaIdBaja INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @cideBaja INT
+
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'autorizarBajaVinoToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Autorizar descontinuación de vinos'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ajusteInventarioToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Registrar ajuste de inventario'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'alertaStockToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Consultar alerta de stock mínimo'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnSolicitarBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Solicitar descontinuación'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_BajaSolicitadaPor')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Baja solicitada por'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaSolicitudBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Fecha de solicitud de baja'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAutorizarBajaVino')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Autorizar descontinuación de vinos'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AutorizarBajaVino')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Autorizar descontinuación de vinos'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'No puede autorizar una descontinuación que usted mismo solicitó.'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAutorizarBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Autorizar baja'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRechazarBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Rechazar baja'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmRegistrarAjusteInventario')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Registrar ajuste de inventario'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AjusteInventario')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Registrar ajuste de inventario'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblSentidoAjuste')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Sentido:'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rdoAjustePositivo')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Aumenta el stock'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rdoAjusteNegativo')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Disminuye el stock'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaAjuste')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Motivos habituales: rotura, merma, corrección de conteo.'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRegistrarAjuste')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Registrar ajuste'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAlertaStockMinimo')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Alerta de stock mínimo'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AlertaStock')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Alerta de stock mínimo'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaAlertaStock')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Vinos activos cuyo stock actual está por debajo del stock mínimo.'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblSinAlertas')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'No hay vinos por debajo del stock mínimo.'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_StockActual')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Stock actual'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Faltante')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Faltante'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — INGLÉS
+-- ------------------------------------------------------------
+
+DECLARE @idiomaIdBaja INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @cideBaja INT
+
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'autorizarBajaVinoToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Authorize wine discontinuation'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ajusteInventarioToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Register inventory adjustment'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'alertaStockToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Check minimum stock alert'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnSolicitarBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Request discontinuation'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_BajaSolicitadaPor')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Discontinuation requested by'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaSolicitudBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Discontinuation request date'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAutorizarBajaVino')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Authorize Wine Discontinuation'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AutorizarBajaVino')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Authorize Wine Discontinuation'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'You cannot authorize a discontinuation that you requested yourself.'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAutorizarBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Authorize discontinuation'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRechazarBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Reject discontinuation'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmRegistrarAjusteInventario')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Register Inventory Adjustment'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AjusteInventario')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Register Inventory Adjustment'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblSentidoAjuste')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Direction:'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rdoAjustePositivo')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Increases stock'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rdoAjusteNegativo')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Decreases stock'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaAjuste')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Usual reasons: breakage, shrinkage, count correction.'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRegistrarAjuste')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Register adjustment'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAlertaStockMinimo')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Minimum Stock Alert'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AlertaStock')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Minimum Stock Alert'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaAlertaStock')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Active wines whose current stock is below the minimum stock.'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblSinAlertas')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'No wines are below the minimum stock.'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_StockActual')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Current stock'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Faltante')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Shortfall'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — PORTUGUÉS
+-- ------------------------------------------------------------
+
+DECLARE @idiomaIdBaja INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cideBaja INT
+
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'autorizarBajaVinoToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Autorizar descontinuação de vinhos'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ajusteInventarioToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Registrar ajuste de inventário'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'alertaStockToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Consultar alerta de estoque mínimo'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnSolicitarBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Solicitar descontinuação'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_BajaSolicitadaPor')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Descontinuação solicitada por'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaSolicitudBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Data da solicitação de descontinuação'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAutorizarBajaVino')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Autorizar Descontinuação de Vinhos'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AutorizarBajaVino')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Autorizar Descontinuação de Vinhos'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Você não pode autorizar uma descontinuação que você mesmo solicitou.'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAutorizarBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Autorizar descontinuação'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRechazarBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Rejeitar descontinuação'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmRegistrarAjusteInventario')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Registrar Ajuste de Inventário'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AjusteInventario')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Registrar Ajuste de Inventário'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblSentidoAjuste')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Sentido:'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rdoAjustePositivo')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Aumenta o estoque'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rdoAjusteNegativo')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Diminui o estoque'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaAjuste')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Motivos habituais: quebra, perda, correção de contagem.'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRegistrarAjuste')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Registrar ajuste'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAlertaStockMinimo')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Alerta de Estoque Mínimo'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AlertaStock')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Alerta de Estoque Mínimo'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaAlertaStock')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Vinhos ativos cujo estoque atual está abaixo do estoque mínimo.'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblSinAlertas')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Não há vinhos abaixo do estoque mínimo.'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_StockActual')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Estoque atual'
+SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Faltante')
+EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Faltante'
 GO

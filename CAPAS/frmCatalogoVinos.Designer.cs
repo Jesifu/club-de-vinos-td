@@ -37,6 +37,7 @@ namespace CAPAS
             this.numPuntaje = new System.Windows.Forms.NumericUpDown();
             this.btnGuardarVino = new System.Windows.Forms.Button();
             this.btnLimpiarVino = new System.Windows.Forms.Button();
+            this.btnSolicitarBaja = new System.Windows.Forms.Button();
             this.btnCerrar = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.dgvVinos)).BeginInit();
             this.panelInferior.SuspendLayout();
@@ -71,6 +72,7 @@ namespace CAPAS
             this.dgvVinos.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             this.dgvVinos.Size = new System.Drawing.Size(700, 190);
             this.dgvVinos.TabIndex = 1;
+            this.dgvVinos.SelectionChanged += new System.EventHandler(this.dgvVinos_SelectionChanged);
             //
             // panelInferior
             //
@@ -95,6 +97,7 @@ namespace CAPAS
             this.panelInferior.Controls.Add(this.numPuntaje);
             this.panelInferior.Controls.Add(this.btnGuardarVino);
             this.panelInferior.Controls.Add(this.btnLimpiarVino);
+            this.panelInferior.Controls.Add(this.btnSolicitarBaja);
             this.panelInferior.Controls.Add(this.btnCerrar);
             this.panelInferior.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.panelInferior.Location = new System.Drawing.Point(0, 330);
@@ -287,6 +290,17 @@ namespace CAPAS
             this.btnLimpiarVino.UseVisualStyleBackColor = true;
             this.btnLimpiarVino.Click += new System.EventHandler(this.btnLimpiarVino_Click);
             //
+            // btnSolicitarBaja
+            //
+            this.btnSolicitarBaja.Enabled = false;
+            this.btnSolicitarBaja.Location = new System.Drawing.Point(290, 218);
+            this.btnSolicitarBaja.Name = "btnSolicitarBaja";
+            this.btnSolicitarBaja.Size = new System.Drawing.Size(250, 38);
+            this.btnSolicitarBaja.TabIndex = 22;
+            this.btnSolicitarBaja.Text = "Solicitar descontinuación";
+            this.btnSolicitarBaja.UseVisualStyleBackColor = true;
+            this.btnSolicitarBaja.Click += new System.EventHandler(this.btnSolicitarBaja_Click);
+            //
             // btnCerrar
             //
             this.btnCerrar.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
@@ -350,6 +364,7 @@ namespace CAPAS
         private System.Windows.Forms.NumericUpDown numPuntaje;
         private System.Windows.Forms.Button btnGuardarVino;
         private System.Windows.Forms.Button btnLimpiarVino;
+        private System.Windows.Forms.Button btnSolicitarBaja;
         private System.Windows.Forms.Button btnCerrar;
     }
 }

@@ -132,6 +132,24 @@
     <Compile Include="frmRegistrarEntradaStock.Designer.cs">
       <DependentUpon>frmRegistrarEntradaStock.cs</DependentUpon>
     </Compile>
+    <Compile Include="frmAutorizarBajaVino.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmAutorizarBajaVino.Designer.cs">
+      <DependentUpon>frmAutorizarBajaVino.cs</DependentUpon>
+    </Compile>
+    <Compile Include="frmRegistrarAjusteInventario.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmRegistrarAjusteInventario.Designer.cs">
+      <DependentUpon>frmRegistrarAjusteInventario.cs</DependentUpon>
+    </Compile>
+    <Compile Include="frmAlertaStockMinimo.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmAlertaStockMinimo.Designer.cs">
+      <DependentUpon>frmAlertaStockMinimo.cs</DependentUpon>
+    </Compile>
     <Compile Include="frmSocios.cs">
       <SubType>Form</SubType>
     </Compile>

@@ -41,6 +41,37 @@ namespace DAL
             finally { _acceso.Cerrar(); }
         }
 
+        // CU-27 (ajuste negativo): la SP inserta la Salida solo si el stock derivado alcanza.
+        // Devuelve filas afectadas; 0 = rechazado por RN-03 (backstop de la BLL).
+        public int InsertarSalida(BE.MovimientoStock m)
+        {
+            List<SqlParameter> parametros = new List<SqlParameter>
+            {
+                _acceso.CrearParametro("@vino_id",     m.VinoId),
+                _acceso.CrearParametro("@cantidad",    m.Cantidad),
+                _acceso.CrearParametro("@motivo",      m.Motivo),
+                _acceso.CrearParametro("@responsable", m.Responsable)
+            };
+
+            parametros.Add(new SqlParameter("@referencia_tipo", SqlDbType.VarChar, 20)
+            {
+                Value = (object)m.ReferenciaTipo ?? DBNull.Value
+            });
+
+            // Nullable int: construcción manual, per convención documentada en CLAUDE.md.
+            parametros.Add(new SqlParameter("@referencia_id", SqlDbType.Int)
+            {
+                Value = (object)m.ReferenciaId ?? DBNull.Value
+            });
+
+            try
+            {
+                _acceso.Abrir();
+                return _acceso.Escribir("MOVIMIENTO_STOCK_REGISTRAR_SALIDA", parametros);
+            }
+            finally { _acceso.Cerrar(); }
+        }
+
         public List<BE.MovimientoStock> ListarPorVino(int vinoId)
         {
             List<BE.MovimientoStock> lista = new List<BE.MovimientoStock>();

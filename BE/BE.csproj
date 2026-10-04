@@ -44,6 +44,7 @@
     <Compile Include="BITACORA.cs" />
     <Compile Include="Bodega.cs" />
     <Compile Include="CajaMensual.cs" />
+    <Compile Include="AlertaStockMinimo.cs" />
     <Compile Include="CajaVino.cs" />
     <Compile Include="CONTROL_IDIOMA.cs" />
     <Compile Include="EstadoCaja.cs" />
