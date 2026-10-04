@@ -1,13 +1,13 @@
 @startuml DiagramaSecuencia_CU27_RegistrarAjusteInventario
 
-title CU-27 — Registrar Ajuste de Inventario — Diagrama de Secuencia (diseño)
+title CU-27 — Registrar Ajuste de Inventario — Diagrama de Secuencia
 
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.7
+scale 0.65
 
 actor       ":Usuario"                       as U
 participant ":frmRegistrarAjusteInventario"  as FJ #FEFECE
@@ -20,7 +20,6 @@ participant ":BitacoraDAL"                   as TD #E8E8F4
 database    ":DB"                            as DB #EEEEEE
 
 note over FJ
-  Diseño, pendiente de implementación (la entrega actual implementa CU-21, CU-22 y CU-23).
   Precondición: sesión activa; permiso "Gestionar catálogo de vinos";
   existe al menos un vino autorizado y activo.
 end note
@@ -48,9 +47,19 @@ MD --> MB : int
 deactivate MD
 MB --> FJ : int
 deactivate MB
-FJ -> FJ : mostrar stock actual
+FJ -> MB : ObtenerMovimientos(vino.Id)
+activate MB
+MB -> MD : ListarPorVino(vinoId)
+activate MD
+MD -> DB : MOVIMIENTO_STOCK_LISTAR_POR_VINO(@vino_id)
+DB --> MD : filas
+MD --> MB : List<MovimientoStock>
+deactivate MD
+MB --> FJ : List<MovimientoStock>
+deactivate MB
+FJ -> FJ : mostrar stock actual y movimientos del vino
 
-U -> FJ : indicar sentido (positivo / negativo), cantidad y motivo\n(rotura, merma, corrección de conteo) + click "Registrar"
+U -> FJ : seleccionar vino, sentido (positivo / negativo),\ncantidad y motivo + click "Registrar ajuste"
 
 alt sentido negativo
   FJ -> MB : RegistrarSalida(movimiento, sesion)
@@ -59,7 +68,6 @@ alt sentido negativo
   alt 2a. cantidad <= 0 o motivo vacío
     MB --> FJ : InvalidOperationException
     FJ --> U : mensaje de la excepción
-    note right of FJ : el flujo vuelve a la carga de datos
   else datos válidos
     MB -> VD : ObtenerPorId(movimiento.VinoId)
     activate VD
@@ -79,41 +87,81 @@ alt sentido negativo
       MD --> MB : int
       deactivate MD
 
-      alt 2c. stock actual menor a la cantidad a descontar (RN-03)
+      alt 2c. stock actual menor a la cantidad a descontar (RN-03, capa BLL)
         MB --> FJ : InvalidOperationException
         FJ --> U : mensaje de la excepción
-        note right of FJ : no se registra el movimiento
       else stock suficiente
-        note right of MB : Tipo = Salida; Fecha = ahora;\nResponsable = sesion.Usuario
-        MB -> MD : Insertar(movimiento)
+        note right of MB : Tipo = Salida; Fecha = ahora; Responsable = sesion.Usuario;\nReferenciaTipo = "AJUSTE"; ReferenciaId = null
+        MB -> MD : InsertarSalida(movimiento)
         activate MD
-        MD -> DB : MOVIMIENTO_STOCK_INSERTAR(@vino_id,@tipo,@cantidad,\n@motivo,@responsable,@referencia_tipo,@referencia_id)
-        DB --> MD : ID del movimiento
-        MD --> MB : void
+        MD -> DB : MOVIMIENTO_STOCK_REGISTRAR_SALIDA(@vino_id,@cantidad,\n@motivo,@responsable,@referencia_tipo,@referencia_id)
+        DB --> MD : filas afectadas
+        MD --> MB : int
         deactivate MD
-        MB -> BB : RegistrarAccion(sesion.Usuario,\n"AJUSTE_STOCK:" + vino.Codigo + ":-" + cantidad)
-        activate BB
-        BB -> TD : Registrar(usuario, accion)
-        activate TD
-        TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
-        DB --> TD : filas afectadas
-        TD --> BB : void
-        deactivate TD
-        BB --> MB : void
-        deactivate BB
-        MB --> FJ : void
-        FJ --> U : "Ajuste de inventario registrado correctamente."
+
+        alt 2d. 0 filas afectadas (RN-03, backstop atómico de la SP)
+          MB --> FJ : InvalidOperationException
+          FJ --> U : mensaje de la excepción
+        else 1 fila afectada
+          MB -> BB : RegistrarAccion(sesion.Usuario,\n"AJUSTE_STOCK:" + vino.Codigo + ":-" + cantidad)
+          activate BB
+          BB -> TD : Registrar(usuario, accion)
+          activate TD
+          TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+          DB --> TD : filas afectadas
+          TD --> BB : void
+          deactivate TD
+          BB --> MB : void
+          deactivate BB
+          MB --> FJ : void
+          FJ --> U : "Ajuste de inventario registrado correctamente."
+        end
       end
     end
   end
   deactivate MB
 else sentido positivo
+  note right of FJ : movimiento.ReferenciaTipo = "AJUSTE"\n(MovimientoStockBLL.ReferenciaAjuste)
   FJ -> MB : RegistrarEntrada(movimiento, sesion)
   activate MB
-  note right of MB : mismo flujo que CU-23\n(validación, ObtenerPorId, Insertar y Bitácora)
-  MB --> FJ : void
+
+  alt 3a. cantidad <= 0 o motivo vacío
+    MB --> FJ : InvalidOperationException
+    FJ --> U : mensaje de la excepción
+  else datos válidos
+    MB -> VD : ObtenerPorId(movimiento.VinoId)
+    activate VD
+    VD -> DB : VINO_OBTENER_POR_ID(@id)
+    DB --> VD : filas
+    VD --> MB : Vino (o null)
+    deactivate VD
+
+    alt 3b. el vino no existe, no está autorizado o no está activo
+      MB --> FJ : InvalidOperationException
+      FJ --> U : mensaje de la excepción
+    else vino autorizado y activo
+      note right of MB : Tipo = Entrada; Fecha = ahora; Responsable = sesion.Usuario
+      MB -> MD : Insertar(movimiento)
+      activate MD
+      MD -> DB : MOVIMIENTO_STOCK_INSERTAR(@vino_id,@tipo,@cantidad,\n@motivo,@responsable,@referencia_tipo,@referencia_id)
+      DB --> MD : filas afectadas
+      MD --> MB : void
+      deactivate MD
+      MB -> BB : RegistrarAccion(sesion.Usuario,\n"AJUSTE_STOCK:" + vino.Codigo + ":+" + cantidad)
+      activate BB
+      BB -> TD : Registrar(usuario, accion)
+      activate TD
+      TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+      DB --> TD : filas afectadas
+      TD --> BB : void
+      deactivate TD
+      BB --> MB : void
+      deactivate BB
+      MB --> FJ : void
+      FJ --> U : "Ajuste de inventario registrado correctamente."
+    end
+  end
   deactivate MB
-  FJ --> U : "Ajuste de inventario registrado correctamente."
 end
 
 opt el ajuste fue registrado
@@ -127,7 +175,17 @@ opt el ajuste fue registrado
   deactivate MD
   MB --> FJ : int
   deactivate MB
-  FJ -> FJ : refrescar stock actual en pantalla
+  FJ -> MB : ObtenerMovimientos(vino.Id)
+  activate MB
+  MB -> MD : ListarPorVino(vinoId)
+  activate MD
+  MD -> DB : MOVIMIENTO_STOCK_LISTAR_POR_VINO(@vino_id)
+  DB --> MD : filas
+  MD --> MB : List<MovimientoStock>
+  deactivate MD
+  MB --> FJ : List<MovimientoStock>
+  deactivate MB
+  FJ -> FJ : refrescar stock actual y movimientos
 end
 deactivate FJ
 

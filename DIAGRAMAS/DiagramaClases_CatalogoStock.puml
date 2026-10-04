@@ -10,8 +10,7 @@ skinparam linetype ortho
 hide empty members
 scale 0.6
 
-' Implementado: CU-21, CU-22 y CU-23.
-' Diseño pendiente (marcado «no implementado»): CU-24, CU-25 y CU-27.
+' Implementado: CU-21 a CU-27.
 
 package "BE" #FEFECE {
 
@@ -44,6 +43,21 @@ package "BE" #FEFECE {
     + AutorizadoPor : int?
     + AutorizadoPorLogin : string
     + FechaAutorizacion : DateTime?
+    + BajaSolicitadaPor : int?
+    + BajaSolicitadaPorLogin : string
+    + FechaSolicitudBaja : DateTime?
+    + DescontinuadoPor : int?
+    + FechaDescontinuacion : DateTime?
+  }
+
+  class AlertaStockMinimo {
+    + VinoId : int
+    + Codigo : string
+    + Nombre : string
+    + BodegaNombre : string
+    + StockMinimo : int
+    + StockActual : int
+    + Faltante : int
   }
 
   class Bodega {
@@ -77,14 +91,6 @@ package "BE" #FEFECE {
   Vino   "1" o-- "0..*" MovimientoStock : VinoId >
   Vino            --> EstadoVino
   MovimientoStock --> TipoMovimiento
-
-  note bottom of Vino
-    La tabla VINO ya tiene las columnas de baja
-    (BAJA_SOLICITADA_POR, FECHA_SOLICITUD_BAJA,
-    DESCONTINUADO_POR, FECHA_DESCONTINUACION),
-    pero BE.Vino todavía no las mapea: se agregarán
-    al implementar CU-24 y CU-25.
-  end note
 }
 
 ' ─────────────────────────────────────────
@@ -111,10 +117,13 @@ package "DAL" #E8E8F4 {
     + Autorizar(vinoId : int, adminId : int) : int
     .. usado por CajaMensualBLL (CU-28) ..
     + ListarCandidatos(socioId : int) : List<VinoCandidato>
-    .. «no implementado» (CU-24 y CU-25) ..
+    .. CU-24 y CU-25 ..
     + SolicitarBaja(vinoId : int, solicitanteId : int) : int
     + ListarPendientesDeBaja() : List<Vino>
     + AutorizarBaja(vinoId : int, adminId : int) : int
+    + RechazarBaja(vinoId : int) : int
+    .. CU-26 ..
+    + ListarBajoStockMinimo() : List<AlertaStockMinimo>
   }
 
   class BodegaDAL {
@@ -125,6 +134,7 @@ package "DAL" #E8E8F4 {
   class MovimientoStockDAL {
     - _acceso : Acceso
     + Insertar(m : MovimientoStock) : void
+    + InsertarSalida(m : MovimientoStock) : int
     + ListarPorVino(vinoId : int) : List<MovimientoStock>
     + ObtenerStockActual(vinoId : int) : int
   }
@@ -153,31 +163,39 @@ package "BLL" #E8F4E8 {
   class VinoBLL {
     - _dal : VinoDAL
     - _bodegaDal : BodegaDAL
+    - _movimientoDal : MovimientoStockDAL
     - _bitacora : BitacoraBLL
     + ListarBodegas() : List<Bodega>
     + ProponerAlta(v : Vino, sesion : USUARIO) : void
     + ListarPendientes() : List<Vino>
     + ListarAutorizados() : List<Vino>
     + Autorizar(vinoId : int, sesion : USUARIO) : void
-    .. «no implementado» (CU-24 y CU-25) ..
+    .. CU-24 y CU-25 ..
     + SolicitarBaja(vinoId : int, sesion : USUARIO) : void
     + ListarPendientesDeBaja() : List<Vino>
     + AutorizarBaja(vinoId : int, sesion : USUARIO) : void
+    + RechazarBaja(vinoId : int, sesion : USUARIO) : void
+    - ValidarSinStock(vinoId : int) : void
+    - ObtenerConBajaPendiente(vinoId : int) : Vino
+    .. CU-26 ..
+    + ListarAlertaStockMinimo() : List<AlertaStockMinimo>
   }
 
   class MovimientoStockBLL {
     - _dal : MovimientoStockDAL
     - _vinoDal : VinoDAL
     - _bitacora : BitacoraBLL
+    + {static} ReferenciaAjuste : string = "AJUSTE"
     + RegistrarEntrada(m : MovimientoStock, sesion : USUARIO) : void
     + ObtenerStockActual(vinoId : int) : int
     + ObtenerMovimientos(vinoId : int) : List<MovimientoStock>
-    .. «no implementado» (CU-27) ..
+    .. CU-27 (ajuste negativo) ..
     + RegistrarSalida(m : MovimientoStock, sesion : USUARIO) : void
   }
 
   VinoBLL            --> VinoDAL
   VinoBLL            --> BodegaDAL
+  VinoBLL            --> MovimientoStockDAL
   VinoBLL            --> BitacoraBLL
   MovimientoStockBLL --> MovimientoStockDAL
   MovimientoStockBLL --> VinoDAL
@@ -201,7 +219,8 @@ package "CAPAS" #F4E8E8 {
     - _bll : VinoBLL
     + ActualizarIdioma() : void
     - btnGuardarVino_Click() : void
-    .. «no implementado» (CU-24) ..
+    - dgvVinos_SelectionChanged() : void
+    - ActualizarEstadoBajaBoton() : void
     - btnSolicitarBaja_Click() : void
   }
 
@@ -218,13 +237,19 @@ package "CAPAS" #F4E8E8 {
     - btnRegistrarEntrada_Click() : void
   }
 
-  class frmAutorizarBajaVino <<no implementado>> {
+  class frmAutorizarBajaVino {
     - _bll : VinoBLL
     + ActualizarIdioma() : void
     - btnAutorizarBaja_Click() : void
+    - btnRechazarBaja_Click() : void
   }
 
-  class frmRegistrarAjusteInventario <<no implementado>> {
+  class frmAlertaStockMinimo {
+    - _bll : VinoBLL
+    + ActualizarIdioma() : void
+  }
+
+  class frmRegistrarAjusteInventario {
     - _bll : MovimientoStockBLL
     - _vinoBll : VinoBLL
     + ActualizarIdioma() : void
@@ -235,12 +260,14 @@ package "CAPAS" #F4E8E8 {
   FormBase <|-- frmAutorizarAltaVino
   FormBase <|-- frmRegistrarEntradaStock
   FormBase <|-- frmAutorizarBajaVino
+  FormBase <|-- frmAlertaStockMinimo
   FormBase <|-- frmRegistrarAjusteInventario
 
   IObservadorIdioma <|.. frmCatalogoVinos
   IObservadorIdioma <|.. frmAutorizarAltaVino
   IObservadorIdioma <|.. frmRegistrarEntradaStock
   IObservadorIdioma <|.. frmAutorizarBajaVino
+  IObservadorIdioma <|.. frmAlertaStockMinimo
   IObservadorIdioma <|.. frmRegistrarAjusteInventario
 
   frmCatalogoVinos            --> VinoBLL
@@ -248,6 +275,7 @@ package "CAPAS" #F4E8E8 {
   frmRegistrarEntradaStock    --> MovimientoStockBLL
   frmRegistrarEntradaStock    --> VinoBLL
   frmAutorizarBajaVino        --> VinoBLL
+  frmAlertaStockMinimo        --> VinoBLL
   frmRegistrarAjusteInventario --> MovimientoStockBLL
   frmRegistrarAjusteInventario --> VinoBLL
 }

@@ -1,0 +1,43 @@
+@startuml DiagramaSecuencia_CU26_ConsultarAlertaStockMinimo
+
+title CU-26 — Consultar Alerta de Stock Mínimo — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+actor       ":Usuario"                 as U
+participant ":frmAlertaStockMinimo"    as FA #FEFECE
+participant ":VinoBLL"                 as VB #E8F4E8
+participant ":VinoDAL"                 as VD #E8E8F4
+database    ":DB"                      as DB #EEEEEE
+
+note over FA
+  Precondición: sesión activa; permiso "Gestionar catálogo de vinos".
+  Consulta pasiva: no hay aviso automático al iniciar sesión ni registro en Bitácora.
+end note
+
+U -> FA : abrir "Alerta de stock mínimo"
+activate FA
+FA -> VB : ListarAlertaStockMinimo()
+activate VB
+VB -> VD : ListarBajoStockMinimo()
+activate VD
+VD -> DB : VINO_LISTAR_STOCK_BAJO
+DB --> VD : filas (vinos activos y autorizados con stock derivado < STOCK_MINIMO)
+VD --> VB : List<AlertaStockMinimo>
+deactivate VD
+VB --> FA : List<AlertaStockMinimo>
+deactivate VB
+
+alt 2a. la lista está vacía
+  FA --> U : grilla vacía + mensaje "sin alertas"
+else hay vinos bajo el mínimo
+  FA --> U : grilla con SKU, nombre, bodega, stock mínimo,\nstock actual y faltante
+end
+deactivate FA
+
+@enduml

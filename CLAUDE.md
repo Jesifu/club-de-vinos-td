@@ -276,7 +276,8 @@ All diagram sources, generated images, and doc-generation scripts live under `DI
 | `DIAGRAMAS/DiagramaSecuencia_CU22_AutorizarAltaVino.puml` / `.png` | Secuencia por CU | CU-22 Autorizar Alta de Vino |
 | `DIAGRAMAS/DiagramaSecuencia_CU23_RegistrarMovimientoStock.puml` / `.png` | Secuencia por CU | CU-23 Registrar Movimiento de Stock (Entrada) |
 | `DIAGRAMAS/DiagramaSecuencia_CU24_SolicitarDescontinuacion.puml` / `.png` | Secuencia por CU | CU-24 Solicitar Descontinuación de Vino |
-| `DIAGRAMAS/DiagramaSecuencia_CU25_AutorizarDescontinuacion.puml` / `.png` | Secuencia por CU | CU-25 Autorizar Descontinuación de Vino |
+| `DIAGRAMAS/DiagramaSecuencia_CU25_AutorizarDescontinuacion.puml` / `.png` | Secuencia por CU | CU-25 Autorizar o Rechazar Descontinuación de Vino |
+| `DIAGRAMAS/DiagramaSecuencia_CU26_ConsultarAlertaStockMinimo.puml` / `.png` | Secuencia por CU | CU-26 Consultar Alerta de Stock Mínimo |
 | `DIAGRAMAS/DiagramaSecuencia_CU27_RegistrarAjusteInventario.puml` / `.png` | Secuencia por CU | CU-27 Registrar Ajuste de Inventario |
 | `DIAGRAMAS/ModeloConceptual_CuracionCajas.puml` / `.png` | Modelo conceptual | SOCIO-SOCIO_VARIETAL-CAJA_MENSUAL-CAJA_VINO-SUSTITUCION, sin detalle físico, dominio de curación y armado de cajas mensuales |
 | `DIAGRAMAS/DiagramaActividad_CuracionCajas.puml` / `.png` | Actividad (proceso de negocio) | 4 carriles (Atención al Socio, Curador de Producto, Encargado de Depósito, Logística) del dominio de curación y armado de cajas mensuales |
