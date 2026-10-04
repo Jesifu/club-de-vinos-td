@@ -231,6 +231,9 @@
     <EmbeddedResource Include="frmPerfiles.resx">
       <DependentUpon>frmPerfiles.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="frmPickingCaja.resx">
+      <DependentUpon>frmPickingCaja.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="LogIn.resx">
       <DependentUpon>LogIn.cs</DependentUpon>
     </EmbeddedResource>
