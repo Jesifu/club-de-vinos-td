@@ -4,7 +4,7 @@
 
   <Package Name="Club de Vinos"
            Manufacturer="Club de Vinos"
-           Version="1.1.0.0"
+           Version="1.2.0.0"
            UpgradeCode="7C1F3A52-9B0E-4D6A-8E21-5A4D0C9B7E13"
            Scope="perMachine"
            Compressed="yes">
