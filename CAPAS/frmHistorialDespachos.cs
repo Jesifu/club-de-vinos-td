@@ -89,6 +89,9 @@ namespace CAPAS
             {
                 if (dgvCajasDespachadas.Columns["Id"] != null) dgvCajasDespachadas.Columns["Id"].Visible = false;
                 if (dgvCajasDespachadas.Columns["SocioId"] != null) dgvCajasDespachadas.Columns["SocioId"].Visible = false;
+                // Datos de contacto del socio: se usan para el remito (RN-14), no para la grilla.
+                if (dgvCajasDespachadas.Columns["SocioDomicilio"] != null) dgvCajasDespachadas.Columns["SocioDomicilio"].Visible = false;
+                if (dgvCajasDespachadas.Columns["SocioTelefono"] != null) dgvCajasDespachadas.Columns["SocioTelefono"].Visible = false;
                 if (dgvCajasDespachadas.Columns["Estado"] != null) dgvCajasDespachadas.Columns["Estado"].Visible = false;
                 if (dgvCajasDespachadas.Columns["PresupuestoSnapshot"] != null) dgvCajasDespachadas.Columns["PresupuestoSnapshot"].Visible = false;
                 if (dgvCajasDespachadas.Columns["FechaArmado"] != null) dgvCajasDespachadas.Columns["FechaArmado"].Visible = false;

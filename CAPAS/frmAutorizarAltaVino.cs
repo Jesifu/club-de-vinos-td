@@ -109,6 +109,10 @@ namespace CAPAS
                 if (dgvPendientes.Columns["AutorizadoPorLogin"] != null) dgvPendientes.Columns["AutorizadoPorLogin"].Visible = false;
                 if (dgvPendientes.Columns["FechaAutorizacion"] != null) dgvPendientes.Columns["FechaAutorizacion"].Visible = false;
                 if (dgvPendientes.Columns["Estado"] != null) dgvPendientes.Columns["Estado"].Visible = false;
+                // Datos de descontinuación (CU-24/25): un vino pendiente de alta nunca los tiene.
+                foreach (string col in new[] { "BajaSolicitadaPor", "BajaSolicitadaPorLogin", "FechaSolicitudBaja",
+                                               "DescontinuadoPor", "FechaDescontinuacion" })
+                    if (dgvPendientes.Columns[col] != null) dgvPendientes.Columns[col].Visible = false;
                 ActualizarEncabezados();
             }
 
