@@ -110,22 +110,8 @@ namespace DAL
             return lista;
         }
 
-        public int Autorizar(int vinoId, int adminId)
-        {
-            List<SqlParameter> parametros = new List<SqlParameter>
-            {
-                _acceso.CrearParametro("@id",       vinoId),
-                _acceso.CrearParametro("@admin_id", adminId)
-            };
-            try
-            {
-                _acceso.Abrir();
-                return _acceso.Escribir("VINO_AUTORIZAR", parametros);
-            }
-            finally { _acceso.Cerrar(); }
-        }
-
-        // CU-24: devuelve filas afectadas (0 = el estado cambió o el vino no admite la solicitud).
+        // CU-24: devuelve FILAS (0 = el estado, el stock o una baja pendiente impiden la solicitud).
+        // Si dos solicitudes compiten, el índice único de la base lanza SqlException 2601/2627.
         public int SolicitarBaja(int vinoId, int solicitanteId)
         {
             List<SqlParameter> parametros = new List<SqlParameter>
@@ -136,7 +122,8 @@ namespace DAL
             try
             {
                 _acceso.Abrir();
-                return _acceso.Escribir("VINO_SOLICITAR_BAJA", parametros);
+                DataTable tabla = _acceso.Leer("VINO_SOLICITAR_BAJA", parametros);
+                return Convert.ToInt32(tabla.Rows[0]["FILAS"]);
             }
             finally { _acceso.Cerrar(); }
         }
@@ -155,38 +142,7 @@ namespace DAL
             return lista;
         }
 
-        // CU-25: RN-01 en el WHERE de la SP (BAJA_SOLICITADA_POR <> @admin_id). 0 filas = rechazado.
-        public int AutorizarBaja(int vinoId, int adminId)
-        {
-            List<SqlParameter> parametros = new List<SqlParameter>
-            {
-                _acceso.CrearParametro("@id",       vinoId),
-                _acceso.CrearParametro("@admin_id", adminId)
-            };
-            try
-            {
-                _acceso.Abrir();
-                return _acceso.Escribir("VINO_AUTORIZAR_BAJA", parametros);
-            }
-            finally { _acceso.Cerrar(); }
-        }
-
-        // CU-25 (rechazo): limpia la solicitud pendiente; el vino sigue Activo.
-        public int RechazarBaja(int vinoId)
-        {
-            List<SqlParameter> parametros = new List<SqlParameter>
-            {
-                _acceso.CrearParametro("@id", vinoId)
-            };
-            try
-            {
-                _acceso.Abrir();
-                return _acceso.Escribir("VINO_RECHAZAR_BAJA", parametros);
-            }
-            finally { _acceso.Cerrar(); }
-        }
-
-        // CU-26: vinos activos y autorizados con stock derivado < STOCK_MINIMO.
+        // CU-26: vinos activos con stock derivado < STOCK_MINIMO.
         public List<BE.AlertaStockMinimo> ListarBajoStockMinimo()
         {
             List<BE.AlertaStockMinimo> lista = new List<BE.AlertaStockMinimo>();

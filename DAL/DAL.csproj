@@ -51,6 +51,7 @@
     <Compile Include="BitacoraDAL.cs" />
     <Compile Include="PerfilDAL.cs" />
     <Compile Include="SocioDAL.cs" />
+    <Compile Include="SolicitudAutorizacionDAL.cs" />
     <Compile Include="SustitucionDAL.cs" />
     <Compile Include="UsuarioPerfilDAL.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

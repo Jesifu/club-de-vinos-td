@@ -18,7 +18,7 @@ namespace BLL
                 throw new InvalidOperationException("El motivo es obligatorio.");
 
             Vino v = _vinoDal.ObtenerPorId(m.VinoId);
-            if (v == null || !v.AutorizadoPor.HasValue || v.Estado != EstadoVino.Activo)
+            if (v == null || v.Estado != EstadoVino.Activo)
                 throw new InvalidOperationException("El vino debe estar autorizado para registrar movimientos de stock.");
 
             m.Tipo = TipoMovimiento.Entrada;
@@ -44,7 +44,7 @@ namespace BLL
                 throw new InvalidOperationException("El motivo es obligatorio.");
 
             Vino v = _vinoDal.ObtenerPorId(m.VinoId);
-            if (v == null || !v.AutorizadoPor.HasValue || v.Estado != EstadoVino.Activo)
+            if (v == null || v.Estado != EstadoVino.Activo)
                 throw new InvalidOperationException("El vino debe estar autorizado para registrar movimientos de stock.");
 
             // RN-03, capa BLL: mensaje claro antes de tocar la escritura.

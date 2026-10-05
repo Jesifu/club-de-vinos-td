@@ -17,6 +17,8 @@ namespace CAPAS
             this.dgvPendientesBaja = new System.Windows.Forms.DataGridView();
             this.panelInferior = new System.Windows.Forms.Panel();
             this.lblAyudaBaja = new System.Windows.Forms.Label();
+            this.lblMotivoRechazo = new System.Windows.Forms.Label();
+            this.txtMotivoRechazo = new System.Windows.Forms.TextBox();
             this.btnAutorizarBaja = new System.Windows.Forms.Button();
             this.btnRechazarBaja = new System.Windows.Forms.Button();
             this.btnCerrar = new System.Windows.Forms.Button();
@@ -55,28 +57,47 @@ namespace CAPAS
             // panelInferior
             //
             this.panelInferior.Controls.Add(this.lblAyudaBaja);
+            this.panelInferior.Controls.Add(this.lblMotivoRechazo);
+            this.panelInferior.Controls.Add(this.txtMotivoRechazo);
             this.panelInferior.Controls.Add(this.btnAutorizarBaja);
             this.panelInferior.Controls.Add(this.btnRechazarBaja);
             this.panelInferior.Controls.Add(this.btnCerrar);
             this.panelInferior.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.panelInferior.Location = new System.Drawing.Point(0, 460);
             this.panelInferior.Name = "panelInferior";
-            this.panelInferior.Size = new System.Drawing.Size(710, 80);
+            this.panelInferior.Size = new System.Drawing.Size(710, 130);
             this.panelInferior.TabIndex = 2;
             //
             // lblAyudaBaja
             //
             this.lblAyudaBaja.AutoSize = true;
-            this.lblAyudaBaja.Location = new System.Drawing.Point(13, 15);
+            this.lblAyudaBaja.Location = new System.Drawing.Point(13, 10);
             this.lblAyudaBaja.Name = "lblAyudaBaja";
             this.lblAyudaBaja.Size = new System.Drawing.Size(520, 20);
             this.lblAyudaBaja.TabIndex = 0;
             this.lblAyudaBaja.Text = "No puede autorizar una descontinuación que usted mismo solicitó.";
             //
+            // lblMotivoRechazo
+            //
+            this.lblMotivoRechazo.AutoSize = true;
+            this.lblMotivoRechazo.Location = new System.Drawing.Point(13, 43);
+            this.lblMotivoRechazo.Name = "lblMotivoRechazo";
+            this.lblMotivoRechazo.Size = new System.Drawing.Size(160, 20);
+            this.lblMotivoRechazo.TabIndex = 4;
+            this.lblMotivoRechazo.Text = "Motivo de rechazo:";
+            //
+            // txtMotivoRechazo
+            //
+            this.txtMotivoRechazo.Location = new System.Drawing.Point(180, 40);
+            this.txtMotivoRechazo.MaxLength = 200;
+            this.txtMotivoRechazo.Name = "txtMotivoRechazo";
+            this.txtMotivoRechazo.Size = new System.Drawing.Size(517, 26);
+            this.txtMotivoRechazo.TabIndex = 5;
+            //
             // btnAutorizarBaja
             //
             this.btnAutorizarBaja.Enabled = false;
-            this.btnAutorizarBaja.Location = new System.Drawing.Point(13, 40);
+            this.btnAutorizarBaja.Location = new System.Drawing.Point(13, 80);
             this.btnAutorizarBaja.Name = "btnAutorizarBaja";
             this.btnAutorizarBaja.Size = new System.Drawing.Size(220, 38);
             this.btnAutorizarBaja.TabIndex = 1;
@@ -87,7 +108,7 @@ namespace CAPAS
             // btnRechazarBaja
             //
             this.btnRechazarBaja.Enabled = false;
-            this.btnRechazarBaja.Location = new System.Drawing.Point(245, 40);
+            this.btnRechazarBaja.Location = new System.Drawing.Point(245, 80);
             this.btnRechazarBaja.Name = "btnRechazarBaja";
             this.btnRechazarBaja.Size = new System.Drawing.Size(220, 38);
             this.btnRechazarBaja.TabIndex = 2;
@@ -98,7 +119,7 @@ namespace CAPAS
             // btnCerrar
             //
             this.btnCerrar.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnCerrar.Location = new System.Drawing.Point(597, 40);
+            this.btnCerrar.Location = new System.Drawing.Point(597, 80);
             this.btnCerrar.Name = "btnCerrar";
             this.btnCerrar.Size = new System.Drawing.Size(100, 38);
             this.btnCerrar.TabIndex = 3;
@@ -111,7 +132,7 @@ namespace CAPAS
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.ActiveCaption;
-            this.ClientSize = new System.Drawing.Size(710, 540);
+            this.ClientSize = new System.Drawing.Size(710, 590);
             this.Controls.Add(this.panelInferior);
             this.Controls.Add(this.dgvPendientesBaja);
             this.Controls.Add(this.lblTitulo);
@@ -134,6 +155,8 @@ namespace CAPAS
         private System.Windows.Forms.DataGridView dgvPendientesBaja;
         private System.Windows.Forms.Panel panelInferior;
         private System.Windows.Forms.Label lblAyudaBaja;
+        private System.Windows.Forms.Label lblMotivoRechazo;
+        private System.Windows.Forms.TextBox txtMotivoRechazo;
         private System.Windows.Forms.Button btnAutorizarBaja;
         private System.Windows.Forms.Button btnRechazarBaja;
         private System.Windows.Forms.Button btnCerrar;

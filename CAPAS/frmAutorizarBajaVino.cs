@@ -125,8 +125,10 @@ namespace CAPAS
 
             // Capa UI del triple guard de RN-01: quien solicitó la baja no puede autorizarla,
             // aunque BLL y SP también la rechacen.
-            btnAutorizarBaja.Enabled = seleccionado != null && seleccionado.BajaSolicitadaPor != sesion.Id;
-            btnRechazarBaja.Enabled = seleccionado != null;
+            // También aplica al rechazo: quien solicitó la baja no puede resolverla de ninguna forma.
+            bool puedeResolver = seleccionado != null && seleccionado.BajaSolicitadaPor != sesion.Id;
+            btnAutorizarBaja.Enabled = puedeResolver;
+            btnRechazarBaja.Enabled = puedeResolver;
         }
 
         private void btnAutorizarBaja_Click(object sender, EventArgs e)
@@ -171,6 +173,16 @@ namespace CAPAS
                 return;
             }
 
+            // R6: el motivo es obligatorio. La BLL y la SP lo vuelven a validar.
+            string motivo = txtMotivoRechazo.Text.Trim();
+            if (motivo.Length == 0)
+            {
+                MsgBox.Show("Debe indicar el motivo del rechazo.", "Atención",
+                    MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                txtMotivoRechazo.Focus();
+                return;
+            }
+
             if (MsgBox.Show("¿Rechazar la descontinuación del vino '" + seleccionado.Nombre + "'? El vino seguirá activo.",
                 "Confirmar", MsgBox.Botones.SiNo, MsgBox.Icono.Pregunta) != DialogResult.Yes)
                 return;
@@ -179,7 +191,7 @@ namespace CAPAS
 
             try
             {
-                _bll.RechazarBaja(seleccionado.Id, sesion);
+                _bll.RechazarBaja(seleccionado.Id, motivo, sesion);
             }
             catch (InvalidOperationException ex)
             {
@@ -190,6 +202,7 @@ namespace CAPAS
 
             MsgBox.Show("Solicitud de descontinuación rechazada. El vino sigue activo.", "Éxito",
                 MsgBox.Botones.OK, MsgBox.Icono.Exito);
+            txtMotivoRechazo.Clear();
             CargarPendientes();
         }
 
