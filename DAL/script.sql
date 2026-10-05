@@ -1727,6 +1727,54 @@ BEGIN
 END
 GO
 
+IF OBJECT_ID('dbo.VINO_REPROPONER', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_REPROPONER]
+GO
+-- R2: un vino Rechazado se corrige y se repropone con el mismo SKU (no recibe @codigo). El vino
+-- vuelve a Pendiente con los datos editados y se emite una solicitud ALTA nueva; la anterior queda
+-- Rechazada. 0 FILAS = el vino no está Rechazado. El índice UX_SOLAUT_PENDIENTE respalda las carreras.
+-- Orden de bloqueo: primero VINO (el UPDATE), después SOLICITUD_AUTORIZACION.
+CREATE PROCEDURE [dbo].[VINO_REPROPONER]
+    @id           INT,
+    @nombre       VARCHAR(100),
+    @bodega_id    INT,
+    @varietal     VARCHAR(50),
+    @aniada       INT,
+    @precio       DECIMAL(10,2),
+    @stock_minimo INT,
+    @emisor_id    INT,
+    @maridaje     VARCHAR(200) = NULL,
+    @puntaje      INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        UPDATE VINO
+        SET NOMBRE = @nombre, BODEGA_ID = @bodega_id, VARIETAL = @varietal, ANIADA = @aniada,
+            PRECIO = @precio, STOCK_MINIMO = @stock_minimo, MARIDAJE = @maridaje, PUNTAJE = @puntaje,
+            ESTADO = 'Pendiente'
+        WHERE ID = @id AND ESTADO = 'Rechazado';
+        IF @@ROWCOUNT = 0
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        INSERT INTO SOLICITUD_AUTORIZACION (TIPO, VINO_ID, ESTADO, EMISOR_ID, FECHA_EMISION)
+        VALUES ('ALTA', @id, 'Pendiente', @emisor_id, GETDATE());
+
+        COMMIT TRAN;
+        SELECT 1 AS FILAS;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END
+GO
+
 IF OBJECT_ID('dbo.VINO_OBTENER_POR_CODIGO', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_OBTENER_POR_CODIGO]
 GO
 CREATE PROCEDURE [dbo].[VINO_OBTENER_POR_CODIGO]
@@ -1800,6 +1848,38 @@ AS
     LEFT JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
     WHERE v.ESTADO = 'Activo'
     ORDER BY v.NOMBRE
+GO
+
+IF OBJECT_ID('dbo.VINO_LISTAR_CATALOGO', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_LISTAR_CATALOGO]
+GO
+-- Catálogo de Compras (R7, REQ-SA-09): los vinos Activos y Rechazados (visibles para todos) más los
+-- Pendientes cuya última solicitud emitió @usuario_id. La última solicitud por vino se resuelve por FECHA_EMISION DESC, ID DESC
+-- y aporta tipo, estado y motivo de rechazo.
+CREATE PROCEDURE [dbo].[VINO_LISTAR_CATALOGO]
+    @usuario_id INT
+AS
+    SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
+           v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
+           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
+           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION,
+           v.BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN, v.FECHA_SOLICITUD_BAJA,
+           v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION,
+           ult.TIPO AS ULT_SOLICITUD_TIPO, ult.ESTADO AS ULT_SOLICITUD_ESTADO,
+           ult.MOTIVO_RECHAZO AS ULT_MOTIVO_RECHAZO
+    FROM VINO v
+    JOIN BODEGA b ON b.ID = v.BODEGA_ID
+    JOIN USUARIO uc ON uc.ID = v.CREADO_POR
+    LEFT JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
+    LEFT JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
+    OUTER APPLY (SELECT TOP 1 s.TIPO, s.ESTADO, s.MOTIVO_RECHAZO, s.EMISOR_ID
+                 FROM SOLICITUD_AUTORIZACION s
+                 WHERE s.VINO_ID = v.ID
+                 ORDER BY s.FECHA_EMISION DESC, s.ID DESC) ult
+    -- Activo y Rechazado los ve cualquier usuario de Compras (un rechazado lo puede reproponer cualquiera);
+    -- Pendiente solo quien emitió la última solicitud; Descontinuado queda oculto.
+    WHERE v.ESTADO IN ('Activo', 'Rechazado')
+       OR (v.ESTADO = 'Pendiente' AND ult.EMISOR_ID = @usuario_id)
+    ORDER BY v.FECHA_ALTA DESC, v.ID DESC
 GO
 
 IF OBJECT_ID('dbo.VINO_AUTORIZAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_AUTORIZAR]
@@ -1896,9 +1976,17 @@ BEGIN
     BEGIN TRY
         BEGIN TRAN;
 
+        -- Orden de bloqueo único en todas las SPs: primero VINO, después SOLICITUD_AUTORIZACION
+        -- (igual que VINO_SOLICITAR_BAJA), para evitar interbloqueos.
+        SELECT @vino_id = VINO_ID FROM SOLICITUD_AUTORIZACION WHERE ID = @solicitud_id;
+        IF @vino_id IS NULL
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+        SELECT @vino_id = ID FROM VINO WITH (UPDLOCK, HOLDLOCK) WHERE ID = @vino_id;
+
         UPDATE SOLICITUD_AUTORIZACION
-        SET ESTADO = 'Aprobada', RESOLUTOR_ID = @resolutor_id, FECHA_RESOLUCION = GETDATE(),
-            @vino_id = VINO_ID
+        SET ESTADO = 'Aprobada', RESOLUTOR_ID = @resolutor_id, FECHA_RESOLUCION = GETDATE()
         WHERE ID = @solicitud_id AND TIPO = 'ALTA' AND ESTADO = 'Pendiente' AND EMISOR_ID <> @resolutor_id;
         IF @@ROWCOUNT = 0
         BEGIN
@@ -1946,10 +2034,17 @@ BEGIN
     BEGIN TRY
         BEGIN TRAN;
 
+        -- Orden de bloqueo: primero VINO, después SOLICITUD_AUTORIZACION.
+        SELECT @vino_id = VINO_ID FROM SOLICITUD_AUTORIZACION WHERE ID = @solicitud_id;
+        IF @vino_id IS NULL
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+        SELECT @vino_id = ID FROM VINO WITH (UPDLOCK, HOLDLOCK) WHERE ID = @vino_id;
+
         UPDATE SOLICITUD_AUTORIZACION
         SET ESTADO = 'Rechazada', RESOLUTOR_ID = @resolutor_id, FECHA_RESOLUCION = GETDATE(),
-            MOTIVO_RECHAZO = LTRIM(RTRIM(@motivo)),
-            @vino_id = VINO_ID
+            MOTIVO_RECHAZO = LTRIM(RTRIM(@motivo))
         WHERE ID = @solicitud_id AND TIPO = 'ALTA' AND ESTADO = 'Pendiente' AND EMISOR_ID <> @resolutor_id;
         IF @@ROWCOUNT = 0
         BEGIN
@@ -1988,9 +2083,16 @@ BEGIN
     BEGIN TRY
         BEGIN TRAN;
 
+        -- Orden de bloqueo: primero VINO (igual que VINO_SOLICITAR_BAJA), después SOLICITUD_AUTORIZACION.
+        SELECT @vino_id = VINO_ID FROM SOLICITUD_AUTORIZACION WHERE ID = @solicitud_id;
+        IF @vino_id IS NULL
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+        SELECT @vino_id = ID FROM VINO WITH (UPDLOCK, HOLDLOCK) WHERE ID = @vino_id;
+
         UPDATE SOLICITUD_AUTORIZACION
-        SET ESTADO = 'Aprobada', RESOLUTOR_ID = @resolutor_id, FECHA_RESOLUCION = GETDATE(),
-            @vino_id = VINO_ID
+        SET ESTADO = 'Aprobada', RESOLUTOR_ID = @resolutor_id, FECHA_RESOLUCION = GETDATE()
         WHERE ID = @solicitud_id AND TIPO = 'BAJA' AND ESTADO = 'Pendiente' AND EMISOR_ID <> @resolutor_id;
         IF @@ROWCOUNT = 0
         BEGIN
@@ -2046,10 +2148,17 @@ BEGIN
     BEGIN TRY
         BEGIN TRAN;
 
+        -- Orden de bloqueo: primero VINO, después SOLICITUD_AUTORIZACION.
+        SELECT @vino_id = VINO_ID FROM SOLICITUD_AUTORIZACION WHERE ID = @solicitud_id;
+        IF @vino_id IS NULL
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+        SELECT @vino_id = ID FROM VINO WITH (UPDLOCK, HOLDLOCK) WHERE ID = @vino_id;
+
         UPDATE SOLICITUD_AUTORIZACION
         SET ESTADO = 'Rechazada', RESOLUTOR_ID = @resolutor_id, FECHA_RESOLUCION = GETDATE(),
-            MOTIVO_RECHAZO = LTRIM(RTRIM(@motivo)),
-            @vino_id = VINO_ID
+            MOTIVO_RECHAZO = LTRIM(RTRIM(@motivo))
         WHERE ID = @solicitud_id AND TIPO = 'BAJA' AND ESTADO = 'Pendiente' AND EMISOR_ID <> @resolutor_id;
         IF @@ROWCOUNT = 0
         BEGIN
@@ -2747,7 +2856,7 @@ GO
 
 EXEC CONTROL_REGISTRAR 'frmAutorizarAltaVino',        'Autorizar alta de vinos'
 EXEC CONTROL_REGISTRAR 'lblTitulo_AutorizarAltaVino', 'Autorizar alta de vinos'
-EXEC CONTROL_REGISTRAR 'lblAyuda',                    'No puede autorizar un vino que usted mismo dio de alta.'
+EXEC CONTROL_REGISTRAR 'lblAyuda',                    'No puede autorizar ni rechazar una solicitud que usted mismo emitió.'
 EXEC CONTROL_REGISTRAR 'btnAutorizar',                'Autorizar'
 GO
 
@@ -4273,23 +4382,26 @@ GO
 
 IF OBJECT_ID('dbo.VINO_LISTAR_PENDIENTES_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_LISTAR_PENDIENTES_BAJA]
 GO
+-- Se alimenta de SOLICITUD_AUTORIZACION (BAJA Pendiente), no de las columnas legadas de VINO.
+-- Conserva la forma de columnas de VINO para el formulario de baja actual; en el slice 3 el
+-- formulario pasa a SOLICITUD_LISTAR_PENDIENTES('BAJA') y esta SP se elimina.
 CREATE PROCEDURE [dbo].[VINO_LISTAR_PENDIENTES_BAJA]
 AS
     SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
            v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
            v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
            v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION,
-           v.BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN, v.FECHA_SOLICITUD_BAJA,
+           s.EMISOR_ID AS BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN,
+           s.FECHA_EMISION AS FECHA_SOLICITUD_BAJA,
            v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION
-    FROM VINO v
+    FROM SOLICITUD_AUTORIZACION s
+    JOIN VINO v ON v.ID = s.VINO_ID
     JOIN BODEGA b ON b.ID = v.BODEGA_ID
     JOIN USUARIO uc ON uc.ID = v.CREADO_POR
     LEFT JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
-    JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
-    WHERE v.BAJA_SOLICITADA_POR IS NOT NULL
-      AND v.DESCONTINUADO_POR IS NULL
-      AND v.ESTADO = 'Activo'
-    ORDER BY v.FECHA_SOLICITUD_BAJA
+    JOIN USUARIO ub ON ub.ID = s.EMISOR_ID
+    WHERE s.TIPO = 'BAJA' AND s.ESTADO = 'Pendiente'
+    ORDER BY s.FECHA_EMISION, s.ID
 GO
 
 IF OBJECT_ID('dbo.VINO_AUTORIZAR_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_AUTORIZAR_BAJA]
@@ -4393,7 +4505,7 @@ EXEC CONTROL_REGISTRAR 'colhdr_BajaSolicitadaPor', 'Baja solicitada por'
 EXEC CONTROL_REGISTRAR 'colhdr_FechaSolicitudBaja', 'Fecha de solicitud de baja'
 EXEC CONTROL_REGISTRAR 'frmAutorizarBajaVino', 'Autorizar descontinuación de vinos'
 EXEC CONTROL_REGISTRAR 'lblTitulo_AutorizarBajaVino', 'Autorizar descontinuación de vinos'
-EXEC CONTROL_REGISTRAR 'lblAyudaBaja', 'No puede autorizar una descontinuación que usted mismo solicitó.'
+EXEC CONTROL_REGISTRAR 'lblAyudaBaja', 'No puede autorizar ni rechazar una solicitud que usted mismo emitió.'
 EXEC CONTROL_REGISTRAR 'btnAutorizarBaja', 'Autorizar baja'
 EXEC CONTROL_REGISTRAR 'btnRechazarBaja', 'Rechazar baja'
 EXEC CONTROL_REGISTRAR 'frmRegistrarAjusteInventario', 'Registrar ajuste de inventario'
@@ -4601,4 +4713,139 @@ EXEC TRADUCCION_GUARDAR @idiomaIdSol, @cideSol, 'Rejection reason:'
 
 SET @idiomaIdSol = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
 EXEC TRADUCCION_GUARDAR @idiomaIdSol, @cideSol, 'Motivo da rejeição:'
+GO
+
+-- ============================================================
+-- i18n — SOLICITUD DE AUTORIZACIÓN, bloque F (slice 2: detalle de alta, rechazo, reproponer y catálogo)
+-- valsol_*: valores de tipo/estado de solicitud que se muestran en la grilla del catálogo y en el panel de detalle.
+-- lblAyuda / lblAyudaBaja: se re-guardan con el texto que incluye el rechazo (RN-01 aplica también al rechazar).
+-- ============================================================
+EXEC CONTROL_REGISTRAR 'lblDetalleSolicitud', 'Detalle de la solicitud'
+EXEC CONTROL_REGISTRAR 'btnRechazarAlta', 'Rechazar alta'
+EXEC CONTROL_REGISTRAR 'btnReproponer', 'Corregir y reproponer'
+EXEC CONTROL_REGISTRAR 'lblAyudaReproponer', 'Corrigiendo un vino rechazado: al guardar se emite una nueva solicitud de alta.'
+EXEC CONTROL_REGISTRAR 'colhdr_TipoSolicitud', 'Tipo'
+EXEC CONTROL_REGISTRAR 'colhdr_Emisor', 'Emitida por'
+EXEC CONTROL_REGISTRAR 'colhdr_FechaEmision', 'Fecha de emisión'
+EXEC CONTROL_REGISTRAR 'colhdr_UltimaSolicitud', 'Última solicitud'
+EXEC CONTROL_REGISTRAR 'colhdr_EstadoSolicitud', 'Estado de la solicitud'
+EXEC CONTROL_REGISTRAR 'colhdr_MotivoRechazo', 'Motivo de rechazo'
+EXEC CONTROL_REGISTRAR 'valsol_Alta', 'Alta'
+EXEC CONTROL_REGISTRAR 'valsol_Baja', 'Baja'
+EXEC CONTROL_REGISTRAR 'valsol_Pendiente', 'Pendiente'
+EXEC CONTROL_REGISTRAR 'valsol_Aprobada', 'Aprobada'
+EXEC CONTROL_REGISTRAR 'valsol_Rechazada', 'Rechazada'
+GO
+
+DECLARE @idiomaIdS2 INT
+DECLARE @cideS2 INT
+
+SET @idiomaIdS2 = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblDetalleSolicitud')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Detalle de la solicitud'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRechazarAlta')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Rechazar alta'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnReproponer')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Corregir y reproponer'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaReproponer')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Corrigiendo un vino rechazado: al guardar se emite una nueva solicitud de alta.'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TipoSolicitud')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Tipo'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Emisor')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Emitida por'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaEmision')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Fecha de emisión'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_UltimaSolicitud')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Última solicitud'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_EstadoSolicitud')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Estado de la solicitud'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_MotivoRechazo')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Motivo de rechazo'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Alta')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Alta'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Baja')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Baja'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Pendiente')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Pendiente'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Aprobada')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Aprobada'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Rechazada')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Rechazada'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyuda')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'No puede autorizar ni rechazar una solicitud que usted mismo emitió.'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'No puede autorizar ni rechazar una solicitud que usted mismo emitió.'
+
+SET @idiomaIdS2 = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblDetalleSolicitud')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Request details'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRechazarAlta')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Reject addition'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnReproponer')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Correct and resubmit'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaReproponer')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Correcting a rejected wine: saving issues a new addition request.'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TipoSolicitud')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Type'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Emisor')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Issued by'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaEmision')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Issue date'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_UltimaSolicitud')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Latest request'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_EstadoSolicitud')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Request status'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_MotivoRechazo')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Rejection reason'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Alta')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Addition'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Baja')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Discontinuation'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Pendiente')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Pending'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Aprobada')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Approved'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Rechazada')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Rejected'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyuda')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'You cannot authorize or reject a request you issued yourself.'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'You cannot authorize or reject a request you issued yourself.'
+
+SET @idiomaIdS2 = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblDetalleSolicitud')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Detalhes da solicitação'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnRechazarAlta')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Rejeitar inclusão'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnReproponer')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Corrigir e repropor'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaReproponer')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Corrigindo um vinho rejeitado: ao salvar, uma nova solicitação de inclusão é emitida.'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_TipoSolicitud')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Tipo'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Emisor')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Emitida por'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_FechaEmision')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Data de emissão'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_UltimaSolicitud')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Última solicitação'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_EstadoSolicitud')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Status da solicitação'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_MotivoRechazo')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Motivo da rejeição'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Alta')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Inclusão'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Baja')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Descontinuação'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Pendiente')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Pendente'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Aprobada')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Aprovada'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'valsol_Rechazada')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Rejeitada'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyuda')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Você não pode autorizar nem rejeitar uma solicitação que você mesmo emitiu.'
+SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaBaja')
+EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Você não pode autorizar nem rejeitar uma solicitação que você mesmo emitiu.'
+
 GO
