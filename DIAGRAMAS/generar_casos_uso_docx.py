@@ -1293,175 +1293,217 @@ CUS = [
         "actor_secundario": None,
         "frecuencia": "Media",
         "prioridad": "Alta",
-        "version": "1.0",
+        "version": "1.1",
         "fecha_creacion": "31/08/2026",
         "autor": "Equipo TP — Ingeniería de Software",
         "historial_revision": [
             {"version": "1.0", "fecha": "31/08/2026", "autor": "Equipo TP",
              "descripcion": "Versión inicial. Desdoblado de la versión consolidada previa (que fusionaba proponer y autorizar en un único CU) en dos casos de uso independientes: CU-21 (proponer) y CU-22 (autorizar), uno por actor."},
+            {"version": "1.1", "fecha": "05/10/2026", "autor": "Equipo TP",
+             "descripcion": "La propuesta de alta se formaliza con una Solicitud de Autorización. Se agrega el flujo alternativo de corrección y re-propuesta de un vino rechazado."},
         ],
         "proposito": (
             "Permitir que un Usuario con el permiso \"Gestionar catálogo de vinos\" (rol Encargado de "
-            "Compras/Bodega) proponga el alta de un vino nuevo en el catálogo, quedando pendiente de "
-            "autorización hasta que un Administrador distinto lo apruebe (RN-01, ver CU-22)."
+            "Compras/Bodega) proponga el alta de un vino nuevo, emitiendo una Solicitud de Autorización "
+            "que queda pendiente hasta que un Administrador distinto la resuelva (RN-01, ver CU-22). "
+            "Si el Administrador rechaza la solicitud, el Usuario puede corregir el vino y reproponerlo "
+            "con el mismo SKU."
         ),
         "precondiciones": [
             "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar catálogo de vinos\".",
             "La bodega del vino ya existe en BODEGA y está habilitada.",
-            "El código/SKU del vino no está registrado previamente en VINO.",
+            "Para una alta nueva: el código/SKU del vino no está registrado previamente en VINO.",
+            "Para una re-propuesta: el vino está en estado Rechazado y no tiene una solicitud de alta pendiente.",
         ],
         "postcondiciones_exito": [
-            "El vino queda registrado en VINO con AUTORIZADO_POR = NULL y CREADO_POR = Id del Usuario, pendiente de autorización.",
+            "El vino queda registrado en VINO con ESTADO = 'Pendiente' y CREADO_POR = Id del Usuario.",
+            "Existe una solicitud de tipo ALTA en estado Pendiente para ese vino, cuyo emisor es el Usuario (en una re-propuesta, el emisor es quien repropone y la solicitud rechazada anterior se conserva como historial).",
+            "El vino no es operable (stock, cajas, alertas) mientras no esté Activo.",
         ],
         "postcondiciones_fallo": [
             "Si el código ya existe: no se crea el vino y se informa el conflicto.",
+            "Si el vino ya no está rechazado o ya tiene una solicitud de alta pendiente: no se emite una nueva solicitud.",
         ],
-        "disparador": "El Usuario presiona \"Nuevo vino\" en frmCatalogoVinos.",
+        "disparador": "El Usuario completa el formulario de frmCatalogoVinos y presiona \"Guardar\" (alta nueva), o selecciona un vino rechazado y presiona \"Corregir y reproponer\".",
         "puntos_extension": [
-            {"paso": "Tras el paso 7 (alta pendiente registrada)",
-             "extension": "Continúa en CU-22 Autorizar Alta de Vino, ejecutado por un Administrador distinto."},
+            {"paso": "Tras el paso 4 (solicitud de alta emitida)",
+             "extension": "Continúa en CU-22 Autorizar o Rechazar Alta de Vino, ejecutado por un Administrador distinto."},
         ],
         "grafico_cu_desc": (
             "Actor: Usuario (permiso \"Gestionar catálogo de vinos\") ──> (Proponer Alta de Vino)\n\n"
-            "(Proponer Alta de Vino) ── «precede» ──> (Autorizar Alta de Vino, CU-22)"
+            "(Proponer Alta de Vino) ── «precede» ──> (Autorizar o Rechazar Alta de Vino, CU-22)"
         ),
         "flujo_principal": [
-            "El Usuario abre frmCatalogoVinos y presiona \"Nuevo vino\".",
-            "El sistema abre frmNuevoVino y carga el combo de bodegas habilitadas.",
-            "El Usuario ingresa código/SKU, nombre, bodega, varietal, añada, precio y stock mínimo (maridaje y puntaje son opcionales) y presiona Aceptar.",
-            "El sistema valida que los campos obligatorios estén completos.",
-            "El sistema verifica que el código no exista previamente en VINO.",
-            "El sistema inserta el vino con AUTORIZADO_POR = NULL y CREADO_POR = Id del Usuario.",
-            "El sistema informa que el vino quedó pendiente de autorización.",
+            "El Usuario abre frmCatalogoVinos.",
+            "El sistema muestra el formulario de carga con las bodegas habilitadas y la grilla del catálogo, con el estado y la última solicitud de cada vino.",
+            "El Usuario ingresa código/SKU, nombre, bodega, varietal, añada, precio y stock mínimo (maridaje y puntaje son opcionales) y presiona \"Guardar\".",
+            "El sistema informa que el vino fue propuesto y quedó pendiente de autorización.",
+            "El sistema actualiza la grilla y limpia el formulario.",
         ],
         "flujos_alternativos": [
-            {"id": "4a", "nombre": "Datos obligatorios incompletos",
-             "pasos": ["El sistema muestra \"Completá los datos obligatorios del vino.\"",
+            {"id": "3a", "nombre": "Datos obligatorios incompletos o inválidos",
+             "pasos": ["El sistema muestra el mensaje de validación correspondiente (por ejemplo, \"El nombre es obligatorio.\").",
                        "El caso de uso vuelve al paso 3."]},
-            {"id": "5a", "nombre": "Código de vino duplicado",
-             "pasos": ["El sistema muestra \"Ya existe un vino con ese código.\"",
+            {"id": "3b", "nombre": "Código de vino duplicado",
+             "pasos": ["El sistema muestra \"Ya existe un vino con el SKU indicado.\"",
                        "El caso de uso vuelve al paso 3."]},
+            {"id": "3c", "nombre": "El SKU corresponde a un vino rechazado",
+             "pasos": ["El sistema indica que el SKU pertenece a un vino rechazado y que debe usarse \"Corregir y reproponer\".",
+                       "El caso de uso continúa en el flujo R (re-propuesta de un vino rechazado)."]},
+            {"id": "R", "nombre": "Corregir y reproponer un vino rechazado",
+             "pasos": ["El Usuario selecciona en la grilla un vino con estado Rechazado (el motivo de rechazo está visible) y presiona \"Corregir y reproponer\".",
+                       "El sistema carga los datos del vino en el formulario; el SKU queda de solo lectura.",
+                       "El Usuario corrige los datos y presiona \"Guardar\".",
+                       "El sistema informa que se emitió una nueva solicitud de alta, pendiente de autorización, y actualiza la grilla.",
+                       "El caso de uso finaliza."]},
+            {"id": "R-a", "nombre": "El vino dejó de estar rechazado, ya tiene una solicitud pendiente o los datos son inválidos",
+             "pasos": ["El sistema muestra el mensaje correspondiente y actualiza la grilla.",
+                       "El caso de uso finaliza sin emitir una nueva solicitud."]},
         ],
         "excepciones": [
             {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante el alta.",
-             "manejo": "Mensaje genérico al Usuario; no se persiste ningún cambio parcial."},
+             "manejo": "Mensaje genérico al Usuario; no se persiste ningún cambio parcial (el vino y su solicitud se crean en una única transacción)."},
         ],
         "reglas_negocio": [
-            {"codigo": "RN-02", "regla": "El vino no es visible ni vendible en el catálogo hasta que AUTORIZADO_POR IS NOT NULL y ESTADO = 'Activo'."},
-            {"codigo": "RN-03", "regla": "El código/SKU del vino es único en todo el catálogo."},
+            {"codigo": "RN-01", "regla": "Separación de funciones: quien resuelve la solicitud nunca puede ser quien la emitió. En una re-propuesta, el emisor es quien repropone."},
+            {"codigo": "RN-02", "regla": "Un vino solo es operable (movimientos de stock, cajas, alertas de stock mínimo) cuando está Activo; los vinos Pendientes, Rechazados o Descontinuados quedan excluidos."},
+            {"codigo": "RN-03", "regla": "El código/SKU del vino es único en todo el catálogo; un vino rechazado se corrige y se repropone con el mismo SKU."},
+            {"codigo": "RN-04", "regla": "A lo sumo existe una solicitud pendiente por vino y tipo."},
         ],
         "relaciones": [
-            {"tipo": "«precede» a", "destino": "CU-22 Autorizar Alta de Vino",
-             "condicion": "Toda propuesta de alta requiere autorización posterior de un Administrador distinto."},
+            {"tipo": "«precede» a", "destino": "CU-22 Autorizar o Rechazar Alta de Vino",
+             "condicion": "Toda propuesta de alta requiere la resolución posterior de un Administrador distinto."},
         ],
         "diagrama_clases_imagen": "DiagramaClases_CatalogoStock.png",
         "diagrama_secuencia_imagen": "DiagramaSecuencia_CU21_ProponerAltaVino.png",
         "der_imagen": "DER.png",
-        "der_entidades_afectadas": ["VINO", "BODEGA", "USUARIO"],
+        "der_entidades_afectadas": ["VINO", "SOLICITUD_AUTORIZACION", "BODEGA", "USUARIO"],
         "prototipo_interfaz": (
-            "frmNuevoVino (WinForms — MaterialForm)\n"
-            "+-------------------------------------------+\n"
-            "|  Nuevo Vino                          [x]   |\n"
-            "+---------------------------------------------+\n"
-            "| Codigo/SKU:      [____________]              |\n"
-            "| Nombre:          [____________]              |\n"
-            "| Bodega:          [ ComboBox  v]              |\n"
-            "| Varietal:        [____________]              |\n"
-            "| Aniada:          [____]                      |\n"
-            "| Precio:          [____________]              |\n"
-            "| Stock minimo:    [____]                      |\n"
-            "| Maridaje:        [____________] (opcional)   |\n"
-            "| Puntaje:         [____] (opcional)           |\n"
-            "|                                               |\n"
-            "|              [ Aceptar ]  [ Cancelar ]        |\n"
-            "+-----------------------------------------------+"
+            "frmCatalogoVinos (WinForms — MaterialForm)\n"
+            "+-----------------------------------------------------------------+\n"
+            "|  Catalogo de Vinos                                         [x]   |\n"
+            "+-------------------------------------------------------------------+\n"
+            "| [DataGridView: SKU | Nombre | Bodega | Estado |                    |\n"
+            "|  Ultima solicitud | Estado de la solicitud | Motivo de rechazo]     |\n"
+            "|-------------------------------------------------------------------|\n"
+            "| Codigo/SKU: [______]  Nombre: [__________]  Bodega: [ComboBox v]   |\n"
+            "| Varietal: [______]  Aniada: [____]  Precio: [____]                 |\n"
+            "| Stock minimo: [____]  Maridaje: [______]  Puntaje: [__] (opcional)  |\n"
+            "|                                                                     |\n"
+            "| [ Guardar ] [ Limpiar ] [ Corregir y reproponer ]                  |\n"
+            "| [ Solicitar descontinuacion ]                        [ Cerrar ]      |\n"
+            "+---------------------------------------------------------------------+"
         ),
         "observaciones": (
-            "El vino nunca se elimina físicamente en ningún momento de su ciclo de vida (RN-04, "
-            "ver CU-24/CU-25) — solo cambia de estado. La separación de funciones (RN-01: quien "
-            "autoriza debe ser distinto de quien propone) se valida en CU-22."
+            "El vino nunca se elimina físicamente en ningún momento de su ciclo de vida (RN-04 de "
+            "CU-24/CU-25): solo cambia de estado. La separación de funciones se verifica en la interfaz, "
+            "en la capa de negocio y en el procedimiento almacenado (ver CU-22)."
         ),
     },
     # ───── CU-22 ─────────────────────────────────────────────────────
     {
         "id": "CU-22",
-        "nombre": "Autorizar Alta de Vino",
+        "nombre": "Autorizar o Rechazar Alta de Vino",
         "actor_primario": "Administrador",
         "actor_secundario": None,
         "frecuencia": "Media",
         "prioridad": "Alta",
-        "version": "1.0",
+        "version": "1.1",
         "fecha_creacion": "31/08/2026",
         "autor": "Equipo TP — Ingeniería de Software",
         "historial_revision": [
             {"version": "1.0", "fecha": "31/08/2026", "autor": "Equipo TP",
              "descripcion": "Versión inicial. Desdoblado de la versión consolidada previa en dos casos de uso independientes: CU-21 (proponer) y CU-22 (autorizar), uno por actor."},
+            {"version": "1.1", "fecha": "05/10/2026", "autor": "Equipo TP",
+             "descripcion": "La autorización se resuelve sobre la Solicitud de Autorización. Se agrega el panel de detalle y el rechazo con motivo obligatorio; la separación de funciones aplica también al rechazo."},
         ],
         "proposito": (
-            "Permitir que un Administrador, con el permiso \"Autorizar catálogo de vinos\" y distinto "
-            "del Usuario que propuso el alta, apruebe la publicación de un vino pendiente — "
-            "garantizando la separación de funciones (RN-01)."
+            "Permitir que un Administrador, con el permiso \"Autorizar alta de vinos\" y distinto del "
+            "Usuario que emitió la solicitud, apruebe o rechace una solicitud de alta pendiente — "
+            "garantizando la separación de funciones (RN-01). El rechazo exige un motivo."
         ),
         "precondiciones": [
-            "El Administrador inició sesión correctamente y tiene el permiso \"Autorizar catálogo de vinos\".",
-            "Existe al menos un vino con AUTORIZADO_POR = NULL (propuesto en CU-21).",
+            "El Administrador inició sesión correctamente y tiene el permiso \"Autorizar alta de vinos\".",
+            "Existe al menos una solicitud de alta en estado Pendiente (emitida en CU-21).",
         ],
         "postcondiciones_exito": [
-            "AUTORIZADO_POR y FECHA_AUTORIZACION quedan completos y el vino es visible en el catálogo publicado.",
+            "Si se aprueba: la solicitud queda Aprobada (con resolutor y fecha de resolución) y el vino pasa a ESTADO = 'Activo', operable y visible para todos los usuarios del catálogo.",
+            "Si se rechaza: la solicitud queda Rechazada con su motivo y el vino pasa a ESTADO = 'Rechazado', a la espera de corrección y re-propuesta (CU-21).",
+            "La resolución queda registrada en la bitácora.",
         ],
         "postcondiciones_fallo": [
-            "Si el Administrador que intenta autorizar es el mismo Usuario que propuso el alta: el sistema rechaza la operación (RN-01) y el vino permanece pendiente.",
+            "Si el Administrador es quien emitió la solicitud: el sistema rechaza la operación (RN-01) y la solicitud permanece Pendiente.",
+            "Si la solicitud ya fue resuelta por otro Administrador: no se modifica ningún dato.",
         ],
-        "disparador": "El Administrador presiona \"Autorizar\" sobre un vino pendiente en frmAutorizarVinos.",
+        "disparador": "El Administrador presiona \"Autorizar\" o \"Rechazar alta\" sobre una solicitud pendiente en frmAutorizarAltaVino.",
         "puntos_extension": [
-            {"paso": "Tras el paso 5 (vino autorizado y publicado)",
-             "extension": "Notificación automática al Usuario que propuso el alta — fuera de alcance de esta entrega (la alerta/notificación es pasiva, no push)."},
+            {"paso": "Tras el paso 6 (solicitud resuelta)",
+             "extension": "Notificación automática al Usuario que emitió la solicitud — fuera de alcance de esta entrega (el usuario consulta el estado en el catálogo, no hay notificación push)."},
         ],
         "grafico_cu_desc": (
-            "Actor: Administrador (permiso \"Autorizar catálogo de vinos\") ──> (Autorizar Alta de Vino)\n\n"
-            "(Autorizar Alta de Vino) ── «precedido por» ──> (Proponer Alta de Vino, CU-21)"
+            "Actor: Administrador (permiso \"Autorizar alta de vinos\") ──> (Autorizar o Rechazar Alta de Vino)\n\n"
+            "(Autorizar o Rechazar Alta de Vino) ── «precedido por» ──> (Proponer Alta de Vino, CU-21)"
         ),
         "flujo_principal": [
-            "El Administrador abre frmAutorizarVinos y visualiza los vinos pendientes (AUTORIZADO_POR IS NULL).",
-            "El Administrador selecciona un vino y presiona \"Autorizar\".",
-            "El sistema verifica que el Administrador sea distinto del Usuario que propuso el alta (RN-01).",
-            "El sistema completa AUTORIZADO_POR y FECHA_AUTORIZACION.",
-            "El vino queda visible en el catálogo publicado.",
-            "El sistema refresca la grilla de vinos pendientes.",
+            "El Administrador abre frmAutorizarAltaVino.",
+            "El sistema muestra las solicitudes de alta pendientes.",
+            "El Administrador selecciona una solicitud.",
+            "El sistema muestra en el panel de detalle los datos de la solicitud (emisor y fecha de emisión) y del vino (SKU, nombre, bodega, varietal, añada, precio, stock mínimo, maridaje y puntaje).",
+            "El Administrador revisa el detalle y presiona \"Autorizar\".",
+            "El sistema informa que el vino fue autorizado y actualiza la grilla de solicitudes pendientes.",
         ],
         "flujos_alternativos": [
-            {"id": "3a", "nombre": "Autoautorización bloqueada (RN-01)",
-             "pasos": ["El sistema muestra \"No podés autorizar un vino que vos mismo diste de alta.\"",
-                       "El caso de uso vuelve al paso 2."]},
+            {"id": "3a", "nombre": "Solicitud emitida por el propio Administrador (RN-01)",
+             "pasos": ["El sistema deshabilita los botones \"Autorizar\" y \"Rechazar alta\" para esa solicitud.",
+                       "Si la operación se intenta por otra vía, el sistema muestra \"No puede autorizar una solicitud que usted mismo emitió.\"",
+                       "El caso de uso vuelve al paso 3."]},
+            {"id": "5a", "nombre": "Rechazar el alta con motivo",
+             "pasos": ["El Administrador escribe el motivo de rechazo y presiona \"Rechazar alta\".",
+                       "El sistema solicita la confirmación del rechazo.",
+                       "El Administrador confirma.",
+                       "El sistema informa que el alta fue rechazada y que el vino quedó rechazado, y actualiza la grilla.",
+                       "El caso de uso finaliza."]},
+            {"id": "5b", "nombre": "Rechazo sin motivo",
+             "pasos": ["El sistema muestra \"Debe indicar el motivo del rechazo.\" y no rechaza la solicitud.",
+                       "El caso de uso vuelve al paso 5."]},
+            {"id": "5c", "nombre": "La solicitud ya fue resuelta o cambió de estado",
+             "pasos": ["El sistema informa que la solicitud cambió de estado y actualiza la grilla.",
+                       "El caso de uso vuelve al paso 3."]},
         ],
         "excepciones": [
-            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante la autorización.",
-             "manejo": "Mensaje genérico al Administrador; no se persiste ningún cambio parcial."},
+            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante la resolución.",
+             "manejo": "Mensaje genérico al Administrador; no se persiste ningún cambio parcial (la solicitud y el vino se actualizan en una única transacción)."},
         ],
         "reglas_negocio": [
-            {"codigo": "RN-01", "regla": "Separación de funciones: AUTORIZADO_POR nunca puede ser igual a CREADO_POR."},
-            {"codigo": "RN-02", "regla": "El vino no es visible ni vendible en el catálogo hasta que AUTORIZADO_POR IS NOT NULL y ESTADO = 'Activo'."},
+            {"codigo": "RN-01", "regla": "Separación de funciones: el resolutor de una solicitud nunca puede ser su emisor, ni al aprobar ni al rechazar. Se verifica en la interfaz, en la capa de negocio y en el procedimiento almacenado, y además lo impide una restricción de la tabla."},
+            {"codigo": "RN-02", "regla": "Un vino solo es operable cuando está Activo; la aprobación del alta es lo que lo activa."},
+            {"codigo": "RN-03", "regla": "El rechazo exige un motivo no vacío de hasta 200 caracteres; una solicitud aprobada no tiene motivo."},
+            {"codigo": "RN-04", "regla": "Una solicitud resuelta es inmutable: no puede aprobarse ni rechazarse nuevamente."},
         ],
         "relaciones": [
             {"tipo": "«precedido por»", "destino": "CU-21 Proponer Alta de Vino",
-             "condicion": "Solo se pueden autorizar vinos previamente propuestos y pendientes."},
+             "condicion": "Solo se pueden resolver solicitudes de alta previamente emitidas y pendientes."},
         ],
         "diagrama_clases_imagen": "DiagramaClases_CatalogoStock.png",
         "diagrama_secuencia_imagen": "DiagramaSecuencia_CU22_AutorizarAltaVino.png",
         "der_imagen": "DER.png",
-        "der_entidades_afectadas": ["VINO", "USUARIO"],
+        "der_entidades_afectadas": ["VINO", "SOLICITUD_AUTORIZACION", "USUARIO"],
         "prototipo_interfaz": (
-            "frmAutorizarVinos — pestaña \"Altas pendientes\"\n"
-            "+-------------------------------------------------+\n"
-            "|  Vinos pendientes de autorizacion         [x]    |\n"
-            "+---------------------------------------------------+\n"
-            "| [DataGridView: Codigo | Nombre | Bodega |          |\n"
-            "|  Cargado por | Fecha alta]                         |\n"
-            "|                                                     |\n"
-            "|              [ Autorizar ]  [ Rechazar ]           |\n"
-            "+-----------------------------------------------------+"
+            "frmAutorizarAltaVino (WinForms — MaterialForm)\n"
+            "+-----------------------------------------------------------------+\n"
+            "|  Autorizar alta de vino                                    [x]   |\n"
+            "+-------------------------------------------------------------------+\n"
+            "| [DataGridView: Tipo | SKU | Nombre | Bodega |   | Detalle de la     |\n"
+            "|  Emitida por | Fecha de emision]                  | solicitud         |\n"
+            "|                                                  | [Emitida por: ...]|\n"
+            "|                                                  | [SKU: ...        ]|\n"
+            "|                                                  | [Precio: ...     ]|\n"
+            "|-------------------------------------------------------------------|\n"
+            "| Motivo de rechazo: [________________________________________]      |\n"
+            "| [ Autorizar ]  [ Rechazar alta ]                     [ Cerrar ]      |\n"
+            "+---------------------------------------------------------------------+"
         ),
-        "observaciones": "Simétrico a CU-25 (Autorizar Descontinuación de Vino): mismo patrón de autorización con separación de funciones, aplicado al extremo opuesto del ciclo de vida del vino.",
+        "observaciones": "Simétrico a CU-25 (Autorizar o Rechazar Descontinuación de Vino): mismo patrón de resolución con separación de funciones y motivo obligatorio, aplicado al extremo opuesto del ciclo de vida del vino.",
     },
     # ───── CU-23 ─────────────────────────────────────────────────────
     {
@@ -1522,7 +1564,7 @@ CUS = [
             {"codigo": "RN-02", "regla": "El stock actual de un vino nunca se almacena directamente — se deriva de SUM(Entrada) - SUM(Salida) del kardex."},
         ],
         "relaciones": [
-            {"tipo": "«extend» de", "destino": "CU-22 Autorizar Alta de Vino",
+            {"tipo": "«extend» de", "destino": "CU-22 Autorizar o Rechazar Alta de Vino",
              "condicion": "Un vino recién autorizado y publicado suele recibir su primera entrada de stock."},
             {"tipo": "relacionado con", "destino": "CU-27 Registrar Ajuste de Inventario",
              "condicion": "Ambos insertan MOVIMIENTO_STOCK, pero CU-23 registra entradas por compra y CU-27 registra correcciones manuales (rotura, merma, conteo)."},
@@ -1559,45 +1601,61 @@ CUS = [
         "actor_secundario": None,
         "frecuencia": "Baja",
         "prioridad": "Media",
-        "version": "1.0",
+        "version": "1.1",
         "fecha_creacion": "31/08/2026",
         "autor": "Equipo TP — Ingeniería de Software",
         "historial_revision": [
             {"version": "1.0", "fecha": "31/08/2026", "autor": "Equipo TP",
              "descripcion": "Versión inicial. Desdoblado de la versión consolidada previa en dos casos de uso independientes: CU-24 (solicitar) y CU-25 (autorizar), simétrico al split CU-21/CU-22."},
+            {"version": "1.1", "fecha": "05/10/2026", "autor": "Equipo TP",
+             "descripcion": "La baja se formaliza con una Solicitud de Autorización de tipo BAJA. Se agrega la validación de stock cero (RN-15) al solicitar."},
         ],
         "proposito": (
-            "Permitir que un Usuario proponga la descontinuación de un vino del catálogo, quedando "
-            "pendiente de autorización hasta que un Administrador distinto la apruebe (RN-01, ver "
-            "CU-25), sin eliminar físicamente el registro (RN-04)."
+            "Permitir que un Usuario solicite la descontinuación de un vino activo del catálogo, "
+            "emitiendo una Solicitud de Autorización que queda pendiente hasta que un Administrador "
+            "distinto la resuelva (RN-01, ver CU-25), sin eliminar físicamente el registro (RN-04)."
         ),
         "precondiciones": [
-            "El vino a descontinuar existe, está Activo y autorizado en el catálogo.",
+            "El vino a descontinuar existe y está Activo.",
+            "El vino no tiene una solicitud de baja pendiente.",
+            "El vino no tiene stock en depósito (RN-15).",
             "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar catálogo de vinos\".",
         ],
         "postcondiciones_exito": [
-            "El vino queda con BAJA_SOLICITADA_POR y FECHA_SOLICITUD_BAJA completos, pendiente de autorización.",
+            "Existe una solicitud de tipo BAJA en estado Pendiente para el vino, cuyo emisor es el Usuario.",
+            "El vino sigue Activo y operable mientras la solicitud no sea aprobada.",
+            "La solicitud queda registrada en la bitácora.",
         ],
         "postcondiciones_fallo": [
-            "Si el vino ya está descontinuado o ya tiene una solicitud de baja pendiente: el sistema rechaza la operación.",
+            "Si el vino no está Activo, ya tiene una baja pendiente o tiene stock: el sistema rechaza la operación y no se emite ninguna solicitud.",
         ],
         "disparador": "El Usuario selecciona un vino activo en frmCatalogoVinos y presiona \"Solicitar descontinuación\".",
         "puntos_extension": [
             {"paso": "Tras el paso 3 (solicitud registrada)",
-             "extension": "Continúa en CU-25 Autorizar Descontinuación de Vino, ejecutado por un Administrador distinto."},
+             "extension": "Continúa en CU-25 Autorizar o Rechazar Descontinuación de Vino, ejecutado por un Administrador distinto."},
         ],
         "grafico_cu_desc": (
             "Actor: Usuario (permiso \"Gestionar catálogo de vinos\") ──> (Solicitar Descontinuación de Vino)\n\n"
-            "(Solicitar Descontinuación de Vino) ── «precede» ──> (Autorizar Descontinuación de Vino, CU-25)"
+            "(Solicitar Descontinuación de Vino) ── «precede» ──> (Autorizar o Rechazar Descontinuación de Vino, CU-25)"
         ),
         "flujo_principal": [
             "El Usuario selecciona un vino activo en frmCatalogoVinos y presiona \"Solicitar descontinuación\".",
-            "El sistema registra BAJA_SOLICITADA_POR = Id del Usuario y FECHA_SOLICITUD_BAJA = fecha actual.",
-            "El sistema informa que la descontinuación quedó pendiente de autorización.",
+            "El sistema solicita la confirmación de la descontinuación.",
+            "El Usuario confirma.",
+            "El sistema informa que la descontinuación quedó pendiente de autorización y actualiza la grilla.",
         ],
         "flujos_alternativos": [
-            {"id": "1a", "nombre": "El vino ya está descontinuado o con baja ya solicitada",
-             "pasos": ["El sistema muestra \"Este vino ya no está activo o ya tiene una solicitud de baja pendiente.\"",
+            {"id": "1a", "nombre": "El vino no admite la solicitud",
+             "pasos": ["El sistema deshabilita \"Solicitar descontinuación\" cuando el vino no está Activo o ya tiene una baja pendiente.",
+                       "El caso de uso finaliza sin registrar cambios."]},
+            {"id": "3a", "nombre": "El vino ya está descontinuado, no está activo o ya tiene una baja pendiente",
+             "pasos": ["El sistema muestra el mensaje correspondiente y actualiza la grilla.",
+                       "El caso de uso finaliza sin registrar cambios."]},
+            {"id": "3b", "nombre": "El vino tiene stock (RN-15)",
+             "pasos": ["El sistema muestra la cantidad de botellas en depósito e indica que debe registrarse un ajuste de inventario (CU-27) que deje el stock en 0.",
+                       "El caso de uso finaliza sin registrar cambios."]},
+            {"id": "3c", "nombre": "El estado o el stock cambiaron durante la operación",
+             "pasos": ["El sistema informa que el estado o el stock del vino cambiaron y pide actualizar la grilla.",
                        "El caso de uso finaliza sin registrar cambios."]},
         ],
         "excepciones": [
@@ -1606,106 +1664,139 @@ CUS = [
         ],
         "reglas_negocio": [
             {"codigo": "RN-04", "regla": "El vino nunca se elimina físicamente; la descontinuación es siempre un cambio de ESTADO, preservando integridad referencial con movimientos de stock históricos."},
+            {"codigo": "RN-15", "regla": "No se descontinúa un vino con stock: el stock remanente se liquida antes con un ajuste de inventario (CU-27). Se valida al solicitar y se revalida al autorizar."},
+            {"codigo": "RN-16", "regla": "A lo sumo existe una solicitud de baja pendiente por vino."},
         ],
         "relaciones": [
-            {"tipo": "«precede» a", "destino": "CU-25 Autorizar Descontinuación de Vino",
-             "condicion": "Toda solicitud de baja requiere autorización posterior de un Administrador distinto."},
+            {"tipo": "«precede» a", "destino": "CU-25 Autorizar o Rechazar Descontinuación de Vino",
+             "condicion": "Toda solicitud de baja requiere la resolución posterior de un Administrador distinto."},
+            {"tipo": "relacionado con", "destino": "CU-27 Registrar Ajuste de Inventario",
+             "condicion": "El ajuste de inventario permite dejar el stock en 0 antes de solicitar la baja."},
         ],
         "diagrama_clases_imagen": "DiagramaClases_CatalogoStock.png",
         "diagrama_secuencia_imagen": "DiagramaSecuencia_CU24_SolicitarDescontinuacion.png",
         "der_imagen": "DER.png",
-        "der_entidades_afectadas": ["VINO", "USUARIO"],
+        "der_entidades_afectadas": ["VINO", "SOLICITUD_AUTORIZACION", "MOVIMIENTO_STOCK", "USUARIO"],
         "prototipo_interfaz": (
             "frmCatalogoVinos (WinForms — MaterialForm)\n"
             "+-------------------------------------------------------+\n"
             "|  Catalogo de Vinos                                [x]  |\n"
             "+---------------------------------------------------------+\n"
-            "| [DataGridView: Codigo | Nombre | Bodega | Estado |       |\n"
-            "|  Autorizado por | Fecha alta]                            |\n"
+            "| [DataGridView: SKU | Nombre | Bodega | Estado |          |\n"
+            "|  Ultima solicitud | Estado de la solicitud | Motivo]       |\n"
             "|                                                           |\n"
-            "|  [ Nuevo vino ]  [ Solicitar descontinuacion ]           |\n"
+            "|  [ Guardar ] [ Corregir y reproponer ]                    |\n"
+            "|  [ Solicitar descontinuacion ]                [ Cerrar ]   |\n"
             "+-------------------------------------------------------------+"
         ),
-        "observaciones": "Simétrico a CU-21 (Proponer Alta de Vino): mismo patrón de propone/autoriza, aplicado al extremo opuesto del ciclo de vida del vino.",
+        "observaciones": "Simétrico a CU-21 (Proponer Alta de Vino): mismo patrón de propone/resuelve, aplicado al extremo opuesto del ciclo de vida del vino. A diferencia del alta, el vino sigue Activo mientras la baja está pendiente.",
     },
     # ───── CU-25 ─────────────────────────────────────────────────────
     {
         "id": "CU-25",
-        "nombre": "Autorizar Descontinuación de Vino",
+        "nombre": "Autorizar o Rechazar Descontinuación de Vino",
         "actor_primario": "Administrador",
         "actor_secundario": None,
         "frecuencia": "Baja",
         "prioridad": "Media",
-        "version": "1.0",
+        "version": "1.1",
         "fecha_creacion": "31/08/2026",
         "autor": "Equipo TP — Ingeniería de Software",
         "historial_revision": [
             {"version": "1.0", "fecha": "31/08/2026", "autor": "Equipo TP",
              "descripcion": "Versión inicial. Desdoblado de la versión consolidada previa en dos casos de uso independientes: CU-24 (solicitar) y CU-25 (autorizar), simétrico al split CU-21/CU-22."},
+            {"version": "1.1", "fecha": "05/10/2026", "autor": "Equipo TP",
+             "descripcion": "La resolución se hace sobre la Solicitud de Autorización, con panel de detalle y rechazo con motivo obligatorio. La separación de funciones aplica también al rechazo (antes cualquiera podía rechazar)."},
         ],
         "proposito": (
-            "Permitir que un Administrador, con el permiso \"Autorizar catálogo de vinos\" y distinto "
-            "del Usuario que solicitó la baja, autorice la descontinuación de un vino — garantizando "
-            "la separación de funciones (RN-01), sin eliminar físicamente el registro (RN-04)."
+            "Permitir que un Administrador, con el permiso \"Autorizar alta de vinos\" y distinto del "
+            "Usuario que emitió la solicitud, autorice o rechace la descontinuación de un vino — "
+            "garantizando la separación de funciones (RN-01), sin eliminar físicamente el registro (RN-04). "
+            "El rechazo exige un motivo."
         ),
         "precondiciones": [
-            "El Administrador inició sesión correctamente y tiene el permiso \"Autorizar catálogo de vinos\".",
-            "Existe al menos un vino con BAJA_SOLICITADA_POR IS NOT NULL y DESCONTINUADO_POR IS NULL (solicitado en CU-24).",
+            "El Administrador inició sesión correctamente y tiene el permiso \"Autorizar alta de vinos\".",
+            "Existe al menos una solicitud de baja en estado Pendiente (emitida en CU-24).",
         ],
         "postcondiciones_exito": [
-            "ESTADO pasa a 'Descontinuado', y DESCONTINUADO_POR / FECHA_DESCONTINUACION quedan completos.",
-            "El vino deja de listarse en el catálogo vendible, pero el registro nunca se elimina físicamente (RN-04).",
+            "Si se autoriza: la solicitud queda Aprobada (con resolutor y fecha de resolución), el vino pasa a ESTADO = 'Descontinuado' y deja de ser operable; el registro nunca se elimina físicamente (RN-04).",
+            "Si se rechaza: la solicitud queda Rechazada con su motivo y el vino sigue Activo.",
+            "La resolución queda registrada en la bitácora.",
         ],
         "postcondiciones_fallo": [
-            "Si el Administrador que intenta autorizar es el mismo Usuario que solicitó la baja: el sistema rechaza la operación (RN-01) y el vino permanece Activo.",
+            "Si el Administrador es quien emitió la solicitud: el sistema rechaza la operación (RN-01) y el vino permanece Activo con la solicitud Pendiente.",
+            "Si el vino tiene stock al autorizar (RN-15): no se descontinúa y la solicitud permanece Pendiente.",
         ],
-        "disparador": "El Administrador presiona \"Autorizar baja\" sobre una solicitud pendiente en frmAutorizarVinos.",
+        "disparador": "El Administrador presiona \"Autorizar baja\" o \"Rechazar baja\" sobre una solicitud pendiente en frmAutorizarBajaVino.",
         "puntos_extension": [
-            {"paso": "Tras el paso 5 (vino descontinuado)",
-             "extension": "Notificación al Usuario que solicitó la baja — fuera de alcance de esta entrega."},
+            {"paso": "Tras el paso 6 (solicitud resuelta)",
+             "extension": "Notificación al Usuario que emitió la solicitud — fuera de alcance de esta entrega."},
         ],
         "grafico_cu_desc": (
-            "Actor: Administrador (permiso \"Autorizar catálogo de vinos\") ──> (Autorizar Descontinuación de Vino)\n\n"
-            "(Autorizar Descontinuación de Vino) ── «precedido por» ──> (Solicitar Descontinuación de Vino, CU-24)"
+            "Actor: Administrador (permiso \"Autorizar alta de vinos\") ──> (Autorizar o Rechazar Descontinuación de Vino)\n\n"
+            "(Autorizar o Rechazar Descontinuación de Vino) ── «precedido por» ──> (Solicitar Descontinuación de Vino, CU-24)"
         ),
         "flujo_principal": [
-            "El Administrador abre frmAutorizarVinos y visualiza las solicitudes pendientes (BAJA_SOLICITADA_POR IS NOT NULL AND DESCONTINUADO_POR IS NULL).",
-            "El Administrador selecciona un vino y presiona \"Autorizar baja\".",
-            "El sistema verifica que el Administrador sea distinto del Usuario que solicitó la baja (RN-01).",
-            "El sistema actualiza ESTADO a 'Descontinuado' y completa DESCONTINUADO_POR y FECHA_DESCONTINUACION.",
-            "El vino deja de listarse en el catálogo vendible.",
+            "El Administrador abre frmAutorizarBajaVino.",
+            "El sistema muestra las solicitudes de baja pendientes.",
+            "El Administrador selecciona una solicitud.",
+            "El sistema muestra en el panel de detalle los datos de la solicitud y del vino, incluido el stock actual.",
+            "El Administrador revisa el detalle, presiona \"Autorizar baja\" y confirma.",
+            "El sistema informa que el vino fue descontinuado y actualiza la grilla de solicitudes pendientes.",
         ],
         "flujos_alternativos": [
-            {"id": "3a", "nombre": "Autoautorización bloqueada (RN-01)",
-             "pasos": ["El sistema muestra \"No podés autorizar una descontinuación que vos mismo solicitaste.\"",
-                       "El caso de uso vuelve al paso 2."]},
+            {"id": "3a", "nombre": "Solicitud emitida por el propio Administrador (RN-01)",
+             "pasos": ["El sistema deshabilita los botones \"Autorizar baja\" y \"Rechazar baja\" para esa solicitud.",
+                       "Si la operación se intenta por otra vía, el sistema muestra \"No puede autorizar una solicitud que usted mismo emitió.\" (o \"rechazar\", según la acción).",
+                       "El caso de uso vuelve al paso 3."]},
+            {"id": "5a", "nombre": "Rechazar la baja con motivo",
+             "pasos": ["El Administrador escribe el motivo de rechazo y presiona \"Rechazar baja\".",
+                       "El sistema solicita la confirmación del rechazo.",
+                       "El Administrador confirma.",
+                       "El sistema informa que la solicitud fue rechazada y que el vino sigue activo, y actualiza la grilla.",
+                       "El caso de uso finaliza."]},
+            {"id": "5b", "nombre": "Rechazo sin motivo",
+             "pasos": ["El sistema muestra \"Debe indicar el motivo del rechazo.\" y no rechaza la solicitud.",
+                       "El caso de uso vuelve al paso 5."]},
+            {"id": "5c", "nombre": "El vino tiene stock (RN-15)",
+             "pasos": ["El sistema muestra la cantidad de botellas en depósito e indica que debe registrarse un ajuste de inventario previo.",
+                       "El caso de uso vuelve al paso 3."]},
+            {"id": "5d", "nombre": "La solicitud ya fue resuelta o el vino cambió de estado o de stock",
+             "pasos": ["El sistema informa que la solicitud cambió de estado y actualiza la grilla.",
+                       "El caso de uso vuelve al paso 3."]},
         ],
         "excepciones": [
-            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante la autorización.",
-             "manejo": "Mensaje genérico al Administrador; no se persiste ningún cambio parcial."},
+            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante la resolución.",
+             "manejo": "Mensaje genérico al Administrador; no se persiste ningún cambio parcial (la solicitud y el vino se actualizan en una única transacción)."},
         ],
         "reglas_negocio": [
-            {"codigo": "RN-01", "regla": "Separación de funciones: DESCONTINUADO_POR nunca puede ser igual a BAJA_SOLICITADA_POR."},
+            {"codigo": "RN-01", "regla": "Separación de funciones: el resolutor de una solicitud nunca puede ser su emisor, ni al autorizar ni al rechazar. Se verifica en la interfaz, en la capa de negocio y en el procedimiento almacenado, y además lo impide una restricción de la tabla."},
             {"codigo": "RN-04", "regla": "El vino nunca se elimina físicamente; la descontinuación es siempre un cambio de ESTADO, preservando integridad referencial con movimientos de stock históricos."},
+            {"codigo": "RN-15", "regla": "No se descontinúa un vino con stock; se revalida al autorizar, porque pudo ingresar mercadería entre la solicitud y la autorización."},
+            {"codigo": "RN-17", "regla": "El rechazo exige un motivo no vacío de hasta 200 caracteres; al rechazar, el vino sigue Activo."},
         ],
         "relaciones": [
             {"tipo": "«precedido por»", "destino": "CU-24 Solicitar Descontinuación de Vino",
-             "condicion": "Solo se pueden autorizar bajas previamente solicitadas y pendientes."},
+             "condicion": "Solo se pueden resolver bajas previamente solicitadas y pendientes."},
         ],
         "diagrama_clases_imagen": "DiagramaClases_CatalogoStock.png",
         "diagrama_secuencia_imagen": "DiagramaSecuencia_CU25_AutorizarDescontinuacion.png",
         "der_imagen": "DER.png",
-        "der_entidades_afectadas": ["VINO", "USUARIO"],
+        "der_entidades_afectadas": ["VINO", "SOLICITUD_AUTORIZACION", "MOVIMIENTO_STOCK", "USUARIO"],
         "prototipo_interfaz": (
-            "frmAutorizarVinos — pestaña \"Descontinuaciones pendientes\"\n"
-            "+---------------------------------------------------------+\n"
-            "| [DataGridView: Codigo | Nombre | Solicitado por |         |\n"
-            "|  Fecha solicitud]                                         |\n"
-            "|                                                            |\n"
-            "|              [ Autorizar baja ]  [ Rechazar ]            |\n"
-            "+----------------------------------------------------------+"
+            "frmAutorizarBajaVino (WinForms — MaterialForm)\n"
+            "+-----------------------------------------------------------------+\n"
+            "|  Autorizar baja de vino                                    [x]   |\n"
+            "+-------------------------------------------------------------------+\n"
+            "| [DataGridView: Tipo | SKU | Nombre | Bodega |   | Detalle de la     |\n"
+            "|  Emitida por | Fecha de emision | Stock actual]   | solicitud         |\n"
+            "|                                                  | [Stock actual: 0 ]|\n"
+            "|-------------------------------------------------------------------|\n"
+            "| Motivo de rechazo: [________________________________________]      |\n"
+            "| [ Autorizar baja ]  [ Rechazar baja ]                [ Cerrar ]      |\n"
+            "+---------------------------------------------------------------------+"
         ),
-        "observaciones": "Simétrico a CU-22 (Autorizar Alta de Vino): mismo patrón de autorización con separación de funciones, aplicado al extremo opuesto del ciclo de vida del vino.",
+        "observaciones": "Simétrico a CU-22 (Autorizar o Rechazar Alta de Vino): mismo patrón de resolución con separación de funciones y motivo obligatorio, aplicado al extremo opuesto del ciclo de vida del vino.",
     },
     # ───── CU-26 (soporte, especificación simple) ──────────────────
     {
