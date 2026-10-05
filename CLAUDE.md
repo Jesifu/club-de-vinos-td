@@ -23,7 +23,7 @@ The entry point is `CAPAS` (outputs `CAPAS.exe`). There are no automated tests; 
 Run the full script against the local SQL Server instance (Windows Auth, database `BDCAPAS`):
 
 ```powershell
-sqlcmd -S . -d BDCAPAS -E -f 65001 -i "DAL\script.sql"
+sqlcmd -S . -d BDCAPAS -E -I -f 65001 -i "DAL\script.sql"
 ```
 
 **`-f 65001` is required** — the file is UTF-8 with BOM. Without this flag, `sqlcmd` reads it with the default codepage and mangles accented literals (`'Español'`, `'Inglés'`), so the language-lookup variables in the i18n seed block resolve to `NULL` and every `TRADUCCION_GUARDAR` call for that language fails with "cannot insert NULL into IDIOMA_ID".
@@ -296,7 +296,7 @@ All diagram sources, generated images, and doc-generation scripts live under `DI
 | `DIAGRAMAS/DiagramaClases_CuracionCajas.puml` / `.png` | Diagrama de clases | BE/BLL/DAL/CAPAS del dominio de curación y armado de cajas mensuales |
 | `DIAGRAMAS/DiagramaSecuencia_CU28_ArmarCajaMensual.puml` / `.png` | Secuencia por CU | CU-28 Armar Caja Mensual |
 | `DIAGRAMAS/DiagramaSecuencia_CU29_RegistrarSustitucion.puml` / `.png` | Secuencia por CU | CU-29 Registrar Sustitución por Falta de Stock |
-| `DIAGRAMAS/CasosDeUso.docx` | Documento unificado | Los 31 CUs (CU-01..CU-20 esqueleto base + CU-21..CU-25/CU-27 principales + CU-26 soporte, dominio de catálogo y stock de vinos + CU-28..CU-31 dominio de curación y cajas mensuales) en un solo Word |
+| `DIAGRAMAS/CasosDeUso.docx` | Documento unificado | Los 32 CUs (CU-01..CU-20 esqueleto base + CU-21..CU-25/CU-27 principales + CU-26 soporte, dominio de catálogo y stock de vinos + CU-28..CU-32 dominio de curación y cajas mensuales) en un solo Word |
 | `DIAGRAMAS/generar_casos_uso_docx.py` | Generador | Regenera `CasosDeUso.docx` desde el dict `CUS` definido en el script |
 
 **Diagramas de actividad — documentos como nodos de objeto.** Por regla de cátedra, cada documento de negocio (Remito, Orden de Compra, Acta, Solicitud de Autorización, Ficha/Solicitud/Caja, etc.) va como nodo de objeto en línea en el flujo (no como `note`), y las flechas que entran y salen del nodo son punteadas (`-[dashed]->`). La sintaxis `:texto]` de PlantUML NO funciona en la versión actual (los terminadores SDL no se reconocen), así que el nodo se dibuja como acción con estereotipo: `:**Remito**
