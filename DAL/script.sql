@@ -1510,19 +1510,10 @@ CREATE TABLE [dbo].[VINO] (
     [PUNTAJE]               INT           NULL,
     [CREADO_POR]            INT           NOT NULL,
     [FECHA_ALTA]            DATETIME      NOT NULL DEFAULT GETDATE(),
-    [AUTORIZADO_POR]        INT           NULL,
-    [FECHA_AUTORIZACION]    DATETIME      NULL,
-    [BAJA_SOLICITADA_POR]   INT           NULL,
-    [FECHA_SOLICITUD_BAJA]  DATETIME      NULL,
-    [DESCONTINUADO_POR]     INT           NULL,
-    [FECHA_DESCONTINUACION] DATETIME      NULL,
     CONSTRAINT PK_VINO PRIMARY KEY ([ID]),
     CONSTRAINT UQ_VINO_CODIGO UNIQUE ([CODIGO]),
     CONSTRAINT FK_VINO_BODEGA             FOREIGN KEY ([BODEGA_ID])            REFERENCES [dbo].[BODEGA]([ID]),
-    CONSTRAINT FK_VINO_CREADOPOR          FOREIGN KEY ([CREADO_POR])           REFERENCES [dbo].[USUARIO]([ID]),
-    CONSTRAINT FK_VINO_AUTORIZADOPOR      FOREIGN KEY ([AUTORIZADO_POR])       REFERENCES [dbo].[USUARIO]([ID]),
-    CONSTRAINT FK_VINO_BAJASOLICITADAPOR  FOREIGN KEY ([BAJA_SOLICITADA_POR])  REFERENCES [dbo].[USUARIO]([ID]),
-    CONSTRAINT FK_VINO_DESCONTINUADOPOR   FOREIGN KEY ([DESCONTINUADO_POR])    REFERENCES [dbo].[USUARIO]([ID])
+    CONSTRAINT FK_VINO_CREADOPOR          FOREIGN KEY ([CREADO_POR])           REFERENCES [dbo].[USUARIO]([ID])
 )
 GO
 
@@ -1608,7 +1599,8 @@ GO
 -- Clave de idempotencia: solo se procesan los vinos SIN ninguna solicitud. Los vinos
 -- creados por el flujo nuevo siempre tienen una solicitud ALTA, así que nunca se reprocesan.
 -- SQL dinámico: una referencia estática a las columnas legadas rompería todo el batch en
--- compilación cuando se eliminen (slice 3). El guard COL_LENGTH evita ejecutarlo entonces.
+-- compilación una vez eliminadas. El guard COL_LENGTH evita ejecutarlo cuando ya no existen.
+-- Una instalación nueva (sin esas columnas) lo omite y no migra nada.
 --   AUTORIZADO_POR NULL                  -> VINO Pendiente + ALTA Pendiente
 --   AUTORIZADO_POR con valor             -> ALTA Aprobada
 --   Activo + BAJA_SOLICITADA_POR         -> además BAJA Pendiente
@@ -1679,6 +1671,94 @@ WHERE l.EXCLUIR = 0 AND l.ESTADO = ''Descontinuado'';
 DROP TABLE #legado;
 COMMIT TRAN;
 '
+GO
+
+-- ------------------------------------------------------------
+-- LIMPIEZA DE LAS COLUMNAS LEGADAS DE VINO (change solicitud-autorizacion, slice 3)
+-- La solicitud de autorización es la única fuente de verdad: las 6 columnas legadas
+-- (AUTORIZADO_POR, FECHA_AUTORIZACION, BAJA_SOLICITADA_POR, FECHA_SOLICITUD_BAJA,
+-- DESCONTINUADO_POR, FECHA_DESCONTINUACION) ya fueron migradas por el backfill de arriba.
+-- Va después del backfill y antes de cualquier SP que ya no las nombra.
+-- ------------------------------------------------------------
+
+-- SPs huérfanos que escribían o leían las columnas legadas. Ningún código los invoca y, si
+-- siguieran, desincronizarían VINO de SOLICITUD_AUTORIZACION. Sus bloques CREATE se eliminaron
+-- del script: este DROP los quita de las bases existentes.
+IF OBJECT_ID('dbo.VINO_AUTORIZAR', 'P')              IS NOT NULL DROP PROCEDURE [dbo].[VINO_AUTORIZAR]
+IF OBJECT_ID('dbo.VINO_AUTORIZAR_BAJA', 'P')         IS NOT NULL DROP PROCEDURE [dbo].[VINO_AUTORIZAR_BAJA]
+IF OBJECT_ID('dbo.VINO_RECHAZAR_BAJA', 'P')          IS NOT NULL DROP PROCEDURE [dbo].[VINO_RECHAZAR_BAJA]
+IF OBJECT_ID('dbo.VINO_LISTAR_PENDIENTES_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_LISTAR_PENDIENTES_BAJA]
+IF OBJECT_ID('dbo.VINO_LISTAR_PENDIENTES', 'P')      IS NOT NULL DROP PROCEDURE [dbo].[VINO_LISTAR_PENDIENTES]
+GO
+
+-- Primero se quitan, con nombre dinámico, las FKs y los DEFAULT que apuntan a esas columnas
+-- (el nombre de un DEFAULT autogenerado varía por instancia); después se elimina cada columna.
+-- Idempotente: si las columnas ya no existen, no hace nada. Una sola transacción.
+-- Resguardo: si algún vino quedó sin solicitud (backfill fallido o vinos excluidos por datos
+-- incoherentes), las columnas NO se eliminan, porque son el único dato para revisarlos a mano.
+-- Una vez corregidos, volver a ejecutar el script completa la eliminación.
+IF COL_LENGTH('dbo.VINO', 'AUTORIZADO_POR')        IS NOT NULL
+OR COL_LENGTH('dbo.VINO', 'FECHA_AUTORIZACION')    IS NOT NULL
+OR COL_LENGTH('dbo.VINO', 'BAJA_SOLICITADA_POR')   IS NOT NULL
+OR COL_LENGTH('dbo.VINO', 'FECHA_SOLICITUD_BAJA')  IS NOT NULL
+OR COL_LENGTH('dbo.VINO', 'DESCONTINUADO_POR')     IS NOT NULL
+OR COL_LENGTH('dbo.VINO', 'FECHA_DESCONTINUACION') IS NOT NULL
+BEGIN
+IF EXISTS (SELECT 1 FROM dbo.VINO v
+           WHERE NOT EXISTS (SELECT 1 FROM dbo.SOLICITUD_AUTORIZACION s WHERE s.VINO_ID = v.ID))
+    PRINT 'Columnas legadas de VINO conservadas: hay vinos sin SOLICITUD_AUTORIZACION (revisar a mano y volver a ejecutar el script).';
+ELSE
+EXEC sp_executesql N'
+SET XACT_ABORT ON;
+BEGIN TRAN;
+
+DECLARE @columnas TABLE (NOMBRE SYSNAME PRIMARY KEY);
+INSERT INTO @columnas (NOMBRE) VALUES
+    (''AUTORIZADO_POR''), (''FECHA_AUTORIZACION''), (''BAJA_SOLICITADA_POR''),
+    (''FECHA_SOLICITUD_BAJA''), (''DESCONTINUADO_POR''), (''FECHA_DESCONTINUACION'');
+
+DECLARE @sql NVARCHAR(MAX);
+
+DECLARE cur_restricciones CURSOR LOCAL FAST_FORWARD FOR
+    SELECT ''ALTER TABLE [dbo].[VINO] DROP CONSTRAINT '' + QUOTENAME(fk.name)
+    FROM sys.foreign_keys fk
+    JOIN sys.foreign_key_columns fkc ON fkc.constraint_object_id = fk.object_id
+    JOIN sys.columns col ON col.object_id = fkc.parent_object_id AND col.column_id = fkc.parent_column_id
+    JOIN @columnas x ON x.NOMBRE = col.name
+    WHERE fk.parent_object_id = OBJECT_ID(''dbo.VINO'')
+    UNION
+    SELECT ''ALTER TABLE [dbo].[VINO] DROP CONSTRAINT '' + QUOTENAME(dc.name)
+    FROM sys.default_constraints dc
+    JOIN sys.columns col ON col.object_id = dc.parent_object_id AND col.column_id = dc.parent_column_id
+    JOIN @columnas x ON x.NOMBRE = col.name
+    WHERE dc.parent_object_id = OBJECT_ID(''dbo.VINO'');
+OPEN cur_restricciones;
+FETCH NEXT FROM cur_restricciones INTO @sql;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    EXEC sp_executesql @sql;
+    FETCH NEXT FROM cur_restricciones INTO @sql;
+END
+CLOSE cur_restricciones;
+DEALLOCATE cur_restricciones;
+
+DECLARE cur_columnas CURSOR LOCAL FAST_FORWARD FOR
+    SELECT ''ALTER TABLE [dbo].[VINO] DROP COLUMN '' + QUOTENAME(NOMBRE)
+    FROM @columnas
+    WHERE COL_LENGTH(''dbo.VINO'', NOMBRE) IS NOT NULL;
+OPEN cur_columnas;
+FETCH NEXT FROM cur_columnas INTO @sql;
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    EXEC sp_executesql @sql;
+    FETCH NEXT FROM cur_columnas INTO @sql;
+END
+CLOSE cur_columnas;
+DEALLOCATE cur_columnas;
+
+COMMIT TRAN;
+'
+END
 GO
 
 -- ------------------------------------------------------------
@@ -1782,15 +1862,10 @@ CREATE PROCEDURE [dbo].[VINO_OBTENER_POR_CODIGO]
 AS
     SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
            v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
-           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
-           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION,
-           v.BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN, v.FECHA_SOLICITUD_BAJA,
-           v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION
+           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA
     FROM VINO v
     JOIN BODEGA b ON b.ID = v.BODEGA_ID
     JOIN USUARIO uc ON uc.ID = v.CREADO_POR
-    LEFT JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
-    LEFT JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
     WHERE v.CODIGO = @codigo
 GO
 
@@ -1801,34 +1876,11 @@ CREATE PROCEDURE [dbo].[VINO_OBTENER_POR_ID]
 AS
     SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
            v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
-           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
-           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION,
-           v.BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN, v.FECHA_SOLICITUD_BAJA,
-           v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION
+           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA
     FROM VINO v
     JOIN BODEGA b ON b.ID = v.BODEGA_ID
     JOIN USUARIO uc ON uc.ID = v.CREADO_POR
-    LEFT JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
-    LEFT JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
     WHERE v.ID = @id
-GO
-
-IF OBJECT_ID('dbo.VINO_LISTAR_PENDIENTES', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_LISTAR_PENDIENTES]
-GO
-CREATE PROCEDURE [dbo].[VINO_LISTAR_PENDIENTES]
-AS
-    SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
-           v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
-           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
-           v.AUTORIZADO_POR, CAST(NULL AS VARCHAR(50)) AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION,
-           v.BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN, v.FECHA_SOLICITUD_BAJA,
-           v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION
-    FROM VINO v
-    JOIN BODEGA b ON b.ID = v.BODEGA_ID
-    JOIN USUARIO uc ON uc.ID = v.CREADO_POR
-    LEFT JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
-    WHERE v.ESTADO = 'Pendiente'
-    ORDER BY v.FECHA_ALTA
 GO
 
 IF OBJECT_ID('dbo.VINO_LISTAR_AUTORIZADOS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_LISTAR_AUTORIZADOS]
@@ -1837,15 +1889,10 @@ CREATE PROCEDURE [dbo].[VINO_LISTAR_AUTORIZADOS]
 AS
     SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
            v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
-           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
-           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION,
-           v.BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN, v.FECHA_SOLICITUD_BAJA,
-           v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION
+           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA
     FROM VINO v
     JOIN BODEGA b ON b.ID = v.BODEGA_ID
     JOIN USUARIO uc ON uc.ID = v.CREADO_POR
-    LEFT JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
-    LEFT JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
     WHERE v.ESTADO = 'Activo'
     ORDER BY v.NOMBRE
 GO
@@ -1861,16 +1908,11 @@ AS
     SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
            v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
            v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
-           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION,
-           v.BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN, v.FECHA_SOLICITUD_BAJA,
-           v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION,
            ult.TIPO AS ULT_SOLICITUD_TIPO, ult.ESTADO AS ULT_SOLICITUD_ESTADO,
            ult.MOTIVO_RECHAZO AS ULT_MOTIVO_RECHAZO
     FROM VINO v
     JOIN BODEGA b ON b.ID = v.BODEGA_ID
     JOIN USUARIO uc ON uc.ID = v.CREADO_POR
-    LEFT JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
-    LEFT JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
     OUTER APPLY (SELECT TOP 1 s.TIPO, s.ESTADO, s.MOTIVO_RECHAZO, s.EMISOR_ID
                  FROM SOLICITUD_AUTORIZACION s
                  WHERE s.VINO_ID = v.ID
@@ -1882,24 +1924,12 @@ AS
     ORDER BY v.FECHA_ALTA DESC, v.ID DESC
 GO
 
-IF OBJECT_ID('dbo.VINO_AUTORIZAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_AUTORIZAR]
-GO
--- RN-01 backstop: un admin no puede autorizar un vino que el mismo dio de alta
-CREATE PROCEDURE [dbo].[VINO_AUTORIZAR]
-    @id       INT,
-    @admin_id INT
-AS
-    UPDATE VINO
-    SET AUTORIZADO_POR = @admin_id, FECHA_AUTORIZACION = GETDATE()
-    WHERE ID = @id AND AUTORIZADO_POR IS NULL AND CREADO_POR <> @admin_id
-GO
-
 -- ------------------------------------------------------------
 -- STORED PROCEDURES — SOLICITUD_AUTORIZACION
 -- Patrón de CAJA_DESPACHAR: transaccional, exactamente un SELECT FILAS (se lee con Acceso.Leer;
 -- ExecuteNonQuery sumaría los rowcounts de todas las sentencias). 0 FILAS = rechazado.
--- En los slices 1-2 las SPs de resolución también escriben las columnas legadas de VINO
--- (doble escritura) para que el rollback no pierda datos; el slice 3 la elimina.
+-- Las SPs de resolución solo escriben SOLICITUD_AUTORIZACION y VINO.ESTADO: las columnas
+-- legadas de VINO ya no existen (se eliminaron en el slice 3).
 -- ------------------------------------------------------------
 
 IF OBJECT_ID('dbo.SOLICITUD_LISTAR_PENDIENTES', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOLICITUD_LISTAR_PENDIENTES]
@@ -1993,10 +2023,7 @@ BEGIN
             ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
         END
 
-        -- Doble escritura legada (AUTORIZADO_POR / FECHA_AUTORIZACION): se elimina en el slice 3.
-        UPDATE VINO
-        SET ESTADO = 'Activo', AUTORIZADO_POR = @resolutor_id, FECHA_AUTORIZACION = GETDATE()
-        WHERE ID = @vino_id AND ESTADO = 'Pendiente';
+        UPDATE VINO SET ESTADO = 'Activo' WHERE ID = @vino_id AND ESTADO = 'Pendiente';
         IF @@ROWCOUNT = 0
         BEGIN
             ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
@@ -2107,10 +2134,7 @@ BEGIN
             ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
         END
 
-        -- Doble escritura legada (DESCONTINUADO_POR / FECHA_DESCONTINUACION): se elimina en el slice 3.
-        UPDATE VINO
-        SET ESTADO = 'Descontinuado', DESCONTINUADO_POR = @resolutor_id, FECHA_DESCONTINUACION = GETDATE()
-        WHERE ID = @vino_id AND ESTADO = 'Activo';
+        UPDATE VINO SET ESTADO = 'Descontinuado' WHERE ID = @vino_id AND ESTADO = 'Activo';
         IF @@ROWCOUNT = 0
         BEGIN
             ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
@@ -2164,11 +2188,6 @@ BEGIN
         BEGIN
             ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
         END
-
-        -- Doble escritura legada: limpia la solicitud de baja de VINO. Se elimina en el slice 3.
-        UPDATE VINO
-        SET BAJA_SOLICITADA_POR = NULL, FECHA_SOLICITUD_BAJA = NULL
-        WHERE ID = @vino_id AND ESTADO = 'Activo';
 
         COMMIT TRAN;
         SELECT 1 AS FILAS;
@@ -4321,9 +4340,7 @@ GO
 
 -- ============================================================
 -- CATÁLOGO Y STOCK DE VINOS (CU-24/25/26/27) — Descontinuación, alerta de stock y ajustes
--- Las columnas de baja de VINO ya existen (bloque de tablas); los SPs de lectura
--- de VINO las devuelven (BAJA_SOLICITADA_POR[_LOGIN], FECHA_SOLICITUD_BAJA,
--- DESCONTINUADO_POR, FECHA_DESCONTINUACION).
+-- La baja y su autorización viven en SOLICITUD_AUTORIZACION (VINO solo guarda el ESTADO).
 -- Decisión de TIPO para ajustes (CU-27): un ajuste se guarda como TIPO = 'Entrada'
 -- (aumenta) o 'Salida' (disminuye) con REFERENCIA_TIPO = 'AJUSTE'. Así la expresión
 -- SUM(CASE WHEN TIPO = 'Entrada' THEN CANTIDAD ELSE -CANTIDAD END) usada en
@@ -4364,12 +4381,6 @@ BEGIN
                       FROM MOVIMIENTO_STOCK m WITH (UPDLOCK, HOLDLOCK) WHERE m.VINO_ID = @id), 0) = 0;
         SET @filas = @@ROWCOUNT;
 
-        -- Doble escritura legada (BAJA_SOLICITADA_POR / FECHA_SOLICITUD_BAJA): se elimina en el slice 3.
-        IF @filas > 0
-            UPDATE VINO
-            SET BAJA_SOLICITADA_POR = @solicitante_id, FECHA_SOLICITUD_BAJA = GETDATE()
-            WHERE ID = @id;
-
         COMMIT TRAN;
         SELECT @filas AS FILAS;
     END TRY
@@ -4378,65 +4389,6 @@ BEGIN
         THROW;
     END CATCH
 END
-GO
-
-IF OBJECT_ID('dbo.VINO_LISTAR_PENDIENTES_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_LISTAR_PENDIENTES_BAJA]
-GO
--- Se alimenta de SOLICITUD_AUTORIZACION (BAJA Pendiente), no de las columnas legadas de VINO.
--- Conserva la forma de columnas de VINO para el formulario de baja actual; en el slice 3 el
--- formulario pasa a SOLICITUD_LISTAR_PENDIENTES('BAJA') y esta SP se elimina.
-CREATE PROCEDURE [dbo].[VINO_LISTAR_PENDIENTES_BAJA]
-AS
-    SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE,
-           v.VARIETAL, v.ANIADA, v.PRECIO, v.STOCK_MINIMO, v.ESTADO, v.MARIDAJE, v.PUNTAJE,
-           v.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN, v.FECHA_ALTA,
-           v.AUTORIZADO_POR, ua.USUARIO AS AUTORIZADO_POR_LOGIN, v.FECHA_AUTORIZACION,
-           s.EMISOR_ID AS BAJA_SOLICITADA_POR, ub.USUARIO AS BAJA_SOLICITADA_POR_LOGIN,
-           s.FECHA_EMISION AS FECHA_SOLICITUD_BAJA,
-           v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION
-    FROM SOLICITUD_AUTORIZACION s
-    JOIN VINO v ON v.ID = s.VINO_ID
-    JOIN BODEGA b ON b.ID = v.BODEGA_ID
-    JOIN USUARIO uc ON uc.ID = v.CREADO_POR
-    LEFT JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
-    JOIN USUARIO ub ON ub.ID = s.EMISOR_ID
-    WHERE s.TIPO = 'BAJA' AND s.ESTADO = 'Pendiente'
-    ORDER BY s.FECHA_EMISION, s.ID
-GO
-
-IF OBJECT_ID('dbo.VINO_AUTORIZAR_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_AUTORIZAR_BAJA]
-GO
--- RN-01 backstop: quien solicitó la baja no puede autorizarla. RN-04: baja lógica (ESTADO), nunca DELETE.
-CREATE PROCEDURE [dbo].[VINO_AUTORIZAR_BAJA]
-    @id       INT,
-    @admin_id INT
-AS
-    UPDATE VINO
-    SET ESTADO = 'Descontinuado',
-        DESCONTINUADO_POR = @admin_id,
-        FECHA_DESCONTINUACION = GETDATE()
-    WHERE ID = @id
-      AND ESTADO = 'Activo'
-      AND BAJA_SOLICITADA_POR IS NOT NULL
-      AND DESCONTINUADO_POR IS NULL
-      AND BAJA_SOLICITADA_POR <> @admin_id
-      -- RN-15: solo se descontinúa un vino sin stock en depósito
-      AND ISNULL((SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END)
-                  FROM MOVIMIENTO_STOCK m WHERE m.VINO_ID = @id), 0) = 0
-GO
-
-IF OBJECT_ID('dbo.VINO_RECHAZAR_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_RECHAZAR_BAJA]
-GO
--- Rechazo: limpia la solicitud y el vino sigue Activo (la traza queda en BITACORA)
-CREATE PROCEDURE [dbo].[VINO_RECHAZAR_BAJA]
-    @id INT
-AS
-    UPDATE VINO
-    SET BAJA_SOLICITADA_POR = NULL, FECHA_SOLICITUD_BAJA = NULL
-    WHERE ID = @id
-      AND ESTADO = 'Activo'
-      AND BAJA_SOLICITADA_POR IS NOT NULL
-      AND DESCONTINUADO_POR IS NULL
 GO
 
 -- ------------------------------------------------------------
