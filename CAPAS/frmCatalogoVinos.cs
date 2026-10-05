@@ -113,16 +113,8 @@ namespace CAPAS
                 dgvVinos.Columns["CreadoPorLogin"].HeaderText = mgr.Traducir("colhdr_CreadoPor") ?? "Creado por";
             if (dgvVinos.Columns["FechaAlta"] != null)
                 dgvVinos.Columns["FechaAlta"].HeaderText = mgr.Traducir("colhdr_FechaAlta") ?? "Fecha de alta";
-            if (dgvVinos.Columns["AutorizadoPorLogin"] != null)
-                dgvVinos.Columns["AutorizadoPorLogin"].HeaderText = mgr.Traducir("colhdr_AutorizadoPor") ?? "Autorizado por";
-            if (dgvVinos.Columns["FechaAutorizacion"] != null)
-                dgvVinos.Columns["FechaAutorizacion"].HeaderText = mgr.Traducir("colhdr_FechaAutorizacion") ?? "Fecha de autorización";
             if (dgvVinos.Columns["Estado"] != null)
                 dgvVinos.Columns["Estado"].HeaderText = mgr.Traducir("colhdr_Estado") ?? "Estado";
-            if (dgvVinos.Columns["BajaSolicitadaPorLogin"] != null)
-                dgvVinos.Columns["BajaSolicitadaPorLogin"].HeaderText = mgr.Traducir("colhdr_BajaSolicitadaPor") ?? "Baja solicitada por";
-            if (dgvVinos.Columns["FechaSolicitudBaja"] != null)
-                dgvVinos.Columns["FechaSolicitudBaja"].HeaderText = mgr.Traducir("colhdr_FechaSolicitudBaja") ?? "Fecha de solicitud de baja";
             if (dgvVinos.Columns["UltimaSolicitudTipo"] != null)
                 dgvVinos.Columns["UltimaSolicitudTipo"].HeaderText = mgr.Traducir("colhdr_UltimaSolicitud") ?? "Última solicitud";
             if (dgvVinos.Columns["UltimaSolicitudEstado"] != null)
@@ -164,13 +156,6 @@ namespace CAPAS
                 if (dgvVinos.Columns["Id"] != null) dgvVinos.Columns["Id"].Visible = false;
                 if (dgvVinos.Columns["BodegaId"] != null) dgvVinos.Columns["BodegaId"].Visible = false;
                 if (dgvVinos.Columns["CreadoPor"] != null) dgvVinos.Columns["CreadoPor"].Visible = false;
-                if (dgvVinos.Columns["AutorizadoPor"] != null) dgvVinos.Columns["AutorizadoPor"].Visible = false;
-                if (dgvVinos.Columns["BajaSolicitadaPor"] != null) dgvVinos.Columns["BajaSolicitadaPor"].Visible = false;
-                if (dgvVinos.Columns["DescontinuadoPor"] != null) dgvVinos.Columns["DescontinuadoPor"].Visible = false;
-                if (dgvVinos.Columns["FechaDescontinuacion"] != null) dgvVinos.Columns["FechaDescontinuacion"].Visible = false;
-                // La baja pendiente se informa en las columnas de última solicitud.
-                if (dgvVinos.Columns["BajaSolicitadaPorLogin"] != null) dgvVinos.Columns["BajaSolicitadaPorLogin"].Visible = false;
-                if (dgvVinos.Columns["FechaSolicitudBaja"] != null) dgvVinos.Columns["FechaSolicitudBaja"].Visible = false;
                 ActualizarEncabezados();
             }
 

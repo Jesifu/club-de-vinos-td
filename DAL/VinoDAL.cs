@@ -140,20 +140,6 @@ namespace DAL
             finally { _acceso.Cerrar(); }
         }
 
-        public List<BE.Vino> ListarPendientes()
-        {
-            List<BE.Vino> lista = new List<BE.Vino>();
-            try
-            {
-                _acceso.Abrir();
-                DataTable tabla = _acceso.Leer("VINO_LISTAR_PENDIENTES");
-                foreach (DataRow fila in tabla.Rows)
-                    lista.Add(MapearFila(fila));
-            }
-            finally { _acceso.Cerrar(); }
-            return lista;
-        }
-
         public List<BE.Vino> ListarAutorizados()
         {
             List<BE.Vino> lista = new List<BE.Vino>();
@@ -184,20 +170,6 @@ namespace DAL
                 return Convert.ToInt32(tabla.Rows[0]["FILAS"]);
             }
             finally { _acceso.Cerrar(); }
-        }
-
-        public List<BE.Vino> ListarPendientesDeBaja()
-        {
-            List<BE.Vino> lista = new List<BE.Vino>();
-            try
-            {
-                _acceso.Abrir();
-                DataTable tabla = _acceso.Leer("VINO_LISTAR_PENDIENTES_BAJA");
-                foreach (DataRow fila in tabla.Rows)
-                    lista.Add(MapearFila(fila));
-            }
-            finally { _acceso.Cerrar(); }
-            return lista;
         }
 
         // CU-26: vinos activos con stock derivado < STOCK_MINIMO.
@@ -280,14 +252,6 @@ namespace DAL
                 CreadoPor = Convert.ToInt32(fila["CREADO_POR"]),
                 CreadoPorLogin = fila["CREADO_POR_LOGIN"].ToString(),
                 FechaAlta = Convert.ToDateTime(fila["FECHA_ALTA"]),
-                AutorizadoPor = fila["AUTORIZADO_POR"] == DBNull.Value ? (int?)null : Convert.ToInt32(fila["AUTORIZADO_POR"]),
-                AutorizadoPorLogin = fila["AUTORIZADO_POR_LOGIN"] == DBNull.Value ? null : fila["AUTORIZADO_POR_LOGIN"].ToString(),
-                FechaAutorizacion = fila["FECHA_AUTORIZACION"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(fila["FECHA_AUTORIZACION"]),
-                BajaSolicitadaPor = fila["BAJA_SOLICITADA_POR"] == DBNull.Value ? (int?)null : Convert.ToInt32(fila["BAJA_SOLICITADA_POR"]),
-                BajaSolicitadaPorLogin = fila["BAJA_SOLICITADA_POR_LOGIN"] == DBNull.Value ? null : fila["BAJA_SOLICITADA_POR_LOGIN"].ToString(),
-                FechaSolicitudBaja = fila["FECHA_SOLICITUD_BAJA"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(fila["FECHA_SOLICITUD_BAJA"]),
-                DescontinuadoPor = fila["DESCONTINUADO_POR"] == DBNull.Value ? (int?)null : Convert.ToInt32(fila["DESCONTINUADO_POR"]),
-                FechaDescontinuacion = fila["FECHA_DESCONTINUACION"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(fila["FECHA_DESCONTINUACION"]),
                 // Solo VINO_LISTAR_CATALOGO devuelve estas columnas.
                 UltimaSolicitudTipo = TextoOpcional(fila, "ULT_SOLICITUD_TIPO") == null
                     ? (BE.TipoSolicitud?)null

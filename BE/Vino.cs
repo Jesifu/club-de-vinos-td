@@ -19,15 +19,6 @@ namespace BE
         public int CreadoPor { get; set; }
         public string CreadoPorLogin { get; set; }
         public DateTime FechaAlta { get; set; }
-        public int? AutorizadoPor { get; set; }
-        public string AutorizadoPorLogin { get; set; }
-        public DateTime? FechaAutorizacion { get; set; }
-        // Descontinuación (CU-24/25): solicitud pendiente mientras BajaSolicitadaPor != null y Estado == Activo.
-        public int? BajaSolicitadaPor { get; set; }
-        public string BajaSolicitadaPorLogin { get; set; }
-        public DateTime? FechaSolicitudBaja { get; set; }
-        public int? DescontinuadoPor { get; set; }
-        public DateTime? FechaDescontinuacion { get; set; }
         // Última solicitud de autorización del vino (R7). Solo la completa VINO_LISTAR_CATALOGO;
         // en el resto de las consultas quedan en null.
         public TipoSolicitud? UltimaSolicitudTipo { get; set; }
