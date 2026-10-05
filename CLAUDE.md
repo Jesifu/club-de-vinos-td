@@ -149,6 +149,18 @@ _defaults["lblTitulo_Bitacora"]  = lblTitulo.Text;
 
 **Singleton** — Both `SessionManager` and `IdiomaManager` use double-checked locking.
 
+## Solicitud de autorización (alta y baja de vinos)
+
+La autorización de altas y bajas de vinos vive en la tabla **`SOLICITUD_AUTORIZACION`** (`ID, TIPO ALTA|BAJA, VINO_ID, ESTADO Pendiente|Aprobada|Rechazada, EMISOR_ID, FECHA_EMISION, RESOLUTOR_ID, FECHA_RESOLUCION, MOTIVO_RECHAZO`), fuente de verdad de las aprobaciones. Reemplaza a las columnas `AUTORIZADO_POR`, `FECHA_AUTORIZACION`, `BAJA_SOLICITADA_POR`, `FECHA_SOLICITUD_BAJA`, `DESCONTINUADO_POR` y `FECHA_DESCONTINUACION` de `VINO`, que fueron migradas (backfill) y eliminadas; los SP viejos (`VINO_AUTORIZAR`, `VINO_AUTORIZAR_BAJA`, `VINO_RECHAZAR_BAJA`, `VINO_LISTAR_PENDIENTES`, `VINO_LISTAR_PENDIENTES_BAJA`) ya no existen. Los SP actuales son `SOLICITUD_LISTAR_PENDIENTES / OBTENER_POR_ID / OBTENER_PENDIENTE / APROBAR_ALTA / RECHAZAR_ALTA / APROBAR_BAJA / RECHAZAR_BAJA`, más `VINO_INSERTAR`, `VINO_REPROPONER`, `VINO_SOLICITAR_BAJA` y `VINO_LISTAR_CATALOGO(@usuario_id)`.
+
+- **Estados:** `VINO.ESTADO` solo guarda el ciclo de vida (`Pendiente`, `Activo`, `Rechazado`, `Descontinuado`; CHECK `CK_VINO_ESTADO`). Un vino nace `Pendiente` con su solicitud ALTA; al rechazarse pasa a `Rechazado` y se corrige y repropone con el mismo SKU (`VINO_REPROPONER`, nueva solicitud ALTA, la anterior queda como historial). La baja no cambia el estado del vino hasta aprobarse (`Activo` → `Descontinuado`). Solo los vinos `Activo` son operables (stock, cajas, alertas); todos los `ESTADO='Activo'` de los SP lectores dependen de eso.
+- **RN-01 (triple guard):** quien resuelve una solicitud (aprobar **o** rechazar) no puede ser su emisor. Se verifica en la UI (botones deshabilitados con `EmisorId == sesión.Id`), en `VinoBLL.ValidarSeparacionDeFunciones` y en el `WHERE EMISOR_ID <> @resolutor_id` de cada SP de resolución (0 filas = rechazado), y además por el CHECK `CK_SOLAUT_RN01`.
+- **Rechazo con motivo:** obligatorio, recortado, 1 a 200 caracteres (UI, `VinoBLL.ValidarMotivo`, SP y CHECK `CK_SOLAUT_MOTIVO`).
+- **Unicidad:** índice único filtrado `UX_SOLAUT_PENDIENTE (VINO_ID, TIPO) WHERE ESTADO='Pendiente'`; las carreras llegan como `SqlException` 2601/2627 y la BLL las traduce.
+- **Orden de bloqueo:** todos los SP de resolución bloquean primero `VINO` (`UPDLOCK, HOLDLOCK`) y recién después actualizan `SOLICITUD_AUTORIZACION`, para evitar deadlocks entre aprobar/rechazar y proponer/reproponer.
+- **Guard de borrado de columnas:** el script elimina las columnas legadas de `VINO` solo si `COL_LENGTH` las encuentra **y** todo vino tiene al menos una solicitud (si el backfill excluyó o no migró alguno, las conserva con un `PRINT` para revisarlo a mano y volver a correr el script), en un batch dinámico transaccional que primero borra sus FK y DEFAULT; el backfill previo mapea los vinos legados sin solicitudes y es idempotente. Correr el script siempre con `-I` (QUOTED_IDENTIFIER ON; sin él falla el DML sobre el índice filtrado, error 1934).
+- **Patrón de SP:** los SP de escritura devuelven `SELECT @filas AS FILAS` (se leen con `Acceso.Leer`; `ExecuteNonQuery` suma los rowcounts de todas las sentencias).
+
 ## Dígitos verificadores de integridad
 
 The system protects **USUARIO** against unauthorized out-of-system DB modifications. **BITACORA**, **ROL**, **PERMISO**, and **ROL_PERMISO** are not integrity-protected.
@@ -260,7 +272,7 @@ All diagram sources, generated images, and doc-generation scripts live under `DI
 
 | File | Type | Purpose |
 |---|---|---|
-| `DIAGRAMAS/DER.puml` / `.png` | DER | Modelo entidad-relación de BDCAPAS |
+| `DIAGRAMAS/DER.puml` / `.png` | DER | Modelo entidad-relación de BDCAPAS (incluye `SOLICITUD_AUTORIZACION`) |
 | `DIAGRAMAS/DiagramaClases.puml` / `.png` | Diagrama de clases | Capas BE, BLL, DAL, SeguridadYServicios |
 | `DIAGRAMAS/DiagramaClases_Composite.puml` / `.png` / `.svg` | Diagrama de clases (patrón) | Composite — árbol de roles/permisos (`NodoPermiso`/`Rol`/`Permiso`), con comentarios |
 | `DIAGRAMAS/DiagramaClases_Observer.puml` / `.png` / `.svg` | Diagrama de clases (patrón) | Observer — multiidioma (`IdiomaManager`/`IObservadorIdioma`), con comentarios |
@@ -269,29 +281,34 @@ All diagram sources, generated images, and doc-generation scripts live under `DI
 | `DIAGRAMAS/DiagramaComponentes/DiagramaComponentes - TP_IS.png` | Diagrama de componentes (render) | PNG renderizado del anterior |
 | `DIAGRAMAS/DiagramaSecuencia_LoginIntegridad.puml` / `.png` | Secuencia (detallado) | Versión técnica del login + integridad, incluye Hasher, DALs, etc. |
 | `DIAGRAMAS/DiagramaSecuencia_CU01..CU20_*.puml` / `.png` | Secuencia por CU | Nivel UI/BLL/DB, uno por cada uno de los 20 casos de uso del esqueleto base |
-| `DIAGRAMAS/DiagramaActividad_CatalogoStock.puml` / `.png` / `.svg` | Actividad (proceso de negocio) | 4 carriles (Bodega/Proveedor, Depósito, Compras, Administrador) del dominio Gestión de Catálogo y Stock de Vinos |
-| `DIAGRAMAS/ModeloConceptual_CatalogoStock.puml` / `.png` | Modelo conceptual | BODEGA-VINO-MOVIMIENTO_STOCK, sin detalle físico |
-| `DIAGRAMAS/DiagramaClases_CatalogoStock.puml` / `.png` | Diagrama de clases | BE/BLL/DAL/CAPAS del dominio de catálogo y stock de vinos |
-| `DIAGRAMAS/DiagramaSecuencia_CU21_ProponerAltaVino.puml` / `.png` | Secuencia por CU | CU-21 Proponer Alta de Vino |
-| `DIAGRAMAS/DiagramaSecuencia_CU22_AutorizarAltaVino.puml` / `.png` | Secuencia por CU | CU-22 Autorizar Alta de Vino |
+| `DIAGRAMAS/DiagramaActividad_CatalogoStock.puml` / `.png` / `.svg` | Actividad (proceso de negocio) | 4 carriles (Bodega/Proveedor, Depósito, Compras, Administrador) del dominio Gestión de Catálogo y Stock de Vinos; documentos como nodos de objeto con flujos punteados |
+| `DIAGRAMAS/ModeloConceptual_CatalogoStock.puml` / `.png` | Modelo conceptual | BODEGA-VINO-MOVIMIENTO_STOCK-SOLICITUD_AUTORIZACION, sin detalle físico |
+| `DIAGRAMAS/DiagramaClases_CatalogoStock.puml` / `.png` | Diagrama de clases | BE/BLL/DAL/CAPAS del dominio de catálogo y stock de vinos (incluye `SolicitudAutorizacion` y `SolicitudAutorizacionDAL`) |
+| `DIAGRAMAS/DiagramaSecuencia_CU21_ProponerAltaVino.puml` / `.png` | Secuencia por CU | CU-21 Proponer Alta de Vino (incluye corregir y reproponer un vino rechazado) |
+| `DIAGRAMAS/DiagramaSecuencia_CU22_AutorizarAltaVino.puml` / `.png` | Secuencia por CU | CU-22 Autorizar o Rechazar Alta de Vino (panel de detalle, rechazo con motivo) |
 | `DIAGRAMAS/DiagramaSecuencia_CU23_RegistrarMovimientoStock.puml` / `.png` | Secuencia por CU | CU-23 Registrar Movimiento de Stock (Entrada) |
-| `DIAGRAMAS/DiagramaSecuencia_CU24_SolicitarDescontinuacion.puml` / `.png` | Secuencia por CU | CU-24 Solicitar Descontinuación de Vino |
-| `DIAGRAMAS/DiagramaSecuencia_CU25_AutorizarDescontinuacion.puml` / `.png` | Secuencia por CU | CU-25 Autorizar o Rechazar Descontinuación de Vino |
+| `DIAGRAMAS/DiagramaSecuencia_CU24_SolicitarDescontinuacion.puml` / `.png` | Secuencia por CU | CU-24 Solicitar Descontinuación de Vino (stock 0, RN-15) |
+| `DIAGRAMAS/DiagramaSecuencia_CU25_AutorizarDescontinuacion.puml` / `.png` | Secuencia por CU | CU-25 Autorizar o Rechazar Descontinuación de Vino (rechazo con motivo, RN-01 en ambos) |
 | `DIAGRAMAS/DiagramaSecuencia_CU26_ConsultarAlertaStockMinimo.puml` / `.png` | Secuencia por CU | CU-26 Consultar Alerta de Stock Mínimo |
 | `DIAGRAMAS/DiagramaSecuencia_CU27_RegistrarAjusteInventario.puml` / `.png` | Secuencia por CU | CU-27 Registrar Ajuste de Inventario |
 | `DIAGRAMAS/ModeloConceptual_CuracionCajas.puml` / `.png` | Modelo conceptual | SOCIO-SOCIO_VARIETAL-CAJA_MENSUAL-CAJA_VINO-SUSTITUCION, sin detalle físico, dominio de curación y armado de cajas mensuales |
-| `DIAGRAMAS/DiagramaActividad_CuracionCajas.puml` / `.png` | Actividad (proceso de negocio) | 4 carriles (Atención al Socio, Curador de Producto, Encargado de Depósito, Logística) del dominio de curación y armado de cajas mensuales |
+| `DIAGRAMAS/DiagramaActividad_CuracionCajas.puml` / `.png` | Actividad (proceso de negocio) | 4 carriles (Atención al Socio, Curador de Producto, Encargado de Depósito, Logística) del dominio de curación y armado de cajas mensuales; documentos como nodos de objeto con flujos punteados |
 | `DIAGRAMAS/DiagramaClases_CuracionCajas.puml` / `.png` | Diagrama de clases | BE/BLL/DAL/CAPAS del dominio de curación y armado de cajas mensuales |
 | `DIAGRAMAS/DiagramaSecuencia_CU28_ArmarCajaMensual.puml` / `.png` | Secuencia por CU | CU-28 Armar Caja Mensual |
 | `DIAGRAMAS/DiagramaSecuencia_CU29_RegistrarSustitucion.puml` / `.png` | Secuencia por CU | CU-29 Registrar Sustitución por Falta de Stock |
 | `DIAGRAMAS/CasosDeUso.docx` | Documento unificado | Los 31 CUs (CU-01..CU-20 esqueleto base + CU-21..CU-25/CU-27 principales + CU-26 soporte, dominio de catálogo y stock de vinos + CU-28..CU-31 dominio de curación y cajas mensuales) en un solo Word |
 | `DIAGRAMAS/generar_casos_uso_docx.py` | Generador | Regenera `CasosDeUso.docx` desde el dict `CUS` definido en el script |
 
+**Diagramas de actividad — documentos como nodos de objeto.** Por regla de cátedra, cada documento de negocio (Remito, Orden de Compra, Acta, Solicitud de Autorización, Ficha/Solicitud/Caja, etc.) va como nodo de objeto en línea en el flujo (no como `note`), y las flechas que entran y salen del nodo son punteadas (`-[dashed]->`). La sintaxis `:texto]` de PlantUML NO funciona en la versión actual (los terminadores SDL no se reconocen), así que el nodo se dibuja como acción con estereotipo: `:**Remito**
+[Emitido]; <<doc>>` más `skinparam roundcorner<<doc>> 0` y `BackgroundColor<<doc>> #FFFFFF`. Un `backward:` de `repeat` no admite un nodo de objeto: los lazos con rechazo se escriben con `if` dentro del `repeat` y `repeat while (¿Se rechazó…?)`. Se mantienen sin carril "Sistema", mínimo 3 carriles y actividades verbo+sustantivo.
+
 Regenerar un PNG individual (desde `DIAGRAMAS/`):
 
 ```powershell
 python generar_png.py <archivo.puml> <archivo.png>
 ```
+
+`DiagramaClases.puml` es tan ancho que excede el límite de 4096 px de PlantUML y su PNG sale recortado (limitación previa, no del contenido); además la URL GET de `generar_png.py` da HTTP 414 con ese archivo, por lo que hay que hacer POST del texto a `https://kroki.io/plantuml/png`.
 
 Regenerar en lote todos los diagramas de secuencia (con reintentos):
 
