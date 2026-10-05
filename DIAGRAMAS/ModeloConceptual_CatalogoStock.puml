@@ -22,7 +22,7 @@ class Vino {
   Añada
   Precio
   Stock mínimo
-  {field} Estado (Activo / Descontinuado)
+  {field} Estado (Pendiente / Activo / Rechazado / Descontinuado)
 }
 
 class "Movimiento de Stock" as MovimientoStock {
@@ -37,6 +37,7 @@ class "Solicitud de Autorización" as SolicitudAutorizacion {
   Fecha de emisión
   {field} Estado (Pendiente / Aprobada / Rechazada)
   Fecha de resolución
+  Motivo de rechazo
 }
 
 class Usuario {
@@ -45,24 +46,26 @@ class Usuario {
 
 Bodega "1" -- "0..*" Vino             : produce >
 Vino   "1" -- "0..*" MovimientoStock  : registra movimientos de >
-Usuario "1" -- "0..*" Vino            : propone alta / autoriza / descontinúa >
+Usuario "1" -- "0..*" Vino            : propone el alta >
 
 Vino    "1" -- "0..*" SolicitudAutorizacion : es objeto de >
 Usuario "1" -- "0..*" SolicitudAutorizacion : emite (Encargado de Compras) >
 Usuario "0..1" -- "0..*" SolicitudAutorizacion : resuelve (Administrador) >
 
 note right of Vino
-  Un vino visible en el catálogo requiere
+  Un vino operable (stock, cajas) requiere
   autorización de un Administrador distinto
   de quien propuso el alta (separación de
-  funciones entre roles de negocio).
+  funciones entre roles de negocio). Si se
+  rechaza, se corrige y se repropone.
 end note
 
 note bottom of SolicitudAutorizacion
   Documento de negocio que formaliza el pedido de alta
   o de descontinuación de un vino. Nace Pendiente y el
-  Administrador la resuelve como Aprobada o Rechazada;
-  quien la resuelve debe ser distinto de quien la emitió.
+  Administrador la resuelve como Aprobada o Rechazada
+  (el rechazo exige un motivo); quien la resuelve debe
+  ser distinto de quien la emitió.
 end note
 
 note bottom of MovimientoStock

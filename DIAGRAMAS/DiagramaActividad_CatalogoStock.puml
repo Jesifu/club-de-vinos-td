@@ -4,9 +4,14 @@ title Proceso de negocio — Ingreso de Mercadería, Ajuste de Inventario y Actu
 
 skinparam shadowing false
 skinparam roundcorner 6
+' Los documentos de negocio se dibujan como nodos de objeto (rectángulo de esquinas rectas,
+' fondo blanco) con flujos punteados de entrada y salida: estereotipo <<doc>>.
+skinparam roundcorner<<doc>> 0
 skinparam activity {
   BackgroundColor #FEFECE
   BorderColor #33342E
+  BackgroundColor<<doc>> #FFFFFF
+  BorderColor<<doc>> #33342E
 }
 skinparam partition {
   BorderColor #666666
@@ -18,63 +23,125 @@ scale 0.8
 start
 repeat
   :Despachar Mercadería;
-  note right: **Remito** [Emitido]
+  -[dashed]->
+  :**Remito**
+[Emitido]; <<doc>>
+  -[dashed]->
 
   |Encargado de Depósito|
   :Recepcionar Mercadería;
-  :Consultar a Compras por la\nOrden de Compra asociada al Remito;
+  :Consultar a Compras por la
+Orden de Compra asociada al Remito;
 
   |Encargado de Compras|
   :Verificar Orden de Compra;
-  note right: **Orden de Compra** [Verificada]
-backward: Informar Remito sin respaldo (Remito [Rechazado])\ny solicitar reenvío;
-repeat while (¿Existe Orden de Compra que\nrespalde el Remito?) is (no) not (sí)
+  if (¿Existe Orden de Compra que
+respalde el Remito?) then (no)
+    :Informar Remito sin respaldo
+y solicitar reenvío;
+    -[dashed]->
+    :**Remito**
+[Rechazado]; <<doc>>
+    -[dashed]->
+  else (sí)
+    -[dashed]->
+    :**Orden de Compra**
+[Verificada]; <<doc>>
+    -[dashed]->
+  endif
+repeat while (¿Se rechazó el Remito?) is (sí) not (no)
 
 :Confirmar Vinculación Remito–OC;
-note right: **Remito** [Conciliado]
+-[dashed]->
+:**Remito**
+[Conciliado]; <<doc>>
+-[dashed]->
 
 |Encargado de Depósito|
 :Registrar Ingreso de Stock;
 :Validar Stock Mínimo;
 
-if (¿Se detectó una diferencia de\ninventario (rotura, merma, error\nde conteo)?) then (sí)
+if (¿Se detectó una diferencia de
+inventario (rotura, merma, error
+de conteo)?) then (sí)
   :Registrar Ajuste de Inventario;
-  note right: **Acta de Ajuste de Inventario**\n[Registrada]
+  -[dashed]->
+  :**Acta de Ajuste de Inventario**
+[Registrada]; <<doc>>
+  -[dashed]->
 else (no)
 endif
 
 |Encargado de Compras|
 :Actualizar Legajo de Bodega;
 
-if (¿El vino recibido es nuevo\nen el catálogo?) then (sí)
+if (¿El vino recibido es nuevo
+en el catálogo?) then (sí)
   repeat
     :Proponer Alta de Vino;
-    note right: **Solicitud de Autorización**\n[Pendiente]
+    -[dashed]->
+    :**Solicitud de Autorización**
+[Pendiente]; <<doc>>
+    -[dashed]->
 
     |Administrador|
     :Evaluar Propuesta de Alta;
-  backward: Rechazar Propuesta (Solicitud [Rechazada])\ny devolver a Compras para revisión;
-  repeat while (¿Se aprueba la propuesta?) is (no) not (sí)
+    if (¿Se aprueba la propuesta?) then (no)
+      :Rechazar Propuesta de Alta
+con motivo;
+      -[dashed]->
+      :**Solicitud de Autorización**
+[Rechazada]; <<doc>>
+      -[dashed]->
 
+      |Encargado de Compras|
+      :Revisar Propuesta Rechazada;
+    else (sí)
+    endif
+  repeat while (¿Se rechazó la propuesta?) is (sí) not (no)
+
+  |Administrador|
   :Autorizar Publicación de Vino;
-  note right: **Solicitud de Autorización**\n[Aprobada]
+  -[dashed]->
+  :**Solicitud de Autorización**
+[Aprobada]; <<doc>>
+  -[dashed]->
 
   |Encargado de Compras|
 else (no)
 endif
 
-if (¿Corresponde retirar algún vino\ndel catálogo?) then (sí)
+if (¿Corresponde retirar algún vino
+del catálogo?) then (sí)
   repeat
     :Solicitar Descontinuación de Vino;
-    note right: **Solicitud de Autorización**\n[Pendiente]
+    -[dashed]->
+    :**Solicitud de Autorización**
+[Pendiente]; <<doc>>
+    -[dashed]->
 
     |Administrador|
     :Evaluar Solicitud de Descontinuación;
-  backward: Rechazar Solicitud (Solicitud [Rechazada])\ny devolver a Compras para revisión;
-  repeat while (¿Se aprueba la solicitud?) is (no) not (sí)
+    if (¿Se aprueba la solicitud?) then (no)
+      :Rechazar Solicitud de Descontinuación
+con motivo;
+      -[dashed]->
+      :**Solicitud de Autorización**
+[Rechazada]; <<doc>>
+      -[dashed]->
 
+      |Encargado de Compras|
+      :Revisar Solicitud Rechazada;
+    else (sí)
+    endif
+  repeat while (¿Se rechazó la solicitud?) is (sí) not (no)
+
+  |Administrador|
   :Autorizar Descontinuación de Vino;
-  note right: **Solicitud de Autorización**\n[Aprobada]
+  -[dashed]->
+  :**Solicitud de Autorización**
+[Aprobada]; <<doc>>
+  -[dashed]->
 
   |Encargado de Compras|
 else (no)

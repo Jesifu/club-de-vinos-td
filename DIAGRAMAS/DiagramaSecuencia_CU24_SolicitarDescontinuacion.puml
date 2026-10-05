@@ -7,35 +7,36 @@ skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.7
+scale 0.65
 
 actor       ":Usuario"                as U
 participant ":frmCatalogoVinos"       as FC #FEFECE
 participant ":VinoBLL"                as VB #E8F4E8
 participant ":BitacoraBLL"            as BB #E8F4E8
 participant ":VinoDAL"                as VD #E8E8F4
+participant ":SolicitudAutorizacionDAL" as SD #E8E8F4
 participant ":MovimientoStockDAL"     as MD #E8E8F4
 participant ":BitacoraDAL"            as TD #E8E8F4
 database    ":DB"                     as DB #EEEEEE
 
 note over FC
   Precondición: sesión activa; permiso "Gestionar catálogo de vinos";
-  vino autorizado con ESTADO = 'Activo', sin baja pendiente y con stock 0 (RN-15).
+  vino con ESTADO = 'Activo', sin baja pendiente y con stock 0 (RN-15).
 end note
 
 U -> FC : abrir "Catálogo de vinos"
 activate FC
-FC -> VB : ListarAutorizados()
+FC -> VB : ListarCatalogo(sesion)
 activate VB
-VB -> VD : ListarAutorizados()
+VB -> VD : ListarCatalogo(sesion.Id)
 activate VD
-VD -> DB : VINO_LISTAR_AUTORIZADOS
-DB --> VD : filas
+VD -> DB : VINO_LISTAR_CATALOGO(@usuario_id)
+DB --> VD : filas (con la última solicitud de cada vino)
 VD --> VB : List<Vino>
 deactivate VD
 VB --> FC : List<Vino>
 deactivate VB
-FC -> FC : mostrar grilla; habilitar "Solicitar descontinuación" solo si el vino\nestá autorizado, activo y sin baja solicitada
+FC -> FC : mostrar grilla; habilitar "Solicitar descontinuación" solo si el vino\nestá Activo y su última solicitud no es una baja Pendiente
 
 U -> FC : seleccionar vino + click "Solicitar descontinuación" + confirmar
 FC -> VB : SolicitarBaja(vino.Id, sesion)
@@ -50,61 +51,79 @@ deactivate VD
 alt 3a. el vino no existe
   VB --> FC : InvalidOperationException
   FC --> U : mensaje de la excepción
-else 3b. el vino no está autorizado
+else 3b. el vino ya está descontinuado
   VB --> FC : InvalidOperationException
   FC --> U : mensaje de la excepción
-else 3c. el vino ya está descontinuado
+else 3c. el vino no está Activo (Pendiente o Rechazado)
   VB --> FC : InvalidOperationException
   FC --> U : mensaje de la excepción
-else 3d. el vino ya tiene una baja solicitada
-  VB --> FC : InvalidOperationException
-  FC --> U : mensaje de la excepción
-else vino autorizado, activo y sin solicitud previa
-  VB -> VB : ValidarSinStock(vinoId)
-  VB -> MD : ObtenerStockActual(vinoId)
-  activate MD
-  MD -> DB : STOCK_ACTUAL_OBTENER(@vino_id)
-  DB --> MD : STOCK
-  MD --> VB : int
-  deactivate MD
+else vino Activo
+  VB -> SD : ObtenerPendiente(vinoId, TipoSolicitud.Baja)
+  activate SD
+  SD -> DB : SOLICITUD_OBTENER_PENDIENTE(@vino_id,@tipo)
+  DB --> SD : filas
+  SD --> VB : SolicitudAutorizacion (o null)
+  deactivate SD
 
-  alt 3e. el vino tiene stock distinto de 0 (RN-15)
+  alt 3d. el vino ya tiene una baja pendiente
     VB --> FC : InvalidOperationException
     FC --> U : mensaje de la excepción
-  else stock = 0
-    VB -> VD : SolicitarBaja(vinoId, sesion.Id)
-    activate VD
-    VD -> DB : VINO_SOLICITAR_BAJA(@id,@solicitante_id)
-    DB --> VD : filas afectadas
-    VD --> VB : int
-    deactivate VD
+  else sin baja pendiente
+    VB -> VB : ValidarSinStock(vinoId)
+    VB -> MD : ObtenerStockActual(vinoId)
+    activate MD
+    MD -> DB : STOCK_ACTUAL_OBTENER(@vino_id)
+    DB --> MD : STOCK
+    MD --> VB : int
+    deactivate MD
 
-    alt 3f. 0 filas afectadas (el estado o el stock cambiaron entre la lectura y la escritura; backstop de la SP)
+    alt 3e. el vino tiene stock distinto de 0 (RN-15)
       VB --> FC : InvalidOperationException
       FC --> U : mensaje de la excepción
-    else 1 fila afectada
-      VB -> BB : RegistrarAccion(sesion.Usuario,\n"BAJA_SOLICITADA_VINO:" + vino.Codigo)
-      activate BB
-      BB -> TD : Registrar(usuario, accion)
-      activate TD
-      TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
-      DB --> TD : filas afectadas
-      TD --> BB : void
-      deactivate TD
-      BB --> VB : void
-      deactivate BB
-      VB --> FC : void
-      FC --> U : "Descontinuación solicitada, pendiente de autorización."
+    else stock = 0
+      VB -> VD : SolicitarBaja(vinoId, sesion.Id)
+      activate VD
+      VD -> DB : VINO_SOLICITAR_BAJA(@id,@solicitante_id)
+      note right of DB : INSERT SOLICITUD_AUTORIZACION (BAJA, Pendiente)\nsolo si el vino sigue Activo, sin baja pendiente y con stock 0\n(lectura con UPDLOCK/HOLDLOCK). El vino sigue Activo.
+      alt 3f. otra solicitud de baja ganó la carrera (SqlException 2601/2627)
+        DB --> VD : SqlException
+        VD --> VB : SqlException
+        deactivate VD
+        VB --> FC : InvalidOperationException
+        FC --> U : mensaje de la excepción
+      else sin colisión
+        DB --> VD : FILAS
+        VD --> VB : int
+        deactivate VD
+
+        alt 3g. 0 filas (el estado o el stock cambiaron entre la lectura y la escritura; backstop de la SP)
+          VB --> FC : InvalidOperationException
+          FC --> U : mensaje de la excepción
+        else 1 fila
+          VB -> BB : RegistrarAccion(sesion.Usuario,\n"BAJA_SOLICITADA_VINO:" + vino.Codigo)
+          activate BB
+          BB -> TD : Registrar(usuario, accion)
+          activate TD
+          TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+          DB --> TD : filas afectadas
+          TD --> BB : void
+          deactivate TD
+          BB --> VB : void
+          deactivate BB
+          VB --> FC : void
+          FC --> U : "Descontinuación solicitada, pendiente de autorización."
+        end
+      end
     end
   end
 end
 deactivate VB
 
-FC -> VB : ListarAutorizados()
+FC -> VB : ListarCatalogo(sesion)
 activate VB
-VB -> VD : ListarAutorizados()
+VB -> VD : ListarCatalogo(sesion.Id)
 activate VD
-VD -> DB : VINO_LISTAR_AUTORIZADOS
+VD -> DB : VINO_LISTAR_CATALOGO(@usuario_id)
 DB --> VD : filas
 VD --> VB : List<Vino>
 deactivate VD

@@ -10,13 +10,26 @@ skinparam linetype ortho
 hide empty members
 scale 0.6
 
-' Implementado: CU-21 a CU-27.
+' Implementado: CU-21 a CU-27 (alta y baja con Solicitud de Autorización).
 
 package "BE" #FEFECE {
 
   enum EstadoVino {
     Activo
     Descontinuado
+    Pendiente
+    Rechazado
+  }
+
+  enum TipoSolicitud {
+    Alta
+    Baja
+  }
+
+  enum EstadoSolicitud {
+    Pendiente
+    Aprobada
+    Rechazada
   }
 
   enum TipoMovimiento {
@@ -40,14 +53,29 @@ package "BE" #FEFECE {
     + CreadoPor : int
     + CreadoPorLogin : string
     + FechaAlta : DateTime
-    + AutorizadoPor : int?
-    + AutorizadoPorLogin : string
-    + FechaAutorizacion : DateTime?
-    + BajaSolicitadaPor : int?
-    + BajaSolicitadaPorLogin : string
-    + FechaSolicitudBaja : DateTime?
-    + DescontinuadoPor : int?
-    + FechaDescontinuacion : DateTime?
+    .. última solicitud (solo ListarCatalogo) ..
+    + UltimaSolicitudTipo : TipoSolicitud?
+    + UltimaSolicitudEstado : EstadoSolicitud?
+    + UltimoMotivoRechazo : string
+  }
+
+  class SolicitudAutorizacion {
+    + Id : int
+    + Tipo : TipoSolicitud
+    + VinoId : int
+    + VinoCodigo : string
+    + VinoNombre : string
+    + BodegaNombre : string
+    + Estado : EstadoSolicitud
+    + EmisorId : int
+    + EmisorLogin : string
+    + FechaEmision : DateTime
+    + ResolutorId : int?
+    + ResolutorLogin : string
+    + FechaResolucion : DateTime?
+    + MotivoRechazo : string
+    + StockActual : int
+    + Vino : Vino
   }
 
   class AlertaStockMinimo {
@@ -89,8 +117,11 @@ package "BE" #FEFECE {
 
   Bodega "1" o-- "0..*" Vino            : BodegaId >
   Vino   "1" o-- "0..*" MovimientoStock : VinoId >
-  Vino            --> EstadoVino
-  MovimientoStock --> TipoMovimiento
+  Vino   "1" o-- "0..*" SolicitudAutorizacion : VinoId >
+  Vino                 --> EstadoVino
+  SolicitudAutorizacion --> TipoSolicitud
+  SolicitudAutorizacion --> EstadoSolicitud
+  MovimientoStock      --> TipoMovimiento
 }
 
 ' ─────────────────────────────────────────
@@ -109,21 +140,32 @@ package "DAL" #E8E8F4 {
 
   class VinoDAL {
     - _acceso : Acceso
+    .. CU-21 ..
     + Insertar(v : Vino) : void
+    + Reproponer(v : Vino, emisorId : int) : int
     + ObtenerPorCodigo(codigo : string) : Vino
     + ObtenerPorId(id : int) : Vino
-    + ListarPendientes() : List<Vino>
+    + ListarCatalogo(usuarioId : int) : List<Vino>
     + ListarAutorizados() : List<Vino>
-    + Autorizar(vinoId : int, adminId : int) : int
     .. usado por CajaMensualBLL (CU-28) ..
     + ListarCandidatos(socioId : int) : List<VinoCandidato>
-    .. CU-24 y CU-25 ..
+    .. CU-24 ..
     + SolicitarBaja(vinoId : int, solicitanteId : int) : int
-    + ListarPendientesDeBaja() : List<Vino>
-    + AutorizarBaja(vinoId : int, adminId : int) : int
-    + RechazarBaja(vinoId : int) : int
     .. CU-26 ..
     + ListarBajoStockMinimo() : List<AlertaStockMinimo>
+  }
+
+  class SolicitudAutorizacionDAL {
+    - _acceso : Acceso
+    + ListarPendientes(tipo : TipoSolicitud) : List<SolicitudAutorizacion>
+    + ObtenerPorId(id : int) : SolicitudAutorizacion
+    + ObtenerPendiente(vinoId : int, tipo : TipoSolicitud) : SolicitudAutorizacion
+    .. CU-22 ..
+    + AprobarAlta(solicitudId : int, resolutorId : int) : int
+    + RechazarAlta(solicitudId : int, resolutorId : int, motivo : string) : int
+    .. CU-25 ..
+    + AprobarBaja(solicitudId : int, resolutorId : int) : int
+    + RechazarBaja(solicitudId : int, resolutorId : int, motivo : string) : int
   }
 
   class BodegaDAL {
@@ -144,7 +186,8 @@ package "DAL" #E8E8F4 {
     + Registrar(usuario : string, accion : string) : void
   }
 
-  VinoDAL            --> Acceso
+  VinoDAL                  --> Acceso
+  SolicitudAutorizacionDAL --> Acceso
   BodegaDAL          --> Acceso
   MovimientoStockDAL --> Acceso
   BitacoraDAL        --> Acceso
@@ -162,21 +205,29 @@ package "BLL" #E8F4E8 {
 
   class VinoBLL {
     - _dal : VinoDAL
+    - _solicitudDal : SolicitudAutorizacionDAL
     - _bodegaDal : BodegaDAL
     - _movimientoDal : MovimientoStockDAL
     - _bitacora : BitacoraBLL
     + ListarBodegas() : List<Bodega>
+    .. CU-21 ..
     + ProponerAlta(v : Vino, sesion : USUARIO) : void
-    + ListarPendientes() : List<Vino>
+    + Reproponer(v : Vino, sesion : USUARIO) : void
+    + ListarCatalogo(sesion : USUARIO) : List<Vino>
     + ListarAutorizados() : List<Vino>
-    + Autorizar(vinoId : int, sesion : USUARIO) : void
+    .. CU-22 ..
+    + ListarSolicitudesPendientes(tipo : TipoSolicitud) : List<SolicitudAutorizacion>
+    + AutorizarAlta(solicitudId : int, sesion : USUARIO) : void
+    + RechazarAlta(solicitudId : int, motivo : string, sesion : USUARIO) : void
     .. CU-24 y CU-25 ..
     + SolicitarBaja(vinoId : int, sesion : USUARIO) : void
-    + ListarPendientesDeBaja() : List<Vino>
-    + AutorizarBaja(vinoId : int, sesion : USUARIO) : void
-    + RechazarBaja(vinoId : int, sesion : USUARIO) : void
+    + AutorizarBaja(solicitudId : int, sesion : USUARIO) : void
+    + RechazarBaja(solicitudId : int, motivo : string, sesion : USUARIO) : void
+    - ValidarDatos(v : Vino, exigirCodigo : bool) : void
+    - ObtenerSolicitudPendiente(solicitudId : int, tipo : TipoSolicitud) : SolicitudAutorizacion
+    - ValidarSeparacionDeFunciones(s : SolicitudAutorizacion, sesion : USUARIO, accion : string) : void
+    - ValidarMotivo(motivo : string) : string
     - ValidarSinStock(vinoId : int) : void
-    - ObtenerConBajaPendiente(vinoId : int) : Vino
     .. CU-26 ..
     + ListarAlertaStockMinimo() : List<AlertaStockMinimo>
   }
@@ -194,6 +245,7 @@ package "BLL" #E8F4E8 {
   }
 
   VinoBLL            --> VinoDAL
+  VinoBLL            --> SolicitudAutorizacionDAL
   VinoBLL            --> BodegaDAL
   VinoBLL            --> MovimientoStockDAL
   VinoBLL            --> BitacoraBLL
@@ -219,15 +271,19 @@ package "CAPAS" #F4E8E8 {
     - _bll : VinoBLL
     + ActualizarIdioma() : void
     - btnGuardarVino_Click() : void
+    - CargarVinos() : void
     - dgvVinos_SelectionChanged() : void
     - ActualizarEstadoBajaBoton() : void
+    - btnReproponer_Click() : void
     - btnSolicitarBaja_Click() : void
   }
 
   class frmAutorizarAltaVino {
     - _bll : VinoBLL
     + ActualizarIdioma() : void
+    - MostrarDetalle() : void
     - btnAutorizar_Click() : void
+    - btnRechazarAlta_Click() : void
   }
 
   class frmRegistrarEntradaStock {
@@ -240,6 +296,7 @@ package "CAPAS" #F4E8E8 {
   class frmAutorizarBajaVino {
     - _bll : VinoBLL
     + ActualizarIdioma() : void
+    - MostrarDetalle() : void
     - btnAutorizarBaja_Click() : void
     - btnRechazarBaja_Click() : void
   }

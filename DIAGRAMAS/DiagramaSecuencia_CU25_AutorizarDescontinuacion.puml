@@ -7,60 +7,60 @@ skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.65
+scale 0.6
 
 actor       ":Administrador"           as A
 participant ":frmAutorizarBajaVino"    as FA #FEFECE
 participant ":VinoBLL"                 as VB #E8F4E8
 participant ":BitacoraBLL"             as BB #E8F4E8
-participant ":VinoDAL"                 as VD #E8E8F4
+participant ":SolicitudAutorizacionDAL" as SD #E8E8F4
 participant ":MovimientoStockDAL"      as MD #E8E8F4
 participant ":BitacoraDAL"             as TD #E8E8F4
 database    ":DB"                      as DB #EEEEEE
 
 note over FA
   Precondición: sesión activa; permiso "Autorizar alta de vinos";
-  existe al menos un vino activo con baja solicitada.
+  existe al menos una solicitud de baja Pendiente.
 end note
 
 A -> FA : abrir "Autorizar baja de vino"
 activate FA
-FA -> VB : ListarPendientesDeBaja()
+FA -> VB : ListarSolicitudesPendientes(TipoSolicitud.Baja)
 activate VB
-VB -> VD : ListarPendientesDeBaja()
-activate VD
-VD -> DB : VINO_LISTAR_PENDIENTES_BAJA
-DB --> VD : filas con baja solicitada y ESTADO = 'Activo'
-VD --> VB : List<Vino>
-deactivate VD
-VB --> FA : List<Vino>
+VB -> SD : ListarPendientes(TipoSolicitud.Baja)
+activate SD
+SD -> DB : SOLICITUD_LISTAR_PENDIENTES(@tipo)
+DB --> SD : filas (solicitud + emisor + datos del vino + stock actual)
+SD --> VB : List<SolicitudAutorizacion>
+deactivate SD
+VB --> FA : List<SolicitudAutorizacion>
 deactivate VB
-FA -> FA : mostrar grilla; habilitar "Autorizar baja" solo si\nvino.BajaSolicitadaPor <> sesion.Id (RN-01, capa UI);\n"Rechazar baja" habilitado con cualquier vino seleccionado
+FA -> FA : mostrar grilla de solicitudes
 
-A -> FA : seleccionar vino + decidir y confirmar
+A -> FA : seleccionar una solicitud
+FA -> FA : MostrarDetalle(): cargar en el panel de detalle los datos de la\nsolicitud y del vino, incluido el stock actual
+FA -> FA : habilitar "Autorizar baja" y "Rechazar baja" solo si\nsolicitud.EmisorId <> sesion.Id (RN-01, capa UI)
 
 alt el administrador autoriza la baja ("Autorizar baja")
-  FA -> VB : AutorizarBaja(vino.Id, sesion)
+  A -> FA : click "Autorizar baja" + confirmar
+  FA -> VB : AutorizarBaja(solicitud.Id, sesion)
   activate VB
-  VB -> VB : ObtenerConBajaPendiente(vinoId)
-  VB -> VD : ObtenerPorId(vinoId)
-  activate VD
-  VD -> DB : VINO_OBTENER_POR_ID(@id)
-  DB --> VD : filas
-  VD --> VB : Vino (o null)
-  deactivate VD
+  VB -> VB : ObtenerSolicitudPendiente(solicitudId, TipoSolicitud.Baja)
+  VB -> SD : ObtenerPorId(solicitudId)
+  activate SD
+  SD -> DB : SOLICITUD_OBTENER_POR_ID(@id)
+  DB --> SD : filas
+  SD --> VB : SolicitudAutorizacion (o null)
+  deactivate SD
 
-  alt 3a. el vino no existe
+  alt 3a. la solicitud no existe, ya fue resuelta o no es de baja
     VB --> FA : InvalidOperationException
     FA --> A : mensaje de la excepción
-  else 3b. el vino no está activo o no tiene baja solicitada
+  else 3b. el administrador es quien emitió la solicitud (RN-01, capa BLL)
     VB --> FA : InvalidOperationException
     FA --> A : mensaje de la excepción
-  else 3c. el administrador es quien solicitó la baja (RN-01, capa BLL)
-    VB --> FA : InvalidOperationException
-    FA --> A : mensaje de la excepción
-  else baja pendiente y separación de funciones OK
-    VB -> VB : ValidarSinStock(vinoId)
+  else solicitud pendiente y separación de funciones OK
+    VB -> VB : ValidarSinStock(solicitud.VinoId)
     VB -> MD : ObtenerStockActual(vinoId)
     activate MD
     MD -> DB : STOCK_ACTUAL_OBTENER(@vino_id)
@@ -68,22 +68,23 @@ alt el administrador autoriza la baja ("Autorizar baja")
     MD --> VB : int
     deactivate MD
 
-    alt 3d. el vino tiene stock distinto de 0 (RN-15, revalidación)
+    alt 3c. el vino tiene stock distinto de 0 (RN-15, revalidación)
       VB --> FA : InvalidOperationException
       FA --> A : mensaje de la excepción
     else stock = 0
-      VB -> VD : AutorizarBaja(vinoId, sesion.Id)
-      activate VD
-      VD -> DB : VINO_AUTORIZAR_BAJA(@id,@admin_id)
-      DB --> VD : filas afectadas
-      VD --> VB : int
-      deactivate VD
+      VB -> SD : AprobarBaja(solicitudId, sesion.Id)
+      activate SD
+      SD -> DB : SOLICITUD_APROBAR_BAJA(@solicitud_id,@resolutor_id)
+      note right of DB : en una sola transacción, bloqueando primero VINO:\nsolicitud Aprobada + VINO de Activo a Descontinuado\n(RN-04: baja lógica; RN-15 con UPDLOCK/HOLDLOCK)
+      DB --> SD : FILAS
+      SD --> VB : int
+      deactivate SD
 
-      alt 3e. 0 filas afectadas (RN-01 y RN-15, backstop de la SP)
+      alt 3d. 0 filas (RN-01 y RN-15, backstop de la SP)
         VB --> FA : InvalidOperationException
         FA --> A : mensaje de la excepción
-      else 1 fila afectada (RN-04: solo cambia ESTADO a 'Descontinuado')
-        VB -> BB : RegistrarAccion(sesion.Usuario,\n"AUTORIZACION_BAJA_VINO:" + vino.Codigo)
+      else 1 fila
+        VB -> BB : RegistrarAccion(sesion.Usuario,\n"AUTORIZACION_BAJA_VINO:" + solicitud.VinoCodigo)
         activate BB
         BB -> TD : Registrar(usuario, accion)
         activate TD
@@ -100,62 +101,70 @@ alt el administrador autoriza la baja ("Autorizar baja")
   end
   deactivate VB
 else el administrador rechaza la baja ("Rechazar baja")
-  FA -> VB : RechazarBaja(vino.Id, sesion)
-  activate VB
-  VB -> VB : ObtenerConBajaPendiente(vinoId)
-  VB -> VD : ObtenerPorId(vinoId)
-  activate VD
-  VD -> DB : VINO_OBTENER_POR_ID(@id)
-  DB --> VD : filas
-  VD --> VB : Vino (o null)
-  deactivate VD
+  A -> FA : escribir el motivo de rechazo + click "Rechazar baja" + confirmar
 
-  alt 4a. el vino no existe
-    VB --> FA : InvalidOperationException
-    FA --> A : mensaje de la excepción
-  else 4b. el vino no está activo o no tiene baja solicitada
-    VB --> FA : InvalidOperationException
-    FA --> A : mensaje de la excepción
-  else baja pendiente
-    VB -> VD : RechazarBaja(vinoId)
-    activate VD
-    VD -> DB : VINO_RECHAZAR_BAJA(@id)
-    DB --> VD : filas afectadas
-    VD --> VB : int
-    deactivate VD
+  alt 4a. el motivo está vacío (capa UI)
+    FA --> A : "Debe indicar el motivo del rechazo."
+  else motivo informado
+    FA -> VB : RechazarBaja(solicitud.Id, motivo, sesion)
+    activate VB
+    VB -> VB : ValidarMotivo(motivo)\n(recorta; 1 a 200 caracteres)
+    VB -> VB : ObtenerSolicitudPendiente(solicitudId, TipoSolicitud.Baja)
+    VB -> SD : ObtenerPorId(solicitudId)
+    activate SD
+    SD -> DB : SOLICITUD_OBTENER_POR_ID(@id)
+    DB --> SD : filas
+    SD --> VB : SolicitudAutorizacion (o null)
+    deactivate SD
 
-    alt 4c. 0 filas afectadas (el estado del vino cambió)
+    alt 4b. motivo inválido, solicitud inexistente o ya resuelta
       VB --> FA : InvalidOperationException
       FA --> A : mensaje de la excepción
-    else 1 fila afectada (se limpia la solicitud; el vino sigue 'Activo')
-      VB -> BB : RegistrarAccion(sesion.Usuario,\n"RECHAZO_BAJA_VINO:" + vino.Codigo)
-      activate BB
-      BB -> TD : Registrar(usuario, accion)
-      activate TD
-      TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
-      DB --> TD : filas afectadas
-      TD --> BB : void
-      deactivate TD
-      BB --> VB : void
-      deactivate BB
-      VB --> FA : void
-      FA --> A : "Solicitud de descontinuación rechazada. El vino sigue activo."
+    else 4c. el administrador es quien emitió la solicitud (RN-01, capa BLL)
+      VB --> FA : InvalidOperationException
+      FA --> A : mensaje de la excepción
+    else solicitud pendiente y separación de funciones OK
+      VB -> SD : RechazarBaja(solicitudId, sesion.Id, motivo)
+      activate SD
+      SD -> DB : SOLICITUD_RECHAZAR_BAJA(@solicitud_id,@resolutor_id,@motivo)
+      note right of DB : en una sola transacción, bloqueando primero VINO:\nsolicitud Rechazada (con motivo); el VINO sigue Activo
+      DB --> SD : FILAS
+      SD --> VB : int
+      deactivate SD
+
+      alt 4d. 0 filas (RN-01, backstop de la SP, o la solicitud cambió de estado)
+        VB --> FA : InvalidOperationException
+        FA --> A : mensaje de la excepción
+      else 1 fila
+        VB -> BB : RegistrarAccion(sesion.Usuario,\n"RECHAZO_BAJA_VINO:" + solicitud.VinoCodigo)
+        activate BB
+        BB -> TD : Registrar(usuario, accion)
+        activate TD
+        TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+        DB --> TD : filas afectadas
+        TD --> BB : void
+        deactivate TD
+        BB --> VB : void
+        deactivate BB
+        VB --> FA : void
+        FA --> A : "Solicitud de descontinuación rechazada. El vino sigue activo."
+      end
     end
+    deactivate VB
   end
-  deactivate VB
 end
 
-FA -> VB : ListarPendientesDeBaja()
+FA -> VB : ListarSolicitudesPendientes(TipoSolicitud.Baja)
 activate VB
-VB -> VD : ListarPendientesDeBaja()
-activate VD
-VD -> DB : VINO_LISTAR_PENDIENTES_BAJA
-DB --> VD : filas
-VD --> VB : List<Vino>
-deactivate VD
-VB --> FA : List<Vino>
+VB -> SD : ListarPendientes(TipoSolicitud.Baja)
+activate SD
+SD -> DB : SOLICITUD_LISTAR_PENDIENTES(@tipo)
+DB --> SD : filas
+SD --> VB : List<SolicitudAutorizacion>
+deactivate SD
+VB --> FA : List<SolicitudAutorizacion>
 deactivate VB
-FA -> FA : refrescar grilla
+FA -> FA : refrescar grilla y detalle (tras un resultado exitoso o un fallo\nde la BLL; el motivo vacío no recarga)
 deactivate FA
 
 @enduml

@@ -88,6 +88,19 @@ package "BE" #FEFECE {
   enum EstadoVino {
     Activo
     Descontinuado
+    Pendiente
+    Rechazado
+  }
+
+  enum TipoSolicitud {
+    Alta
+    Baja
+  }
+
+  enum EstadoSolicitud {
+    Pendiente
+    Aprobada
+    Rechazada
   }
 
   enum TipoMovimiento {
@@ -109,12 +122,23 @@ package "BE" #FEFECE {
     + Puntaje : int?
     + CreadoPor : int
     + FechaAlta : DateTime
-    + AutorizadoPor : int?
-    + FechaAutorizacion : DateTime?
-    + BajaSolicitadaPor : int?
-    + FechaSolicitudBaja : DateTime?
-    + DescontinuadoPor : int?
-    + FechaDescontinuacion : DateTime?
+    + UltimaSolicitudTipo : TipoSolicitud?
+    + UltimaSolicitudEstado : EstadoSolicitud?
+    + UltimoMotivoRechazo : string
+  }
+
+  class SolicitudAutorizacion {
+    + Id : int
+    + Tipo : TipoSolicitud
+    + VinoId : int
+    + Estado : EstadoSolicitud
+    + EmisorId : int
+    + FechaEmision : DateTime
+    + ResolutorId : int?
+    + FechaResolucion : DateTime?
+    + MotivoRechazo : string
+    + StockActual : int
+    + Vino : Vino
   }
 
   class Bodega {
@@ -139,6 +163,9 @@ package "BE" #FEFECE {
 
   Vino --> EstadoVino
   Vino --> Bodega : BodegaId >
+  SolicitudAutorizacion --> Vino : VinoId >
+  SolicitudAutorizacion --> TipoSolicitud
+  SolicitudAutorizacion --> EstadoSolicitud
   MovimientoStock --> TipoMovimiento
   MovimientoStock --> Vino : VinoId >
 
@@ -407,15 +434,24 @@ package "DAL" #DAE8FC {
   ' ── Dominio: catálogo y stock de vinos ──
   class VinoDAL {
     - _acceso : Acceso
-    + Insertar(vino : Vino) : int
-    + ExisteCodigo(codigo : string) : bool
-    + Autorizar(vinoId : int, administradorId : int) : void
-    + SolicitarBaja(vinoId : int, solicitanteId : int) : void
-    + AutorizarBaja(vinoId : int, administradorId : int) : void
-    + ListarPublicados() : List<Vino>
-    + ListarPendientes() : List<Vino>
-    + ListarPendientesDeBaja() : List<Vino>
+    + Insertar(v : Vino) : void
+    + Reproponer(v : Vino, emisorId : int) : int
+    + ObtenerPorCodigo(codigo : string) : Vino
     + ObtenerPorId(id : int) : Vino
+    + ListarCatalogo(usuarioId : int) : List<Vino>
+    + ListarAutorizados() : List<Vino>
+    + SolicitarBaja(vinoId : int, solicitanteId : int) : int
+  }
+
+  class SolicitudAutorizacionDAL {
+    - _acceso : Acceso
+    + ListarPendientes(tipo : TipoSolicitud) : List<SolicitudAutorizacion>
+    + ObtenerPorId(id : int) : SolicitudAutorizacion
+    + ObtenerPendiente(vinoId : int, tipo : TipoSolicitud) : SolicitudAutorizacion
+    + AprobarAlta(solicitudId : int, resolutorId : int) : int
+    + RechazarAlta(solicitudId : int, resolutorId : int, motivo : string) : int
+    + AprobarBaja(solicitudId : int, resolutorId : int) : int
+    + RechazarBaja(solicitudId : int, resolutorId : int, motivo : string) : int
   }
 
   class BodegaDAL {
@@ -443,6 +479,7 @@ package "DAL" #DAE8FC {
   BitacoraDAL --> PaginaResultado
   UsuarioHistorialDAL --> PaginaResultado
   VinoDAL --> Acceso
+  SolicitudAutorizacionDAL --> Acceso
   BodegaDAL --> Acceso
   StockDAL --> Acceso
 
@@ -594,13 +631,17 @@ package "BLL" #FFE6CC {
   ' ── Dominio: catálogo y stock de vinos ──
   class VinoBLL {
     - _dal : VinoDAL
-    + Proponer(vino : Vino) : bool
-    + Autorizar(vinoId : int, administradorId : int) : void
-    + SolicitarBaja(vinoId : int, solicitanteId : int) : void
-    + AutorizarBaja(vinoId : int, administradorId : int) : void
-    + ListarCatalogoPublicado() : List<Vino>
-    + ListarPendientes() : List<Vino>
-    + ListarPendientesDeBaja() : List<Vino>
+    - _solicitudDal : SolicitudAutorizacionDAL
+    + ProponerAlta(v : Vino, sesion : USUARIO) : void
+    + Reproponer(v : Vino, sesion : USUARIO) : void
+    + ListarCatalogo(sesion : USUARIO) : List<Vino>
+    + ListarAutorizados() : List<Vino>
+    + ListarSolicitudesPendientes(tipo : TipoSolicitud) : List<SolicitudAutorizacion>
+    + AutorizarAlta(solicitudId : int, sesion : USUARIO) : void
+    + RechazarAlta(solicitudId : int, motivo : string, sesion : USUARIO) : void
+    + SolicitarBaja(vinoId : int, sesion : USUARIO) : void
+    + AutorizarBaja(solicitudId : int, sesion : USUARIO) : void
+    + RechazarBaja(solicitudId : int, motivo : string, sesion : USUARIO) : void
   }
 
   class BodegaBLL {
@@ -646,6 +687,7 @@ package "BLL" #FFE6CC {
   BitacoraBLL --> PaginaResultado
   UsuarioHistorialBLL --> PaginaResultado
   VinoBLL --> VinoDAL
+  VinoBLL --> SolicitudAutorizacionDAL
   BodegaBLL --> BodegaDAL
   StockBLL --> StockDAL
 

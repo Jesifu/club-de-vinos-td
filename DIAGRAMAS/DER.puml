@@ -120,18 +120,30 @@ entity VINO {
   ANIADA : INT
   PRECIO : DECIMAL(10,2)
   STOCK_MINIMO : INT
-  ESTADO : VARCHAR(15)
+  ESTADO : VARCHAR(15) <<Pendiente, Activo, Rechazado, Descontinuado>>
   MARIDAJE : VARCHAR(200) <<nullable>>
   PUNTAJE : INT <<nullable>>
   CREADO_POR : INT <<FK>>
   FECHA_ALTA : DATETIME
-  AUTORIZADO_POR : INT <<FK, nullable>>
-  FECHA_AUTORIZACION : DATETIME <<nullable>>
-  BAJA_SOLICITADA_POR : INT <<FK, nullable>>
-  FECHA_SOLICITUD_BAJA : DATETIME <<nullable>>
-  DESCONTINUADO_POR : INT <<FK, nullable>>
-  FECHA_DESCONTINUACION : DATETIME <<nullable>>
 }
+
+entity SOLICITUD_AUTORIZACION {
+  * ID : INT <<PK>>
+  --
+  TIPO : VARCHAR(10) <<ALTA, BAJA>>
+  VINO_ID : INT <<FK>>
+  ESTADO : VARCHAR(10) <<Pendiente, Aprobada, Rechazada>>
+  EMISOR_ID : INT <<FK>>
+  FECHA_EMISION : DATETIME
+  RESOLUTOR_ID : INT <<FK, nullable>>
+  FECHA_RESOLUCION : DATETIME <<nullable>>
+  MOTIVO_RECHAZO : VARCHAR(200) <<nullable>>
+}
+
+note bottom of SOLICITUD_AUTORIZACION
+  UQ filtrado (VINO_ID, TIPO) WHERE ESTADO = 'Pendiente'
+  CK: RESOLUTOR_ID <> EMISOR_ID (RN-01)
+end note
 
 entity MOVIMIENTO_STOCK {
   * ID : INT <<PK>>
@@ -161,9 +173,9 @@ USUARIO        ..o{ USUARIO_HISTORIAL : "referencia logica >"
 BODEGA  ||--o{ VINO             : "BODEGA_ID >"
 VINO    ||--o{ MOVIMIENTO_STOCK : "VINO_ID >"
 USUARIO ||--o{ VINO             : "CREADO_POR >"
-USUARIO ||--o{ VINO             : "AUTORIZADO_POR >"
-USUARIO ||--o{ VINO             : "BAJA_SOLICITADA_POR >"
-USUARIO ||--o{ VINO             : "DESCONTINUADO_POR >"
+VINO    ||--o{ SOLICITUD_AUTORIZACION : "VINO_ID >"
+USUARIO ||--o{ SOLICITUD_AUTORIZACION : "EMISOR_ID >"
+USUARIO |o--o{ SOLICITUD_AUTORIZACION : "RESOLUTOR_ID >"
 
 ' ─────────────────────────────────────────
 ' Dominio: Curación y Armado de Cajas Mensuales (N02)

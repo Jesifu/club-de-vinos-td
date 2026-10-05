@@ -4,9 +4,14 @@ title Proceso de negocio — Curación, Armado y Despacho de Cajas Mensuales
 
 skinparam shadowing false
 skinparam roundcorner 6
+' Los documentos de negocio se dibujan como nodos de objeto (rectángulo de esquinas rectas,
+' fondo blanco) con flujos punteados de entrada y salida: estereotipo <<doc>>.
+skinparam roundcorner<<doc>> 0
 skinparam activity {
   BackgroundColor #FEFECE
   BorderColor #33342E
+  BackgroundColor<<doc>> #FFFFFF
+  BorderColor<<doc>> #33342E
 }
 skinparam partition {
   BorderColor #666666
@@ -18,9 +23,15 @@ scale 0.8
 start
 :Relevar Preferencias del Socio;
 :Registrar Perfil del Socio;
-note right: **Ficha de Socio** [Vigente]
+-[dashed]->
+:**Ficha de Socio**
+[Vigente]; <<doc>>
+-[dashed]->
 :Solicitar Caja del Período;
-note right: **Solicitud de Caja** [Pendiente]
+-[dashed]->
+:**Solicitud de Caja**
+[Pendiente]; <<doc>>
+-[dashed]->
 
 |Curador de Producto|
 :Consultar Perfil de Preferencias del Socio;
@@ -30,7 +41,10 @@ repeat
 backward: Reemplazar Vino por Alternativa más Económica;
 repeat while (¿El total supera el presupuesto mensual?) is (sí) not (no)
 :Confirmar Armado de la Caja;
-note right: **Caja Mensual** [Armada]
+-[dashed]->
+:**Caja Mensual**
+[Armada]; <<doc>>
+-[dashed]->
 
 |Encargado de Depósito|
 :Preparar el Pedido de la Caja;
@@ -46,15 +60,32 @@ if (¿Hay faltante de stock en alguna línea?) then (sí)
 
   |Encargado de Depósito|
   :Registrar la Sustitución;
-  note right: **Acta de Sustitución** [Registrada]
+  -[dashed]->
+  :**Acta de Sustitución**
+[Registrada]; <<doc>>
+  -[dashed]->
 else (no)
 endif
 :Embalar la Caja;
-note right: **Caja Mensual** [Preparada]
+-[dashed]->
+:**Caja Mensual**
+[Preparada]; <<doc>>
+-[dashed]->
 
 |Logística|
 :Despachar la Caja al Socio;
-note right: **Remito de Despacho** [Emitido]\n**Caja Mensual** [Despachada]
+-[dashed]->
+fork
+  -[dashed]->
+  :**Remito de Despacho**
+[Emitido]; <<doc>>
+  -[dashed]->
+fork again
+  -[dashed]->
+  :**Caja Mensual**
+[Despachada]; <<doc>>
+  -[dashed]->
+end fork
 stop
 
 @enduml

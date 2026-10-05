@@ -7,7 +7,7 @@ skinparam roundcorner 6
 skinparam sequenceArrowThickness 1.2
 skinparam sequenceMessageAlign center
 hide footbox
-scale 0.75
+scale 0.7
 
 actor       ":Usuario"             as U
 participant ":frmCatalogoVinos"    as FC #FEFECE
@@ -15,6 +15,7 @@ participant ":VinoBLL"             as VB #E8F4E8
 participant ":BitacoraBLL"         as BB #E8F4E8
 participant ":BodegaDAL"           as BD #E8E8F4
 participant ":VinoDAL"             as VD #E8E8F4
+participant ":SolicitudAutorizacionDAL" as SD #E8E8F4
 participant ":BitacoraDAL"         as TD #E8E8F4
 database    ":DB"                  as DB #EEEEEE
 
@@ -36,101 +37,142 @@ VB --> FC : List<Bodega>
 deactivate VB
 FC -> FC : cboBodega.DataSource = bodegas
 
-FC -> VB : ListarAutorizados()
+FC -> VB : ListarCatalogo(sesion)
 activate VB
-VB -> VD : ListarAutorizados()
+VB -> VD : ListarCatalogo(sesion.Id)
 activate VD
-VD -> DB : VINO_LISTAR_AUTORIZADOS
-DB --> VD : filas
+VD -> DB : VINO_LISTAR_CATALOGO(@usuario_id)
+DB --> VD : filas (vinos Activos + Pendientes/Rechazados\ncon su última solicitud)
 VD --> VB : List<Vino>
 deactivate VD
 VB --> FC : List<Vino>
 deactivate VB
+FC -> FC : mostrar grilla con estado y última solicitud\n(tipo, estado, motivo de rechazo)
 
-FC -> VB : ListarPendientes()
-activate VB
-VB -> VD : ListarPendientes()
-activate VD
-VD -> DB : VINO_LISTAR_PENDIENTES
-DB --> VD : filas
-VD --> VB : List<Vino>
-deactivate VD
-VB --> FC : List<Vino>
-deactivate VB
-FC -> FC : grilla = autorizados + pendientes propios
+alt el usuario propone un vino nuevo
+  U -> FC : completar SKU, nombre, bodega, varietal, añada,\nprecio, stock mínimo (maridaje y puntaje opcionales)\n+ click "Guardar"
+  FC -> VB : ProponerAlta(vino, sesion)
+  activate VB
+  VB -> VB : ValidarDatos(vino, exigirCodigo = true)
 
-U -> FC : completar SKU, nombre, bodega, varietal, añada,\nprecio, stock mínimo (maridaje y puntaje opcionales)\n+ click "Guardar"
-FC -> VB : ProponerAlta(vino, sesion)
-activate VB
+  alt 3a. algún dato no cumple las validaciones de negocio
+    VB --> FC : InvalidOperationException
+    FC --> U : mensaje de la excepción
+    note right of FC : el flujo vuelve a la carga de datos
+  else datos válidos
+    VB -> VD : ObtenerPorCodigo(vino.Codigo)
+    activate VD
+    VD -> DB : VINO_OBTENER_POR_CODIGO(@codigo)
+    DB --> VD : filas
+    VD --> VB : Vino (o null)
+    deactivate VD
 
-alt 3a. algún dato no cumple las validaciones de negocio
-  VB --> FC : InvalidOperationException
-  FC --> U : mensaje de la excepción
-  note right of FC : el flujo vuelve a la carga de datos
-else datos válidos
-  VB -> VD : ObtenerPorCodigo(vino.Codigo)
+    alt 3b. ya existe un vino con el SKU indicado
+      VB --> FC : InvalidOperationException
+      FC --> U : mensaje de la excepción\n(si el vino está Rechazado, indica usar "Corregir y reproponer")
+    else SKU disponible
+      note right of VB : creadoPor = sesion.Id; Estado = Pendiente
+      VB -> VD : Insertar(vino)
+      activate VD
+      VD -> DB : VINO_INSERTAR(@codigo,@nombre,@bodega_id,@varietal,\n@aniada,@stock_minimo,@creado_por,@precio,@maridaje,@puntaje)
+      note right of DB : en una sola transacción: INSERT VINO (Pendiente)\n+ INSERT SOLICITUD_AUTORIZACION (ALTA, Pendiente)
+
+      alt 3c. la bodega no existe (SqlException 547) o el SKU se duplicó\nen una carrera (SqlException 2601/2627)
+        DB --> VD : SqlException
+        VD --> VB : SqlException
+        deactivate VD
+        VB --> FC : InvalidOperationException
+        FC --> U : mensaje de la excepción
+      else inserción correcta
+        DB --> VD : ID del vino
+        VD --> VB : void
+        deactivate VD
+        VB -> BB : RegistrarAccion(sesion.Usuario, "ALTA_VINO:" + vino.Codigo)
+        activate BB
+        BB -> TD : Registrar(usuario, accion)
+        activate TD
+        TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+        DB --> TD : filas afectadas
+        TD --> BB : void
+        deactivate TD
+        BB --> VB : void
+        deactivate BB
+        VB --> FC : void
+        FC --> U : "Vino propuesto correctamente. Queda pendiente de autorización."
+      end
+    end
+  end
+  deactivate VB
+else el usuario corrige un vino rechazado
+  U -> FC : seleccionar un vino Rechazado + click "Corregir y reproponer"
+  FC -> FC : cargar el vino en el formulario (SKU de solo lectura)
+  U -> FC : corregir los datos + click "Guardar"
+  FC -> VB : Reproponer(vino, sesion)
+  activate VB
+  VB -> VB : ValidarDatos(vino, exigirCodigo = false)
+  VB -> VD : ObtenerPorId(vino.Id)
   activate VD
-  VD -> DB : VINO_OBTENER_POR_CODIGO(@codigo)
+  VD -> DB : VINO_OBTENER_POR_ID(@id)
   DB --> VD : filas
   VD --> VB : Vino (o null)
   deactivate VD
 
-  alt 3b. ya existe un vino con el SKU indicado
+  alt 4a. datos inválidos, el vino no existe o ya no está Rechazado
     VB --> FC : InvalidOperationException
     FC --> U : mensaje de la excepción
-  else SKU disponible
-    note right of VB : creadoPor = sesion.Id; Estado = Activo;\nAutorizadoPor = null
-    VB -> VD : Insertar(vino)
-    activate VD
-    VD -> DB : VINO_INSERTAR(@codigo,@nombre,@bodega_id,@varietal,\n@aniada,@stock_minimo,@creado_por,@precio,@maridaje,@puntaje)
+  else vino Rechazado
+    VB -> SD : ObtenerPendiente(vino.Id, TipoSolicitud.Alta)
+    activate SD
+    SD -> DB : SOLICITUD_OBTENER_PENDIENTE(@vino_id,@tipo)
+    DB --> SD : filas
+    SD --> VB : SolicitudAutorizacion (o null)
+    deactivate SD
 
-    alt 3c. la bodega no existe (violación de FK_VINO_BODEGA)
-      DB --> VD : SqlException 547
-      VD --> VB : SqlException
+    alt 4b. ya existe una solicitud de alta pendiente
       VB --> FC : InvalidOperationException
       FC --> U : mensaje de la excepción
-    else inserción correcta
-      DB --> VD : ID del vino
-      VD --> VB : void
+    else sin solicitud pendiente
+      VB -> VD : Reproponer(vino, sesion.Id)
+      activate VD
+      VD -> DB : VINO_REPROPONER(@id,@nombre,@bodega_id,@varietal,@aniada,\n@stock_minimo,@emisor_id,@precio,@maridaje,@puntaje)
+      note right of DB : en una sola transacción: UPDATE VINO a Pendiente\nWHERE ESTADO = 'Rechazado' + INSERT SOLICITUD_AUTORIZACION\n(ALTA, Pendiente, emisor = quien repropone)
+      DB --> VD : FILAS
+      VD --> VB : int
       deactivate VD
-      VB -> BB : RegistrarAccion(sesion.Usuario, "ALTA_VINO:" + vino.Codigo)
-      activate BB
-      BB -> TD : Registrar(usuario, accion)
-      activate TD
-      TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
-      DB --> TD : filas afectadas
-      TD --> BB : void
-      deactivate TD
-      BB --> VB : void
-      deactivate BB
-      VB --> FC : void
-      deactivate VB
-      FC --> U : "Vino propuesto correctamente. Queda pendiente de autorización."
 
-      FC -> VB : ListarAutorizados()
-      activate VB
-      VB -> VD : ListarAutorizados()
-      activate VD
-      VD -> DB : VINO_LISTAR_AUTORIZADOS
-      DB --> VD : filas
-      VD --> VB : List<Vino>
-      deactivate VD
-      VB --> FC : List<Vino>
-      deactivate VB
-      FC -> VB : ListarPendientes()
-      activate VB
-      VB -> VD : ListarPendientes()
-      activate VD
-      VD -> DB : VINO_LISTAR_PENDIENTES
-      DB --> VD : filas
-      VD --> VB : List<Vino>
-      deactivate VD
-      VB --> FC : List<Vino>
-      deactivate VB
-      FC -> FC : refrescar grilla y limpiar formulario
+      alt 4c. 0 filas (el vino ya no está rechazado) o SqlException 547/2601/2627
+        VB --> FC : InvalidOperationException
+        FC --> U : mensaje de la excepción
+      else 1 fila
+        VB -> BB : RegistrarAccion(sesion.Usuario,\n"REPROPUESTA_ALTA_VINO:" + vino.Codigo)
+        activate BB
+        BB -> TD : Registrar(usuario, accion)
+        activate TD
+        TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+        DB --> TD : filas afectadas
+        TD --> BB : void
+        deactivate TD
+        BB --> VB : void
+        deactivate BB
+        VB --> FC : void
+        FC --> U : "Vino repropuesto correctamente. Se emitió una nueva solicitud de alta,\npendiente de autorización."
+      end
     end
   end
+  deactivate VB
 end
+
+FC -> VB : ListarCatalogo(sesion)
+activate VB
+VB -> VD : ListarCatalogo(sesion.Id)
+activate VD
+VD -> DB : VINO_LISTAR_CATALOGO(@usuario_id)
+DB --> VD : filas
+VD --> VB : List<Vino>
+deactivate VD
+VB --> FC : List<Vino>
+deactivate VB
+FC -> FC : refrescar grilla (tras una operación exitosa o un fallo de la\nre-propuesta) y, si tuvo éxito, limpiar el formulario
 deactivate FC
 
 @enduml
