@@ -75,7 +75,7 @@ namespace CAPAS
             this.lblAyudaBaja.Name = "lblAyudaBaja";
             this.lblAyudaBaja.Size = new System.Drawing.Size(520, 20);
             this.lblAyudaBaja.TabIndex = 0;
-            this.lblAyudaBaja.Text = "No puede autorizar una descontinuación que usted mismo solicitó.";
+            this.lblAyudaBaja.Text = "No puede autorizar ni rechazar una solicitud que usted mismo emitió.";
             //
             // lblMotivoRechazo
             //

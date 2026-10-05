@@ -102,7 +102,8 @@ namespace CAPAS
                 {
                     "Id", "BodegaId", "Estado", "Maridaje", "Puntaje", "CreadoPor", "CreadoPorLogin",
                     "FechaAlta", "AutorizadoPor", "AutorizadoPorLogin", "FechaAutorizacion",
-                    "BajaSolicitadaPor", "DescontinuadoPor", "FechaDescontinuacion"
+                    "BajaSolicitadaPor", "DescontinuadoPor", "FechaDescontinuacion",
+                    "UltimaSolicitudTipo", "UltimaSolicitudEstado", "UltimoMotivoRechazo"
                 };
                 foreach (string nombre in ocultas)
                     if (dgvPendientesBaja.Columns[nombre] != null)
@@ -126,7 +127,11 @@ namespace CAPAS
             // Capa UI del triple guard de RN-01: quien solicitó la baja no puede autorizarla,
             // aunque BLL y SP también la rechacen.
             // También aplica al rechazo: quien solicitó la baja no puede resolverla de ninguna forma.
-            bool puedeResolver = seleccionado != null && seleccionado.BajaSolicitadaPor != sesion.Id;
+            // VINO_LISTAR_PENDIENTES_BAJA devuelve EMISOR_ID de la solicitud BAJA Pendiente como
+            // BajaSolicitadaPor: la fila ya trae su emisor, sin consultas adicionales.
+            bool puedeResolver = seleccionado != null
+                                 && seleccionado.BajaSolicitadaPor.HasValue
+                                 && seleccionado.BajaSolicitadaPor.Value != sesion.Id;
             btnAutorizarBaja.Enabled = puedeResolver;
             btnRechazarBaja.Enabled = puedeResolver;
         }
