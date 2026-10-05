@@ -13,6 +13,8 @@ namespace CAPAS
         private readonly BLL.VinoBLL _bll = new BLL.VinoBLL();
         private readonly Dictionary<string, Control> _controles = new Dictionary<string, Control>();
         private readonly Dictionary<string, string> _defaults = new Dictionary<string, string>();
+        // Modo re-propuesta (R2): Id del vino rechazado que se está corrigiendo; null = alta nueva.
+        private int? _vinoReproponerId;
 
         public frmCatalogoVinos()
         {
@@ -121,6 +123,12 @@ namespace CAPAS
                 dgvVinos.Columns["BajaSolicitadaPorLogin"].HeaderText = mgr.Traducir("colhdr_BajaSolicitadaPor") ?? "Baja solicitada por";
             if (dgvVinos.Columns["FechaSolicitudBaja"] != null)
                 dgvVinos.Columns["FechaSolicitudBaja"].HeaderText = mgr.Traducir("colhdr_FechaSolicitudBaja") ?? "Fecha de solicitud de baja";
+            if (dgvVinos.Columns["UltimaSolicitudTipo"] != null)
+                dgvVinos.Columns["UltimaSolicitudTipo"].HeaderText = mgr.Traducir("colhdr_UltimaSolicitud") ?? "Última solicitud";
+            if (dgvVinos.Columns["UltimaSolicitudEstado"] != null)
+                dgvVinos.Columns["UltimaSolicitudEstado"].HeaderText = mgr.Traducir("colhdr_EstadoSolicitud") ?? "Estado de la solicitud";
+            if (dgvVinos.Columns["UltimoMotivoRechazo"] != null)
+                dgvVinos.Columns["UltimoMotivoRechazo"].HeaderText = mgr.Traducir("colhdr_MotivoRechazo") ?? "Motivo de rechazo";
         }
 
         private void GuardarDefaults(Control.ControlCollection controles)
@@ -148,10 +156,8 @@ namespace CAPAS
         {
             BE.USUARIO sesion = SeguridadYServicios.SessionManager.getInstance().getUsuario();
 
-            List<BE.Vino> lista = _bll.ListarAutorizados();
-            lista.AddRange(_bll.ListarPendientes().Where(v => v.CreadoPor == sesion.Id));
-
-            dgvVinos.DataSource = lista.OrderByDescending(v => v.FechaAlta).ToList();
+            // Activos más los propios pendientes o rechazados, con la última solicitud de cada vino (R7).
+            dgvVinos.DataSource = _bll.ListarCatalogo(sesion);
 
             if (dgvVinos.Columns.Count > 0)
             {
@@ -162,6 +168,9 @@ namespace CAPAS
                 if (dgvVinos.Columns["BajaSolicitadaPor"] != null) dgvVinos.Columns["BajaSolicitadaPor"].Visible = false;
                 if (dgvVinos.Columns["DescontinuadoPor"] != null) dgvVinos.Columns["DescontinuadoPor"].Visible = false;
                 if (dgvVinos.Columns["FechaDescontinuacion"] != null) dgvVinos.Columns["FechaDescontinuacion"].Visible = false;
+                // La baja pendiente se informa en las columnas de última solicitud.
+                if (dgvVinos.Columns["BajaSolicitadaPorLogin"] != null) dgvVinos.Columns["BajaSolicitadaPorLogin"].Visible = false;
+                if (dgvVinos.Columns["FechaSolicitudBaja"] != null) dgvVinos.Columns["FechaSolicitudBaja"].Visible = false;
                 ActualizarEncabezados();
             }
 
@@ -173,14 +182,61 @@ namespace CAPAS
             ActualizarEstadoBajaBoton();
         }
 
-        // CU-24: la solicitud solo aplica a un vino autorizado, activo y sin baja pendiente.
+        // CU-24: la baja solo se solicita para un vino Activo sin otra baja pendiente. La baja pendiente
+        // surge de la última solicitud del vino (tipo BAJA en estado Pendiente).
+        // La re-propuesta (R2) solo aplica a un vino Rechazado.
         private void ActualizarEstadoBajaBoton()
         {
             BE.Vino seleccionado = dgvVinos.CurrentRow?.DataBoundItem as BE.Vino;
+            bool bajaPendiente = seleccionado != null
+                                 && seleccionado.UltimaSolicitudTipo == BE.TipoSolicitud.Baja
+                                 && seleccionado.UltimaSolicitudEstado == BE.EstadoSolicitud.Pendiente;
             btnSolicitarBaja.Enabled = seleccionado != null
-                                       && seleccionado.AutorizadoPor.HasValue
                                        && seleccionado.Estado == BE.EstadoVino.Activo
-                                       && !seleccionado.BajaSolicitadaPor.HasValue;
+                                       && !bajaPendiente;
+            btnReproponer.Enabled = seleccionado != null
+                                    && seleccionado.Estado == BE.EstadoVino.Rechazado;
+        }
+
+        // Tipo y estado de la última solicitud son enums (TipoSolicitud/EstadoSolicitud): se muestran traducidos.
+        private void dgvVinos_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.Value == null) return;
+            string columna = dgvVinos.Columns[e.ColumnIndex].Name;
+            if (columna != "UltimaSolicitudTipo" && columna != "UltimaSolicitudEstado") return;
+
+            // El nombre del enum coincide con la clave: valsol_Alta, valsol_Pendiente, etc.
+            string valor = e.Value.ToString();
+            e.Value = SeguridadYServicios.IdiomaManager.getInstance().Traducir("valsol_" + valor) ?? valor;
+            e.FormattingApplied = true;
+        }
+
+        // R2: carga el vino rechazado en el formulario para corregirlo. El SKU no se puede cambiar.
+        private void btnReproponer_Click(object sender, EventArgs e)
+        {
+            BE.Vino seleccionado = dgvVinos.CurrentRow?.DataBoundItem as BE.Vino;
+            if (seleccionado == null || seleccionado.Estado != BE.EstadoVino.Rechazado)
+            {
+                MsgBox.Show("Seleccione un vino rechazado.", "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                return;
+            }
+
+            LimpiarFormulario();
+            _vinoReproponerId = seleccionado.Id;
+            txtCodigo.Text = seleccionado.Codigo;
+            txtCodigo.ReadOnly = true;
+            txtNombre.Text = seleccionado.Nombre;
+            cboBodega.SelectedValue = seleccionado.BodegaId;
+            txtVarietal.Text = seleccionado.Varietal;
+            numAniada.Value = Math.Min(Math.Max(seleccionado.Aniada, numAniada.Minimum), numAniada.Maximum);
+            numPrecio.Value = Math.Min(seleccionado.Precio, numPrecio.Maximum);
+            numStockMinimo.Value = Math.Min(seleccionado.StockMinimo, numStockMinimo.Maximum);
+            txtMaridaje.Text = seleccionado.Maridaje ?? string.Empty;
+            // chkPuntaje habilita numPuntaje y lo pone en 0 al desmarcarse: primero el check, después el valor.
+            chkPuntaje.Checked = seleccionado.Puntaje.HasValue;
+            if (seleccionado.Puntaje.HasValue) numPuntaje.Value = seleccionado.Puntaje.Value;
+            lblAyudaReproponer.Visible = true;
+            txtNombre.Focus();
         }
 
         private void btnSolicitarBaja_Click(object sender, EventArgs e)
@@ -237,18 +293,31 @@ namespace CAPAS
                 Puntaje = chkPuntaje.Checked ? (int?)numPuntaje.Value : null
             };
 
+            bool esReproposicion = _vinoReproponerId.HasValue;
             try
             {
-                _bll.ProponerAlta(v, sesion);
+                if (esReproposicion)
+                {
+                    v.Id = _vinoReproponerId.Value;
+                    _bll.Reproponer(v, sesion);
+                }
+                else
+                {
+                    _bll.ProponerAlta(v, sesion);
+                }
             }
             catch (InvalidOperationException ex)
             {
                 MsgBox.Show(ex.Message, "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                // Una re-propuesta fallida puede deberse a que el vino ya cambió de estado: se refresca la grilla.
+                if (esReproposicion) CargarVinos();
                 return;
             }
 
-            MsgBox.Show("Vino propuesto correctamente. Queda pendiente de autorización.", "Éxito",
-                MsgBox.Botones.OK, MsgBox.Icono.Exito);
+            MsgBox.Show(esReproposicion
+                    ? "Vino repropuesto correctamente. Se emitió una nueva solicitud de alta, pendiente de autorización."
+                    : "Vino propuesto correctamente. Queda pendiente de autorización.",
+                "Éxito", MsgBox.Botones.OK, MsgBox.Icono.Exito);
             LimpiarFormulario();
             CargarVinos();
         }
@@ -260,6 +329,10 @@ namespace CAPAS
 
         private void LimpiarFormulario()
         {
+            // Sale del modo re-propuesta: el SKU vuelve a ser editable.
+            _vinoReproponerId = null;
+            txtCodigo.ReadOnly = false;
+            lblAyudaReproponer.Visible = false;
             txtCodigo.Clear();
             txtNombre.Clear();
             txtVarietal.Clear();

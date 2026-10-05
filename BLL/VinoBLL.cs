@@ -20,9 +20,11 @@ namespace BLL
             return _bodegaDal.ListarHabilitadas();
         }
 
-        public void ProponerAlta(Vino v, USUARIO sesion)
+        // Validaciones de datos compartidas por la propuesta de alta y la re-propuesta (el SKU solo
+        // se exige en la alta: al reproponer se conserva el del vino rechazado).
+        private void ValidarDatos(Vino v, bool exigirCodigo)
         {
-            if (string.IsNullOrWhiteSpace(v.Codigo))
+            if (exigirCodigo && string.IsNullOrWhiteSpace(v.Codigo))
                 throw new InvalidOperationException("El SKU es obligatorio.");
             if (string.IsNullOrWhiteSpace(v.Nombre))
                 throw new InvalidOperationException("El nombre es obligatorio.");
@@ -38,9 +40,21 @@ namespace BLL
                 throw new InvalidOperationException("El stock mínimo no puede ser negativo.");
             if (v.Puntaje.HasValue && (v.Puntaje.Value < 0 || v.Puntaje.Value > 100))
                 throw new InvalidOperationException("El puntaje debe estar entre 0 y 100.");
+        }
 
-            if (_dal.ObtenerPorCodigo(v.Codigo) != null)
+        public void ProponerAlta(Vino v, USUARIO sesion)
+        {
+            ValidarDatos(v, true);
+
+            Vino existente = _dal.ObtenerPorCodigo(v.Codigo);
+            if (existente != null)
+            {
+                // REQ-ALTA-06: un SKU rechazado no se reutiliza con un alta nueva, se repropone.
+                if (existente.Estado == EstadoVino.Rechazado)
+                    throw new InvalidOperationException(
+                        "El SKU indicado corresponde a un vino rechazado. Seleccione ese vino en el catálogo y use 'Corregir y reproponer'.");
                 throw new InvalidOperationException("Ya existe un vino con el SKU indicado.");
+            }
 
             v.CreadoPor = sesion.Id;
             // El vino nace Pendiente; la SP crea en la misma transacción su solicitud ALTA Pendiente.
@@ -62,6 +76,47 @@ namespace BLL
             }
 
             _bitacora.RegistrarAccion(sesion.Usuario, "ALTA_VINO:" + v.Codigo);
+        }
+
+        // R2: corrige y repropone un vino Rechazado con el mismo SKU. El vino vuelve a Pendiente y se
+        // emite una solicitud ALTA nueva (la anterior queda Rechazada). El emisor es quien repropone (RN-01).
+        public void Reproponer(Vino v, USUARIO sesion)
+        {
+            ValidarDatos(v, false);
+
+            Vino actual = _dal.ObtenerPorId(v.Id);
+            if (actual == null)
+                throw new InvalidOperationException("El vino indicado no existe.");
+            if (actual.Estado != EstadoVino.Rechazado)
+                throw new InvalidOperationException("Solo se puede reproponer un vino rechazado.");
+            if (_solicitudDal.ObtenerPendiente(actual.Id, TipoSolicitud.Alta) != null)
+                throw new InvalidOperationException("El vino ya tiene una solicitud de alta pendiente de autorización.");
+
+            int filas;
+            try
+            {
+                filas = _dal.Reproponer(v, sesion.Id);
+            }
+            catch (SqlException ex) when (ex.Number == 547)
+            {
+                // Violación de FK_VINO_BODEGA: bypass de UI con un BodegaId inexistente.
+                throw new InvalidOperationException("Debe seleccionar una bodega válida.");
+            }
+            catch (SqlException ex) when (ex.Number == 2601 || ex.Number == 2627)
+            {
+                // Carrera contra otra re-propuesta: lo frena el índice único UX_SOLAUT_PENDIENTE.
+                throw new InvalidOperationException("El vino ya tiene una solicitud de alta pendiente de autorización.");
+            }
+            if (filas == 0)
+                throw new InvalidOperationException("No se pudo reproponer: el vino ya no está rechazado. Actualice e intente nuevamente.");
+
+            _bitacora.RegistrarAccion(sesion.Usuario, "REPROPUESTA_ALTA_VINO:" + actual.Codigo);
+        }
+
+        // Catálogo de Compras: activos más los propios pendientes o rechazados, con su última solicitud (R7).
+        public List<Vino> ListarCatalogo(USUARIO sesion)
+        {
+            return _dal.ListarCatalogo(sesion.Id);
         }
 
         public List<Vino> ListarPendientes()
@@ -108,16 +163,6 @@ namespace BLL
                     "No se pudo rechazar el alta: la solicitud cambió de estado o usted la emitió. Actualice e intente nuevamente.");
 
             _bitacora.RegistrarAccion(sesion.Usuario, "RECHAZO_ALTA_VINO:" + s.VinoCodigo);
-        }
-
-        // Adaptador del slice 1: el formulario de alta todavía trabaja con vinos. Se elimina
-        // cuando el formulario pase a enlazar solicitudes (slice 2).
-        public void Autorizar(int vinoId, USUARIO sesion)
-        {
-            SolicitudAutorizacion s = _solicitudDal.ObtenerPendiente(vinoId, TipoSolicitud.Alta);
-            if (s == null)
-                throw new InvalidOperationException("El vino no tiene una solicitud de alta pendiente.");
-            AutorizarAlta(s.Id, sesion);
         }
 
         // CU-24: solicita la baja de un vino activo. El vino sigue Activo (R1): la baja queda como

@@ -52,6 +52,64 @@ namespace DAL
             finally { _acceso.Cerrar(); }
         }
 
+        // R2: devuelve FILAS (0 = el vino ya no está Rechazado). El SKU no se modifica.
+        // Si dos re-propuestas compiten, el índice único de la base lanza SqlException 2601/2627.
+        public int Reproponer(BE.Vino v, int emisorId)
+        {
+            List<SqlParameter> parametros = new List<SqlParameter>
+            {
+                _acceso.CrearParametro("@id",           v.Id),
+                _acceso.CrearParametro("@nombre",       v.Nombre),
+                _acceso.CrearParametro("@bodega_id",    v.BodegaId),
+                _acceso.CrearParametro("@varietal",     v.Varietal),
+                _acceso.CrearParametro("@aniada",       v.Aniada),
+                _acceso.CrearParametro("@stock_minimo", v.StockMinimo),
+                _acceso.CrearParametro("@emisor_id",    emisorId)
+            };
+
+            parametros.Add(new SqlParameter("@precio", SqlDbType.Decimal)
+            {
+                Precision = 10,
+                Scale = 2,
+                Value = v.Precio
+            });
+            parametros.Add(new SqlParameter("@maridaje", SqlDbType.VarChar, 200)
+            {
+                Value = (object)v.Maridaje ?? DBNull.Value
+            });
+            parametros.Add(new SqlParameter("@puntaje", SqlDbType.Int)
+            {
+                Value = (object)v.Puntaje ?? DBNull.Value
+            });
+
+            try
+            {
+                _acceso.Abrir();
+                DataTable tabla = _acceso.Leer("VINO_REPROPONER", parametros);
+                return Convert.ToInt32(tabla.Rows[0]["FILAS"]);
+            }
+            finally { _acceso.Cerrar(); }
+        }
+
+        // Catálogo de Compras: vinos activos más los propios pendientes o rechazados, con la última solicitud.
+        public List<BE.Vino> ListarCatalogo(int usuarioId)
+        {
+            List<BE.Vino> lista = new List<BE.Vino>();
+            List<SqlParameter> parametros = new List<SqlParameter>
+            {
+                _acceso.CrearParametro("@usuario_id", usuarioId)
+            };
+            try
+            {
+                _acceso.Abrir();
+                DataTable tabla = _acceso.Leer("VINO_LISTAR_CATALOGO", parametros);
+                foreach (DataRow fila in tabla.Rows)
+                    lista.Add(MapearFila(fila));
+            }
+            finally { _acceso.Cerrar(); }
+            return lista;
+        }
+
         public BE.Vino ObtenerPorCodigo(string codigo)
         {
             List<SqlParameter> parametros = new List<SqlParameter>
@@ -229,8 +287,23 @@ namespace DAL
                 BajaSolicitadaPorLogin = fila["BAJA_SOLICITADA_POR_LOGIN"] == DBNull.Value ? null : fila["BAJA_SOLICITADA_POR_LOGIN"].ToString(),
                 FechaSolicitudBaja = fila["FECHA_SOLICITUD_BAJA"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(fila["FECHA_SOLICITUD_BAJA"]),
                 DescontinuadoPor = fila["DESCONTINUADO_POR"] == DBNull.Value ? (int?)null : Convert.ToInt32(fila["DESCONTINUADO_POR"]),
-                FechaDescontinuacion = fila["FECHA_DESCONTINUACION"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(fila["FECHA_DESCONTINUACION"])
+                FechaDescontinuacion = fila["FECHA_DESCONTINUACION"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(fila["FECHA_DESCONTINUACION"]),
+                // Solo VINO_LISTAR_CATALOGO devuelve estas columnas.
+                UltimaSolicitudTipo = TextoOpcional(fila, "ULT_SOLICITUD_TIPO") == null
+                    ? (BE.TipoSolicitud?)null
+                    : SolicitudAutorizacionDAL.TipoDesdeDb(TextoOpcional(fila, "ULT_SOLICITUD_TIPO")),
+                UltimaSolicitudEstado = TextoOpcional(fila, "ULT_SOLICITUD_ESTADO") == null
+                    ? (BE.EstadoSolicitud?)null
+                    : (BE.EstadoSolicitud)Enum.Parse(typeof(BE.EstadoSolicitud), TextoOpcional(fila, "ULT_SOLICITUD_ESTADO")),
+                UltimoMotivoRechazo = TextoOpcional(fila, "ULT_MOTIVO_RECHAZO")
             };
+        }
+
+        private static string TextoOpcional(DataRow fila, string columna)
+        {
+            if (!fila.Table.Columns.Contains(columna) || fila[columna] == DBNull.Value)
+                return null;
+            return fila[columna].ToString();
         }
     }
 }

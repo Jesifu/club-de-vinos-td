@@ -110,9 +110,16 @@ namespace DAL
             return tipo == BE.TipoSolicitud.Alta ? "ALTA" : "BAJA";
         }
 
-        private static BE.TipoSolicitud TipoDesdeDb(string valor)
+        internal static BE.TipoSolicitud TipoDesdeDb(string valor)
         {
-            return valor == "ALTA" ? BE.TipoSolicitud.Alta : BE.TipoSolicitud.Baja;
+            // Estricto: un valor desconocido (CK_SOLAUT_TIPO lo impide) no se interpreta como Baja.
+            switch (valor)
+            {
+                case "ALTA": return BE.TipoSolicitud.Alta;
+                case "BAJA": return BE.TipoSolicitud.Baja;
+                default:
+                    throw new InvalidOperationException("Tipo de solicitud desconocido: '" + valor + "'.");
+            }
         }
 
         private BE.SolicitudAutorizacion MapearFila(DataRow fila)

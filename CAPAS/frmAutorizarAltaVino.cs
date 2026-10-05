@@ -29,10 +29,10 @@ namespace CAPAS
             SeguridadYServicios.IdiomaManager.getInstance().Registrar(this);
             ActualizarIdioma();
             // En Load la grilla todavía no tiene fila actual: si hay una sola fila, SelectionChanged
-            // no vuelve a dispararse y el botón quedaría deshabilitado. Se reevalúa al terminar el
+            // no vuelve a dispararse y los botones quedarían deshabilitados. Se reevalúa al terminar el
             // enlace de datos y al mostrarse el formulario.
-            dgvPendientes.DataBindingComplete += (s, ev) => ActualizarEstadoBoton();
-            this.Shown += (s, ev) => ActualizarEstadoBoton();
+            dgvPendientes.DataBindingComplete += (s, ev) => ActualizarSeleccion();
+            this.Shown += (s, ev) => ActualizarSeleccion();
             CargarPendientes();
             IdiomaUIHelper.AgregarSelector(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
@@ -53,34 +53,27 @@ namespace CAPAS
                 kvp.Value.Text = t;
             }
             ActualizarEncabezados();
+            // El panel de detalle se arma con texto traducido: se vuelve a generar.
+            MostrarDetalle();
+            dgvPendientes.Invalidate();
         }
 
         private void ActualizarEncabezados()
         {
             if (dgvPendientes.Columns.Count == 0) return;
             var mgr = SeguridadYServicios.IdiomaManager.getInstance();
-            if (dgvPendientes.Columns["Codigo"] != null)
-                dgvPendientes.Columns["Codigo"].HeaderText = mgr.Traducir("colhdr_Codigo") ?? "SKU";
-            if (dgvPendientes.Columns["Nombre"] != null)
-                dgvPendientes.Columns["Nombre"].HeaderText = mgr.Traducir("colhdr_NombreVino") ?? "Nombre";
+            if (dgvPendientes.Columns["Tipo"] != null)
+                dgvPendientes.Columns["Tipo"].HeaderText = mgr.Traducir("colhdr_TipoSolicitud") ?? "Tipo";
+            if (dgvPendientes.Columns["VinoCodigo"] != null)
+                dgvPendientes.Columns["VinoCodigo"].HeaderText = mgr.Traducir("colhdr_Codigo") ?? "SKU";
+            if (dgvPendientes.Columns["VinoNombre"] != null)
+                dgvPendientes.Columns["VinoNombre"].HeaderText = mgr.Traducir("colhdr_NombreVino") ?? "Nombre";
             if (dgvPendientes.Columns["BodegaNombre"] != null)
                 dgvPendientes.Columns["BodegaNombre"].HeaderText = mgr.Traducir("colhdr_Bodega") ?? "Bodega";
-            if (dgvPendientes.Columns["Varietal"] != null)
-                dgvPendientes.Columns["Varietal"].HeaderText = mgr.Traducir("colhdr_Varietal") ?? "Varietal";
-            if (dgvPendientes.Columns["Aniada"] != null)
-                dgvPendientes.Columns["Aniada"].HeaderText = mgr.Traducir("colhdr_Aniada") ?? "Añada";
-            if (dgvPendientes.Columns["Precio"] != null)
-                dgvPendientes.Columns["Precio"].HeaderText = mgr.Traducir("colhdr_Precio") ?? "Precio";
-            if (dgvPendientes.Columns["StockMinimo"] != null)
-                dgvPendientes.Columns["StockMinimo"].HeaderText = mgr.Traducir("colhdr_StockMinimo") ?? "Stock mínimo";
-            if (dgvPendientes.Columns["Maridaje"] != null)
-                dgvPendientes.Columns["Maridaje"].HeaderText = mgr.Traducir("colhdr_Maridaje") ?? "Maridaje";
-            if (dgvPendientes.Columns["Puntaje"] != null)
-                dgvPendientes.Columns["Puntaje"].HeaderText = mgr.Traducir("colhdr_Puntaje") ?? "Puntaje";
-            if (dgvPendientes.Columns["CreadoPorLogin"] != null)
-                dgvPendientes.Columns["CreadoPorLogin"].HeaderText = mgr.Traducir("colhdr_CreadoPor") ?? "Creado por";
-            if (dgvPendientes.Columns["FechaAlta"] != null)
-                dgvPendientes.Columns["FechaAlta"].HeaderText = mgr.Traducir("colhdr_FechaAlta") ?? "Fecha de alta";
+            if (dgvPendientes.Columns["EmisorLogin"] != null)
+                dgvPendientes.Columns["EmisorLogin"].HeaderText = mgr.Traducir("colhdr_Emisor") ?? "Emitida por";
+            if (dgvPendientes.Columns["FechaEmision"] != null)
+                dgvPendientes.Columns["FechaEmision"].HeaderText = mgr.Traducir("colhdr_FechaEmision") ?? "Fecha de emisión";
         }
 
         private void GuardarDefaults(Control.ControlCollection controles)
@@ -98,48 +91,105 @@ namespace CAPAS
 
         private void CargarPendientes()
         {
-            dgvPendientes.DataSource = _bll.ListarPendientes();
+            dgvPendientes.DataSource = _bll.ListarSolicitudesPendientes(BE.TipoSolicitud.Alta);
 
             if (dgvPendientes.Columns.Count > 0)
             {
-                if (dgvPendientes.Columns["Id"] != null) dgvPendientes.Columns["Id"].Visible = false;
-                if (dgvPendientes.Columns["BodegaId"] != null) dgvPendientes.Columns["BodegaId"].Visible = false;
-                if (dgvPendientes.Columns["CreadoPor"] != null) dgvPendientes.Columns["CreadoPor"].Visible = false;
-                if (dgvPendientes.Columns["AutorizadoPor"] != null) dgvPendientes.Columns["AutorizadoPor"].Visible = false;
-                if (dgvPendientes.Columns["AutorizadoPorLogin"] != null) dgvPendientes.Columns["AutorizadoPorLogin"].Visible = false;
-                if (dgvPendientes.Columns["FechaAutorizacion"] != null) dgvPendientes.Columns["FechaAutorizacion"].Visible = false;
-                if (dgvPendientes.Columns["Estado"] != null) dgvPendientes.Columns["Estado"].Visible = false;
-                // Datos de descontinuación (CU-24/25): un vino pendiente de alta nunca los tiene.
-                foreach (string col in new[] { "BajaSolicitadaPor", "BajaSolicitadaPorLogin", "FechaSolicitudBaja",
-                                               "DescontinuadoPor", "FechaDescontinuacion" })
+                // Los datos completos del vino se muestran en el panel de detalle, no en la grilla.
+                foreach (string col in new[] { "Id", "VinoId", "Estado", "EmisorId", "ResolutorId", "ResolutorLogin",
+                                               "FechaResolucion", "MotivoRechazo", "StockActual", "Vino" })
                     if (dgvPendientes.Columns[col] != null) dgvPendientes.Columns[col].Visible = false;
+                if (dgvPendientes.Columns["FechaEmision"] != null)
+                    dgvPendientes.Columns["FechaEmision"].DefaultCellStyle.Format = "dd/MM/yyyy HH:mm";
                 ActualizarEncabezados();
             }
 
-            ActualizarEstadoBoton();
+            ActualizarSeleccion();
         }
 
         private void dgvPendientes_SelectionChanged(object sender, EventArgs e)
         {
-            ActualizarEstadoBoton();
+            ActualizarSeleccion();
         }
 
-        private void ActualizarEstadoBoton()
+        private BE.SolicitudAutorizacion SolicitudSeleccionada()
         {
-            BE.Vino seleccionado = dgvPendientes.CurrentRow?.DataBoundItem as BE.Vino;
+            return dgvPendientes.CurrentRow?.DataBoundItem as BE.SolicitudAutorizacion;
+        }
+
+        private void ActualizarSeleccion()
+        {
+            MostrarDetalle();
+            ActualizarEstadoBotones();
+        }
+
+        private void ActualizarEstadoBotones()
+        {
+            BE.SolicitudAutorizacion seleccionada = SolicitudSeleccionada();
             BE.USUARIO sesion = SeguridadYServicios.SessionManager.getInstance().getUsuario();
 
-            // Capa UI del triple guard de RN-01: la acción queda deshabilitada
-            // para el solicitante, aunque BLL y SP también la rechacen.
-            btnAutorizar.Enabled = seleccionado != null && seleccionado.CreadoPor != sesion.Id;
+            // Capa UI del triple guard de RN-01: quien emitió la solicitud no puede resolverla
+            // (ni autorizarla ni rechazarla), aunque BLL y SP también lo rechacen.
+            bool puedeResolver = seleccionada != null && seleccionada.EmisorId != sesion.Id;
+            btnAutorizar.Enabled = puedeResolver;
+            btnRechazarAlta.Enabled = puedeResolver;
+        }
+
+        // Valor de tipo o estado de solicitud traducido (claves valsol_*).
+        private static string TextoValor(string clave, string porDefecto)
+        {
+            return SeguridadYServicios.IdiomaManager.getInstance().Traducir(clave) ?? porDefecto;
+        }
+
+        // Panel de detalle (R8): el documento que lee el autorizador. Se reconstruye en cada cambio
+        // de selección y al cambiar de idioma.
+        private void MostrarDetalle()
+        {
+            BE.SolicitudAutorizacion s = SolicitudSeleccionada();
+            if (s == null || s.Vino == null)
+            {
+                txtDetalle.Clear();
+                return;
+            }
+
+            var mgr = SeguridadYServicios.IdiomaManager.getInstance();
+            BE.Vino v = s.Vino;
+            string tipo = TextoValor("valsol_" + s.Tipo, s.Tipo.ToString());
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine((mgr.Traducir("colhdr_TipoSolicitud") ?? "Tipo") + ": " + tipo);
+            sb.AppendLine((mgr.Traducir("colhdr_Emisor") ?? "Emitida por") + ": " + s.EmisorLogin);
+            sb.AppendLine((mgr.Traducir("colhdr_FechaEmision") ?? "Fecha de emisión") + ": " + s.FechaEmision.ToString("dd/MM/yyyy HH:mm"));
+            sb.AppendLine();
+            sb.AppendLine((mgr.Traducir("colhdr_Codigo") ?? "SKU") + ": " + v.Codigo);
+            sb.AppendLine((mgr.Traducir("colhdr_NombreVino") ?? "Nombre") + ": " + v.Nombre);
+            sb.AppendLine((mgr.Traducir("colhdr_Bodega") ?? "Bodega") + ": " + v.BodegaNombre);
+            sb.AppendLine((mgr.Traducir("colhdr_Varietal") ?? "Varietal") + ": " + v.Varietal);
+            sb.AppendLine((mgr.Traducir("colhdr_Aniada") ?? "Añada") + ": " + v.Aniada);
+            sb.AppendLine((mgr.Traducir("colhdr_Precio") ?? "Precio") + ": " + v.Precio.ToString("N2"));
+            sb.AppendLine((mgr.Traducir("colhdr_StockMinimo") ?? "Stock mínimo") + ": " + v.StockMinimo);
+            sb.AppendLine((mgr.Traducir("colhdr_Maridaje") ?? "Maridaje") + ": " + (string.IsNullOrEmpty(v.Maridaje) ? "-" : v.Maridaje));
+            sb.AppendLine((mgr.Traducir("colhdr_Puntaje") ?? "Puntaje") + ": " + (v.Puntaje.HasValue ? v.Puntaje.Value.ToString() : "-"));
+            txtDetalle.Text = sb.ToString();
+        }
+
+        // El tipo es un enum (Alta/Baja): en la grilla se muestra traducido.
+        private void dgvPendientes_CellFormatting(object sender, DataGridViewCellFormattingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.Value == null) return;
+            if (dgvPendientes.Columns[e.ColumnIndex].Name == "Tipo")
+            {
+                e.Value = TextoValor("valsol_" + e.Value, e.Value.ToString());
+                e.FormattingApplied = true;
+            }
         }
 
         private void btnAutorizar_Click(object sender, EventArgs e)
         {
-            BE.Vino seleccionado = dgvPendientes.CurrentRow?.DataBoundItem as BE.Vino;
-            if (seleccionado == null)
+            BE.SolicitudAutorizacion seleccionada = SolicitudSeleccionada();
+            if (seleccionada == null)
             {
-                MsgBox.Show("Seleccioná un vino pendiente.", "Atención",
+                MsgBox.Show("Seleccione una solicitud de alta pendiente.", "Atención",
                     MsgBox.Botones.OK, MsgBox.Icono.Atencion);
                 return;
             }
@@ -148,16 +198,61 @@ namespace CAPAS
 
             try
             {
-                _bll.Autorizar(seleccionado.Id, sesion);
+                _bll.AutorizarAlta(seleccionada.Id, sesion);
             }
             catch (InvalidOperationException ex)
             {
                 MsgBox.Show(ex.Message, "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                CargarPendientes();
                 return;
             }
 
             MsgBox.Show("Vino autorizado correctamente.", "Éxito",
                 MsgBox.Botones.OK, MsgBox.Icono.Exito);
+            txtMotivoRechazo.Clear();
+            CargarPendientes();
+        }
+
+        private void btnRechazarAlta_Click(object sender, EventArgs e)
+        {
+            BE.SolicitudAutorizacion seleccionada = SolicitudSeleccionada();
+            if (seleccionada == null)
+            {
+                MsgBox.Show("Seleccione una solicitud de alta pendiente.", "Atención",
+                    MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                return;
+            }
+
+            // R6: el motivo es obligatorio. La BLL y la SP lo vuelven a validar.
+            string motivo = txtMotivoRechazo.Text.Trim();
+            if (motivo.Length == 0)
+            {
+                MsgBox.Show("Debe indicar el motivo del rechazo.", "Atención",
+                    MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                txtMotivoRechazo.Focus();
+                return;
+            }
+
+            if (MsgBox.Show("¿Rechazar el alta del vino '" + seleccionada.VinoNombre + "'? Quedará rechazado y Compras podrá corregirlo y reproponerlo.",
+                "Confirmar", MsgBox.Botones.SiNo, MsgBox.Icono.Pregunta) != DialogResult.Yes)
+                return;
+
+            BE.USUARIO sesion = SeguridadYServicios.SessionManager.getInstance().getUsuario();
+
+            try
+            {
+                _bll.RechazarAlta(seleccionada.Id, motivo, sesion);
+            }
+            catch (InvalidOperationException ex)
+            {
+                MsgBox.Show(ex.Message, "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                CargarPendientes();
+                return;
+            }
+
+            MsgBox.Show("Alta rechazada. El vino quedó rechazado.", "Éxito",
+                MsgBox.Botones.OK, MsgBox.Icono.Exito);
+            txtMotivoRechazo.Clear();
             CargarPendientes();
         }
 

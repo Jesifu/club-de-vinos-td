@@ -28,5 +28,10 @@ namespace BE
         public DateTime? FechaSolicitudBaja { get; set; }
         public int? DescontinuadoPor { get; set; }
         public DateTime? FechaDescontinuacion { get; set; }
+        // Última solicitud de autorización del vino (R7). Solo la completa VINO_LISTAR_CATALOGO;
+        // en el resto de las consultas quedan en null.
+        public TipoSolicitud? UltimaSolicitudTipo { get; set; }
+        public EstadoSolicitud? UltimaSolicitudEstado { get; set; }
+        public string UltimoMotivoRechazo { get; set; }
     }
 }

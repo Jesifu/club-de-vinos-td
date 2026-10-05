@@ -38,6 +38,8 @@ namespace CAPAS
             this.btnGuardarVino = new System.Windows.Forms.Button();
             this.btnLimpiarVino = new System.Windows.Forms.Button();
             this.btnSolicitarBaja = new System.Windows.Forms.Button();
+            this.btnReproponer = new System.Windows.Forms.Button();
+            this.lblAyudaReproponer = new System.Windows.Forms.Label();
             this.btnCerrar = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.dgvVinos)).BeginInit();
             this.panelInferior.SuspendLayout();
@@ -72,6 +74,7 @@ namespace CAPAS
             this.dgvVinos.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             this.dgvVinos.Size = new System.Drawing.Size(700, 190);
             this.dgvVinos.TabIndex = 1;
+            this.dgvVinos.CellFormatting += new System.Windows.Forms.DataGridViewCellFormattingEventHandler(this.dgvVinos_CellFormatting);
             this.dgvVinos.SelectionChanged += new System.EventHandler(this.dgvVinos_SelectionChanged);
             //
             // panelInferior
@@ -98,11 +101,13 @@ namespace CAPAS
             this.panelInferior.Controls.Add(this.btnGuardarVino);
             this.panelInferior.Controls.Add(this.btnLimpiarVino);
             this.panelInferior.Controls.Add(this.btnSolicitarBaja);
+            this.panelInferior.Controls.Add(this.btnReproponer);
+            this.panelInferior.Controls.Add(this.lblAyudaReproponer);
             this.panelInferior.Controls.Add(this.btnCerrar);
             this.panelInferior.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.panelInferior.Location = new System.Drawing.Point(0, 330);
             this.panelInferior.Name = "panelInferior";
-            this.panelInferior.Size = new System.Drawing.Size(710, 270);
+            this.panelInferior.Size = new System.Drawing.Size(900, 270);
             this.panelInferior.TabIndex = 2;
             //
             // lblCodigo
@@ -301,10 +306,30 @@ namespace CAPAS
             this.btnSolicitarBaja.UseVisualStyleBackColor = true;
             this.btnSolicitarBaja.Click += new System.EventHandler(this.btnSolicitarBaja_Click);
             //
+            // btnReproponer
+            //
+            this.btnReproponer.Enabled = false;
+            this.btnReproponer.Location = new System.Drawing.Point(547, 218);
+            this.btnReproponer.Name = "btnReproponer";
+            this.btnReproponer.Size = new System.Drawing.Size(230, 38);
+            this.btnReproponer.TabIndex = 23;
+            this.btnReproponer.Text = "Corregir y reproponer";
+            this.btnReproponer.UseVisualStyleBackColor = true;
+            this.btnReproponer.Click += new System.EventHandler(this.btnReproponer_Click);
+            //
+            // lblAyudaReproponer
+            //
+            this.lblAyudaReproponer.Location = new System.Drawing.Point(590, 13);
+            this.lblAyudaReproponer.Name = "lblAyudaReproponer";
+            this.lblAyudaReproponer.Size = new System.Drawing.Size(300, 60);
+            this.lblAyudaReproponer.TabIndex = 24;
+            this.lblAyudaReproponer.Text = "Corrigiendo un vino rechazado: al guardar se emite una nueva solicitud de alta.";
+            this.lblAyudaReproponer.Visible = false;
+            //
             // btnCerrar
             //
             this.btnCerrar.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnCerrar.Location = new System.Drawing.Point(597, 218);
+            this.btnCerrar.Location = new System.Drawing.Point(787, 218);
             this.btnCerrar.Name = "btnCerrar";
             this.btnCerrar.Size = new System.Drawing.Size(100, 38);
             this.btnCerrar.TabIndex = 21;
@@ -317,11 +342,11 @@ namespace CAPAS
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.ActiveCaption;
-            this.ClientSize = new System.Drawing.Size(710, 600);
+            this.ClientSize = new System.Drawing.Size(900, 600);
             this.Controls.Add(this.panelInferior);
             this.Controls.Add(this.dgvVinos);
             this.Controls.Add(this.lblTitulo);
-            this.MinimumSize = new System.Drawing.Size(650, 500);
+            this.MinimumSize = new System.Drawing.Size(850, 500);
             this.Name = "frmCatalogoVinos";
             this.Padding = new System.Windows.Forms.Padding(3, 64, 2, 2);
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
@@ -365,6 +390,8 @@ namespace CAPAS
         private System.Windows.Forms.Button btnGuardarVino;
         private System.Windows.Forms.Button btnLimpiarVino;
         private System.Windows.Forms.Button btnSolicitarBaja;
+        private System.Windows.Forms.Button btnReproponer;
+        private System.Windows.Forms.Label lblAyudaReproponer;
         private System.Windows.Forms.Button btnCerrar;
     }
 }
