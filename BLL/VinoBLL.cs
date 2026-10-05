@@ -119,11 +119,6 @@ namespace BLL
             return _dal.ListarCatalogo(sesion.Id);
         }
 
-        public List<Vino> ListarPendientes()
-        {
-            return _dal.ListarPendientes();
-        }
-
         public List<Vino> ListarAutorizados()
         {
             return _dal.ListarAutorizados();
@@ -204,13 +199,8 @@ namespace BLL
         private const string MensajeBajaYaPendiente =
             "El vino ya tiene una baja solicitada, pendiente de autorización.";
 
-        public List<Vino> ListarPendientesDeBaja()
-        {
-            return _dal.ListarPendientesDeBaja();
-        }
-
         // CU-25: RN-04 (baja lógica, el SP cambia ESTADO y nunca borra) y RN-01 (separación de funciones).
-        public void AutorizarBajaPorSolicitud(int solicitudId, USUARIO sesion)
+        public void AutorizarBaja(int solicitudId, USUARIO sesion)
         {
             SolicitudAutorizacion s = ObtenerSolicitudPendiente(solicitudId, TipoSolicitud.Baja);
             // RN-01, capa BLL: guard en memoria, ANTES de llamar al DAL.
@@ -229,7 +219,7 @@ namespace BLL
         }
 
         // CU-25 (rechazo): R3 el vino sigue Activo; R6 el motivo es obligatorio. RN-01 también aplica al rechazo.
-        public void RechazarBajaPorSolicitud(int solicitudId, string motivo, USUARIO sesion)
+        public void RechazarBaja(int solicitudId, string motivo, USUARIO sesion)
         {
             string motivoLimpio = ValidarMotivo(motivo);
             SolicitudAutorizacion s = ObtenerSolicitudPendiente(solicitudId, TipoSolicitud.Baja);
@@ -240,26 +230,6 @@ namespace BLL
                 throw new InvalidOperationException("No se pudo rechazar la baja: la solicitud cambió de estado o usted la emitió. Actualice e intente nuevamente.");
 
             _bitacora.RegistrarAccion(sesion.Usuario, "RECHAZO_BAJA_VINO:" + s.VinoCodigo);
-        }
-
-        // Adaptadores del slice 1: el formulario de baja todavía trabaja con vinos. Se eliminan
-        // cuando ese formulario pase a enlazar solicitudes (slice 3).
-        public void AutorizarBaja(int vinoId, USUARIO sesion)
-        {
-            AutorizarBajaPorSolicitud(ObtenerSolicitudBajaDeVino(vinoId).Id, sesion);
-        }
-
-        public void RechazarBaja(int vinoId, string motivo, USUARIO sesion)
-        {
-            RechazarBajaPorSolicitud(ObtenerSolicitudBajaDeVino(vinoId).Id, motivo, sesion);
-        }
-
-        private SolicitudAutorizacion ObtenerSolicitudBajaDeVino(int vinoId)
-        {
-            SolicitudAutorizacion s = _solicitudDal.ObtenerPendiente(vinoId, TipoSolicitud.Baja);
-            if (s == null)
-                throw new InvalidOperationException("El vino no tiene una baja solicitada pendiente.");
-            return s;
         }
 
         private SolicitudAutorizacion ObtenerSolicitudPendiente(int solicitudId, TipoSolicitud tipo)
