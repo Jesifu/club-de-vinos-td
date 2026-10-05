@@ -2,8 +2,12 @@
   <PropertyGroup>
     <OutputName>ClubDeVinos</OutputName>
     <OutputType>Package</OutputType>
+    <!-- Interfaz del MSI en español (es-ES): toma las cadenas de WixUI y Package.es-es.wxl. -->
+    <Cultures>es-ES</Cultures>
     <!-- WIX8601: the optional app.publish and Remitos exclusions may not exist in the output folder. -->
     <SuppressSpecificWarnings>8601</SuppressSpecificWarnings>
+    <!-- ICE17: the ComboBox rows for SQLINSTANCE are inserted at install time by the DetectSqlInstances custom action. -->
+    <SuppressIces>ICE17</SuppressIces>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
     <InstallerPlatform>x64</InstallerPlatform>
     <!-- Output of the Release build of TP_IS.sln (build.ps1 builds it first). -->
@@ -18,6 +22,11 @@
   <ItemGroup>
     <PackageReference Include="WixToolset.UI.wixext" Version="7.0.0" />
     <PackageReference Include="WixToolset.Sql.wixext" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Managed custom action (DTF) that detects local SQL Server instances. Produces CustomActions.CA.dll. -->
+    <ProjectReference Include="CustomActions\CustomActions.csproj" />
   </ItemGroup>
 
   <!--

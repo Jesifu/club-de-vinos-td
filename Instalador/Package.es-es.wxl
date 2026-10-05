@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cadenas propias del instalador en español (es-ES). Las de WixUI las aporta la extensión. -->
+<WixLocalization Culture="es-ES" Language="3082" xmlns="http://wixtoolset.org/schemas/v4/wxl">
+  <String Id="DowngradeError" Value="Ya hay instalada una versión más reciente de Club de Vinos." />
+
+  <String Id="SqlInstanceDlg_Title" Value="Instalación de [ProductName]" />
+  <String Id="SqlInstanceDlg_Heading" Value="{\WixUI_Font_Title}Instancia de SQL Server" />
+  <String Id="SqlInstanceDlg_Description" Value="Seleccione la instancia de SQL Server donde se creará la base de datos." />
+  <String Id="SqlInstanceDlg_InstanceLabel" Value="Seleccione la instancia de este equipo que se utilizará para la base de datos de [ProductName]:" />
+  <String Id="SqlInstanceDlg_NoInstance" Value="No se encontró ninguna instancia de SQL Server en este equipo. Es necesario instalar SQL Server antes de instalar [ProductName]. Instale SQL Server y luego vuelva a ejecutar este programa de instalación." />
+  <String Id="SqlInstanceDlg_Back" Value="&amp;Atrás" />
+  <String Id="SqlInstanceDlg_Next" Value="&amp;Siguiente" />
+  <String Id="SqlInstanceDlg_Cancel" Value="Cancelar" />
+</WixLocalization>

@@ -18,5 +18,5 @@ if ($LASTEXITCODE -ne 0) { throw "Falló la compilación de la solución (códig
 & dotnet build (Join-Path $PSScriptRoot 'Instalador.wixproj') -c Release -nologo
 if ($LASTEXITCODE -ne 0) { throw "Falló la compilación del MSI (código $LASTEXITCODE)." }
 
-$msi = Join-Path $PSScriptRoot 'bin\x64\Release\ClubDeVinos.msi'
+$msi = Join-Path $PSScriptRoot 'bin\x64\Release\es-ES\ClubDeVinos.msi'
 Write-Host "MSI generado: $msi ($([math]::Round((Get-Item $msi).Length / 1MB, 1)) MB)"

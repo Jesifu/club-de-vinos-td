@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <!-- AnyCPU: DTF empaqueta con el stub x86 de SfxCA; el registro se lee con vistas explícitas. -->
+    <AssemblyName>CustomActions</AssemblyName>
+    <RootNamespace>ClubDeVinos.Installer.CustomActions</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Incluye WixToolset.Dtf.WindowsInstaller de forma transitiva y genera CustomActions.CA.dll. -->
+    <PackageReference Include="WixToolset.Dtf.CustomAction" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- DTF lo empaqueta dentro de CustomActions.CA.dll: fija el CLR 4 para la acción. -->
+    <Content Include="CustomAction.config" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
