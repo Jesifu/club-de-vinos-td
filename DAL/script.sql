@@ -1543,11 +1543,151 @@ CREATE TABLE [dbo].[MOVIMIENTO_STOCK] (
 GO
 
 -- ------------------------------------------------------------
+-- SOLICITUD_AUTORIZACION (change solicitud-autorizacion, slice 1)
+-- Fuente de verdad de las aprobaciones de alta/baja de vinos. VINO.ESTADO queda como
+-- ciclo de vida puro: Pendiente | Activo | Rechazado | Descontinuado.
+-- ------------------------------------------------------------
+
+-- sqlcmd arranca con QUOTED_IDENTIFIER OFF y el DML sobre una tabla con índice filtrado
+-- falla (error 1934) desde SPs creados con esa opción. Este SET la activa antes de crear
+-- la tabla, los índices y los SPs que la usan, así el script no depende del flag -I.
+SET ANSI_NULLS ON
+SET QUOTED_IDENTIFIER ON
+GO
+
+IF OBJECT_ID('dbo.SOLICITUD_AUTORIZACION', 'U') IS NULL
+CREATE TABLE [dbo].[SOLICITUD_AUTORIZACION] (
+    [ID]               INT          IDENTITY(1,1) NOT NULL,
+    [TIPO]             VARCHAR(10)  NOT NULL,
+    [VINO_ID]          INT          NOT NULL,
+    [ESTADO]           VARCHAR(10)  NOT NULL CONSTRAINT DF_SOLAUT_ESTADO DEFAULT 'Pendiente',
+    [EMISOR_ID]        INT          NOT NULL,
+    [FECHA_EMISION]    DATETIME     NOT NULL CONSTRAINT DF_SOLAUT_FECHA DEFAULT GETDATE(),
+    [RESOLUTOR_ID]     INT          NULL,
+    [FECHA_RESOLUCION] DATETIME     NULL,
+    [MOTIVO_RECHAZO]   VARCHAR(200) NULL,
+    CONSTRAINT PK_SOLICITUD_AUTORIZACION PRIMARY KEY ([ID]),
+    CONSTRAINT FK_SOLAUT_VINO      FOREIGN KEY ([VINO_ID])      REFERENCES [dbo].[VINO]([ID]),
+    CONSTRAINT FK_SOLAUT_EMISOR    FOREIGN KEY ([EMISOR_ID])    REFERENCES [dbo].[USUARIO]([ID]),
+    CONSTRAINT FK_SOLAUT_RESOLUTOR FOREIGN KEY ([RESOLUTOR_ID]) REFERENCES [dbo].[USUARIO]([ID]),
+    CONSTRAINT CK_SOLAUT_TIPO   CHECK ([TIPO] IN ('ALTA', 'BAJA')),
+    CONSTRAINT CK_SOLAUT_ESTADO CHECK ([ESTADO] IN ('Pendiente', 'Aprobada', 'Rechazada')),
+    -- Una solicitud Pendiente no tiene resolutor ni fecha; una resuelta tiene ambos.
+    CONSTRAINT CK_SOLAUT_RESOLUCION CHECK (
+        ([ESTADO] = 'Pendiente' AND [RESOLUTOR_ID] IS NULL AND [FECHA_RESOLUCION] IS NULL)
+        OR ([ESTADO] <> 'Pendiente' AND [RESOLUTOR_ID] IS NOT NULL AND [FECHA_RESOLUCION] IS NOT NULL)),
+    -- R6: el motivo es obligatorio (no vacío) al rechazar y solo existe al rechazar.
+    CONSTRAINT CK_SOLAUT_MOTIVO CHECK (
+        ([ESTADO] = 'Rechazada' AND [MOTIVO_RECHAZO] IS NOT NULL
+            AND LEN(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE([MOTIVO_RECHAZO], CHAR(9), ''), CHAR(10), ''), CHAR(13), '')))) > 0)
+        OR ([ESTADO] <> 'Rechazada' AND [MOTIVO_RECHAZO] IS NULL)),
+    -- RN-01: quien resuelve nunca es quien emitió la solicitud.
+    CONSTRAINT CK_SOLAUT_RN01 CHECK ([RESOLUTOR_ID] IS NULL OR [RESOLUTOR_ID] <> [EMISOR_ID])
+)
+GO
+
+-- R4: a lo sumo una solicitud Pendiente por (vino, tipo). También es el backstop de carreras.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_SOLAUT_PENDIENTE' AND object_id = OBJECT_ID('dbo.SOLICITUD_AUTORIZACION'))
+    CREATE UNIQUE NONCLUSTERED INDEX UX_SOLAUT_PENDIENTE
+        ON [dbo].[SOLICITUD_AUTORIZACION] ([VINO_ID], [TIPO])
+        WHERE [ESTADO] = 'Pendiente'
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_SOLAUT_VINO' AND object_id = OBJECT_ID('dbo.SOLICITUD_AUTORIZACION'))
+    CREATE NONCLUSTERED INDEX IX_SOLAUT_VINO
+        ON [dbo].[SOLICITUD_AUTORIZACION] ([VINO_ID], [FECHA_EMISION] DESC, [ID] DESC)
+GO
+
+-- Ciclo de vida de VINO. Camino único para instalaciones nuevas y bases existentes.
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = 'CK_VINO_ESTADO' AND parent_object_id = OBJECT_ID('dbo.VINO'))
+    ALTER TABLE [dbo].[VINO] ADD CONSTRAINT CK_VINO_ESTADO
+        CHECK ([ESTADO] IN ('Pendiente', 'Activo', 'Rechazado', 'Descontinuado'))
+GO
+
+-- ------------------------------------------------------------
+-- BACKFILL de solicitudes para los vinos legados (idempotente)
+-- Clave de idempotencia: solo se procesan los vinos SIN ninguna solicitud. Los vinos
+-- creados por el flujo nuevo siempre tienen una solicitud ALTA, así que nunca se reprocesan.
+-- SQL dinámico: una referencia estática a las columnas legadas rompería todo el batch en
+-- compilación cuando se eliminen (slice 3). El guard COL_LENGTH evita ejecutarlo entonces.
+--   AUTORIZADO_POR NULL                  -> VINO Pendiente + ALTA Pendiente
+--   AUTORIZADO_POR con valor             -> ALTA Aprobada
+--   Activo + BAJA_SOLICITADA_POR         -> además BAJA Pendiente
+--   Descontinuado                        -> además BAJA Aprobada
+-- Los vinos que violarían un CHECK (emisor = resolutor, descontinuado sin solicitante,
+-- datos incoherentes) se excluyen y se informan con PRINT en lugar de abortar el script.
+-- ------------------------------------------------------------
+IF COL_LENGTH('dbo.VINO', 'AUTORIZADO_POR') IS NOT NULL
+EXEC sp_executesql N'
+SET XACT_ABORT ON;
+BEGIN TRAN;
+
+SELECT v.ID, v.CODIGO, v.ESTADO, v.CREADO_POR, v.FECHA_ALTA,
+       v.AUTORIZADO_POR, v.FECHA_AUTORIZACION,
+       v.BAJA_SOLICITADA_POR, v.FECHA_SOLICITUD_BAJA,
+       v.DESCONTINUADO_POR, v.FECHA_DESCONTINUACION,
+       CASE WHEN (v.AUTORIZADO_POR IS NULL AND v.ESTADO <> ''Activo'')
+                 OR v.AUTORIZADO_POR = v.CREADO_POR
+                 OR (v.ESTADO = ''Descontinuado''
+                     AND (v.BAJA_SOLICITADA_POR IS NULL OR v.DESCONTINUADO_POR IS NULL
+                          OR v.BAJA_SOLICITADA_POR = v.DESCONTINUADO_POR))
+                 OR (v.ESTADO = ''Activo'' AND v.DESCONTINUADO_POR IS NOT NULL)
+            THEN 1 ELSE 0 END AS EXCLUIR
+INTO #legado
+FROM VINO v
+WHERE NOT EXISTS (SELECT 1 FROM SOLICITUD_AUTORIZACION s WHERE s.VINO_ID = v.ID);
+
+DECLARE @excluidos INT = (SELECT COUNT(*) FROM #legado WHERE EXCLUIR = 1);
+IF @excluidos > 0
+BEGIN
+    DECLARE @lista VARCHAR(MAX) = '''';
+    SELECT @lista = @lista + CODIGO + '' '' FROM #legado WHERE EXCLUIR = 1;
+    PRINT ''Backfill SOLICITUD_AUTORIZACION: vinos legados excluidos por datos incoherentes (revisar a mano): '' + @lista;
+END
+
+-- ALTA para todo vino legado no excluido.
+INSERT INTO SOLICITUD_AUTORIZACION (TIPO, VINO_ID, ESTADO, EMISOR_ID, FECHA_EMISION, RESOLUTOR_ID, FECHA_RESOLUCION)
+SELECT ''ALTA'', l.ID,
+       CASE WHEN l.AUTORIZADO_POR IS NULL THEN ''Pendiente'' ELSE ''Aprobada'' END,
+       l.CREADO_POR, l.FECHA_ALTA,
+       l.AUTORIZADO_POR,
+       CASE WHEN l.AUTORIZADO_POR IS NULL THEN NULL ELSE ISNULL(l.FECHA_AUTORIZACION, l.FECHA_ALTA) END
+FROM #legado l
+WHERE l.EXCLUIR = 0;
+
+-- El vino legado sin autorizar pasa a Pendiente.
+UPDATE v SET v.ESTADO = ''Pendiente''
+FROM VINO v
+JOIN #legado l ON l.ID = v.ID
+WHERE l.EXCLUIR = 0 AND l.AUTORIZADO_POR IS NULL;
+
+-- BAJA pendiente: vino Activo con solicitud de baja sin resolver.
+INSERT INTO SOLICITUD_AUTORIZACION (TIPO, VINO_ID, ESTADO, EMISOR_ID, FECHA_EMISION)
+SELECT ''BAJA'', l.ID, ''Pendiente'', l.BAJA_SOLICITADA_POR, ISNULL(l.FECHA_SOLICITUD_BAJA, l.FECHA_ALTA)
+FROM #legado l
+WHERE l.EXCLUIR = 0 AND l.ESTADO = ''Activo'' AND l.AUTORIZADO_POR IS NOT NULL
+  AND l.BAJA_SOLICITADA_POR IS NOT NULL;
+
+-- BAJA aprobada: vino Descontinuado.
+INSERT INTO SOLICITUD_AUTORIZACION (TIPO, VINO_ID, ESTADO, EMISOR_ID, FECHA_EMISION, RESOLUTOR_ID, FECHA_RESOLUCION)
+SELECT ''BAJA'', l.ID, ''Aprobada'', l.BAJA_SOLICITADA_POR,
+       ISNULL(l.FECHA_SOLICITUD_BAJA, l.FECHA_ALTA),
+       l.DESCONTINUADO_POR,
+       COALESCE(l.FECHA_DESCONTINUACION, l.FECHA_SOLICITUD_BAJA, l.FECHA_ALTA)
+FROM #legado l
+WHERE l.EXCLUIR = 0 AND l.ESTADO = ''Descontinuado'';
+
+DROP TABLE #legado;
+COMMIT TRAN;
+'
+GO
+
+-- ------------------------------------------------------------
 -- STORED PROCEDURES — VINO
 -- ------------------------------------------------------------
 
 IF OBJECT_ID('dbo.VINO_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_INSERTAR]
 GO
+-- Crea el vino en estado Pendiente y su solicitud ALTA Pendiente en una sola transacción (REQ-SA-08).
 CREATE PROCEDURE [dbo].[VINO_INSERTAR]
     @codigo       VARCHAR(20),
     @nombre       VARCHAR(100),
@@ -1561,11 +1701,29 @@ CREATE PROCEDURE [dbo].[VINO_INSERTAR]
     @puntaje      INT = NULL
 AS
 BEGIN
-    INSERT INTO VINO (CODIGO, NOMBRE, BODEGA_ID, VARIETAL, ANIADA, PRECIO, STOCK_MINIMO,
-                       ESTADO, MARIDAJE, PUNTAJE, CREADO_POR, FECHA_ALTA)
-    VALUES (@codigo, @nombre, @bodega_id, @varietal, @aniada, @precio, @stock_minimo,
-            'Activo', @maridaje, @puntaje, @creado_por, GETDATE())
-    SELECT SCOPE_IDENTITY() AS ID
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    DECLARE @id INT;
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        INSERT INTO VINO (CODIGO, NOMBRE, BODEGA_ID, VARIETAL, ANIADA, PRECIO, STOCK_MINIMO,
+                           ESTADO, MARIDAJE, PUNTAJE, CREADO_POR, FECHA_ALTA)
+        VALUES (@codigo, @nombre, @bodega_id, @varietal, @aniada, @precio, @stock_minimo,
+                'Pendiente', @maridaje, @puntaje, @creado_por, GETDATE());
+        SET @id = SCOPE_IDENTITY();
+
+        INSERT INTO SOLICITUD_AUTORIZACION (TIPO, VINO_ID, ESTADO, EMISOR_ID, FECHA_EMISION)
+        VALUES ('ALTA', @id, 'Pendiente', @creado_por, GETDATE());
+
+        COMMIT TRAN;
+        SELECT @id AS ID;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
 END
 GO
 
@@ -1621,7 +1779,7 @@ AS
     JOIN BODEGA b ON b.ID = v.BODEGA_ID
     JOIN USUARIO uc ON uc.ID = v.CREADO_POR
     LEFT JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
-    WHERE v.AUTORIZADO_POR IS NULL
+    WHERE v.ESTADO = 'Pendiente'
     ORDER BY v.FECHA_ALTA
 GO
 
@@ -1638,10 +1796,10 @@ AS
     FROM VINO v
     JOIN BODEGA b ON b.ID = v.BODEGA_ID
     JOIN USUARIO uc ON uc.ID = v.CREADO_POR
-    JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
+    LEFT JOIN USUARIO ua ON ua.ID = v.AUTORIZADO_POR
     LEFT JOIN USUARIO ub ON ub.ID = v.BAJA_SOLICITADA_POR
-    WHERE v.AUTORIZADO_POR IS NOT NULL AND v.ESTADO = 'Activo'
-    ORDER BY v.FECHA_AUTORIZACION DESC
+    WHERE v.ESTADO = 'Activo'
+    ORDER BY v.NOMBRE
 GO
 
 IF OBJECT_ID('dbo.VINO_AUTORIZAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_AUTORIZAR]
@@ -1654,6 +1812,263 @@ AS
     UPDATE VINO
     SET AUTORIZADO_POR = @admin_id, FECHA_AUTORIZACION = GETDATE()
     WHERE ID = @id AND AUTORIZADO_POR IS NULL AND CREADO_POR <> @admin_id
+GO
+
+-- ------------------------------------------------------------
+-- STORED PROCEDURES — SOLICITUD_AUTORIZACION
+-- Patrón de CAJA_DESPACHAR: transaccional, exactamente un SELECT FILAS (se lee con Acceso.Leer;
+-- ExecuteNonQuery sumaría los rowcounts de todas las sentencias). 0 FILAS = rechazado.
+-- En los slices 1-2 las SPs de resolución también escriben las columnas legadas de VINO
+-- (doble escritura) para que el rollback no pierda datos; el slice 3 la elimina.
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.SOLICITUD_LISTAR_PENDIENTES', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOLICITUD_LISTAR_PENDIENTES]
+GO
+CREATE PROCEDURE [dbo].[SOLICITUD_LISTAR_PENDIENTES]
+    @tipo VARCHAR(10)
+AS
+    SELECT s.ID, s.TIPO, s.VINO_ID, s.ESTADO, s.EMISOR_ID, ue.USUARIO AS EMISOR_LOGIN, s.FECHA_EMISION,
+           s.RESOLUTOR_ID, ur.USUARIO AS RESOLUTOR_LOGIN, s.FECHA_RESOLUCION, s.MOTIVO_RECHAZO,
+           v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE, v.VARIETAL, v.ANIADA, v.PRECIO,
+           v.STOCK_MINIMO, v.ESTADO AS VINO_ESTADO, v.MARIDAJE, v.PUNTAJE, v.CREADO_POR, v.FECHA_ALTA,
+           ISNULL((SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END)
+                   FROM MOVIMIENTO_STOCK m WHERE m.VINO_ID = v.ID), 0) AS STOCK_ACTUAL
+    FROM SOLICITUD_AUTORIZACION s
+    JOIN VINO v ON v.ID = s.VINO_ID
+    JOIN BODEGA b ON b.ID = v.BODEGA_ID
+    JOIN USUARIO ue ON ue.ID = s.EMISOR_ID
+    LEFT JOIN USUARIO ur ON ur.ID = s.RESOLUTOR_ID
+    WHERE s.ESTADO = 'Pendiente' AND s.TIPO = @tipo
+    ORDER BY s.FECHA_EMISION, s.ID
+GO
+
+IF OBJECT_ID('dbo.SOLICITUD_OBTENER_POR_ID', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOLICITUD_OBTENER_POR_ID]
+GO
+CREATE PROCEDURE [dbo].[SOLICITUD_OBTENER_POR_ID]
+    @id INT
+AS
+    SELECT s.ID, s.TIPO, s.VINO_ID, s.ESTADO, s.EMISOR_ID, ue.USUARIO AS EMISOR_LOGIN, s.FECHA_EMISION,
+           s.RESOLUTOR_ID, ur.USUARIO AS RESOLUTOR_LOGIN, s.FECHA_RESOLUCION, s.MOTIVO_RECHAZO,
+           v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE, v.VARIETAL, v.ANIADA, v.PRECIO,
+           v.STOCK_MINIMO, v.ESTADO AS VINO_ESTADO, v.MARIDAJE, v.PUNTAJE, v.CREADO_POR, v.FECHA_ALTA,
+           ISNULL((SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END)
+                   FROM MOVIMIENTO_STOCK m WHERE m.VINO_ID = v.ID), 0) AS STOCK_ACTUAL
+    FROM SOLICITUD_AUTORIZACION s
+    JOIN VINO v ON v.ID = s.VINO_ID
+    JOIN BODEGA b ON b.ID = v.BODEGA_ID
+    JOIN USUARIO ue ON ue.ID = s.EMISOR_ID
+    LEFT JOIN USUARIO ur ON ur.ID = s.RESOLUTOR_ID
+    WHERE s.ID = @id
+GO
+
+IF OBJECT_ID('dbo.SOLICITUD_OBTENER_PENDIENTE', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOLICITUD_OBTENER_PENDIENTE]
+GO
+CREATE PROCEDURE [dbo].[SOLICITUD_OBTENER_PENDIENTE]
+    @vino_id INT,
+    @tipo    VARCHAR(10)
+AS
+    SELECT s.ID, s.TIPO, s.VINO_ID, s.ESTADO, s.EMISOR_ID, ue.USUARIO AS EMISOR_LOGIN, s.FECHA_EMISION,
+           s.RESOLUTOR_ID, ur.USUARIO AS RESOLUTOR_LOGIN, s.FECHA_RESOLUCION, s.MOTIVO_RECHAZO,
+           v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE, v.VARIETAL, v.ANIADA, v.PRECIO,
+           v.STOCK_MINIMO, v.ESTADO AS VINO_ESTADO, v.MARIDAJE, v.PUNTAJE, v.CREADO_POR, v.FECHA_ALTA,
+           ISNULL((SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END)
+                   FROM MOVIMIENTO_STOCK m WHERE m.VINO_ID = v.ID), 0) AS STOCK_ACTUAL
+    FROM SOLICITUD_AUTORIZACION s
+    JOIN VINO v ON v.ID = s.VINO_ID
+    JOIN BODEGA b ON b.ID = v.BODEGA_ID
+    JOIN USUARIO ue ON ue.ID = s.EMISOR_ID
+    LEFT JOIN USUARIO ur ON ur.ID = s.RESOLUTOR_ID
+    WHERE s.VINO_ID = @vino_id AND s.TIPO = @tipo AND s.ESTADO = 'Pendiente'
+GO
+
+IF OBJECT_ID('dbo.SOLICITUD_APROBAR_ALTA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOLICITUD_APROBAR_ALTA]
+GO
+-- RN-01 backstop: EMISOR_ID <> @resolutor_id. Solo se resuelve una solicitud ALTA Pendiente.
+CREATE PROCEDURE [dbo].[SOLICITUD_APROBAR_ALTA]
+    @solicitud_id INT,
+    @resolutor_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    DECLARE @vino_id INT;
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        UPDATE SOLICITUD_AUTORIZACION
+        SET ESTADO = 'Aprobada', RESOLUTOR_ID = @resolutor_id, FECHA_RESOLUCION = GETDATE(),
+            @vino_id = VINO_ID
+        WHERE ID = @solicitud_id AND TIPO = 'ALTA' AND ESTADO = 'Pendiente' AND EMISOR_ID <> @resolutor_id;
+        IF @@ROWCOUNT = 0
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        -- Doble escritura legada (AUTORIZADO_POR / FECHA_AUTORIZACION): se elimina en el slice 3.
+        UPDATE VINO
+        SET ESTADO = 'Activo', AUTORIZADO_POR = @resolutor_id, FECHA_AUTORIZACION = GETDATE()
+        WHERE ID = @vino_id AND ESTADO = 'Pendiente';
+        IF @@ROWCOUNT = 0
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        COMMIT TRAN;
+        SELECT 1 AS FILAS;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END
+GO
+
+IF OBJECT_ID('dbo.SOLICITUD_RECHAZAR_ALTA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOLICITUD_RECHAZAR_ALTA]
+GO
+-- R6: motivo obligatorio (NULL, vacío o solo espacios/tabuladores = rechazado). RN-01 en el WHERE.
+CREATE PROCEDURE [dbo].[SOLICITUD_RECHAZAR_ALTA]
+    @solicitud_id INT,
+    @resolutor_id INT,
+    @motivo       VARCHAR(200)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    DECLARE @vino_id INT;
+
+    IF @motivo IS NULL
+       OR LEN(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(@motivo, CHAR(9), ''), CHAR(10), ''), CHAR(13), '')))) = 0
+    BEGIN
+        SELECT 0 AS FILAS; RETURN;
+    END
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        UPDATE SOLICITUD_AUTORIZACION
+        SET ESTADO = 'Rechazada', RESOLUTOR_ID = @resolutor_id, FECHA_RESOLUCION = GETDATE(),
+            MOTIVO_RECHAZO = LTRIM(RTRIM(@motivo)),
+            @vino_id = VINO_ID
+        WHERE ID = @solicitud_id AND TIPO = 'ALTA' AND ESTADO = 'Pendiente' AND EMISOR_ID <> @resolutor_id;
+        IF @@ROWCOUNT = 0
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        UPDATE VINO SET ESTADO = 'Rechazado' WHERE ID = @vino_id AND ESTADO = 'Pendiente';
+        IF @@ROWCOUNT = 0
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        COMMIT TRAN;
+        SELECT 1 AS FILAS;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END
+GO
+
+IF OBJECT_ID('dbo.SOLICITUD_APROBAR_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOLICITUD_APROBAR_BAJA]
+GO
+-- RN-01 (EMISOR_ID <> @resolutor_id) y RN-15 (stock = 0, leído con UPDLOCK/HOLDLOCK).
+-- RN-04: baja lógica, el vino pasa a Descontinuado y nunca se borra.
+CREATE PROCEDURE [dbo].[SOLICITUD_APROBAR_BAJA]
+    @solicitud_id INT,
+    @resolutor_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    DECLARE @vino_id INT;
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        UPDATE SOLICITUD_AUTORIZACION
+        SET ESTADO = 'Aprobada', RESOLUTOR_ID = @resolutor_id, FECHA_RESOLUCION = GETDATE(),
+            @vino_id = VINO_ID
+        WHERE ID = @solicitud_id AND TIPO = 'BAJA' AND ESTADO = 'Pendiente' AND EMISOR_ID <> @resolutor_id;
+        IF @@ROWCOUNT = 0
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        -- RN-15: entre la solicitud y la autorización pudo ingresar mercadería (CU-23).
+        IF ISNULL((SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END)
+                   FROM MOVIMIENTO_STOCK m WITH (UPDLOCK, HOLDLOCK)
+                   WHERE m.VINO_ID = @vino_id), 0) <> 0
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        -- Doble escritura legada (DESCONTINUADO_POR / FECHA_DESCONTINUACION): se elimina en el slice 3.
+        UPDATE VINO
+        SET ESTADO = 'Descontinuado', DESCONTINUADO_POR = @resolutor_id, FECHA_DESCONTINUACION = GETDATE()
+        WHERE ID = @vino_id AND ESTADO = 'Activo';
+        IF @@ROWCOUNT = 0
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        COMMIT TRAN;
+        SELECT 1 AS FILAS;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END
+GO
+
+IF OBJECT_ID('dbo.SOLICITUD_RECHAZAR_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOLICITUD_RECHAZAR_BAJA]
+GO
+-- R3: rechazar una baja deja el vino Activo; la solicitud queda Rechazada con su motivo (R6).
+CREATE PROCEDURE [dbo].[SOLICITUD_RECHAZAR_BAJA]
+    @solicitud_id INT,
+    @resolutor_id INT,
+    @motivo       VARCHAR(200)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    DECLARE @vino_id INT;
+
+    IF @motivo IS NULL
+       OR LEN(LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(@motivo, CHAR(9), ''), CHAR(10), ''), CHAR(13), '')))) = 0
+    BEGIN
+        SELECT 0 AS FILAS; RETURN;
+    END
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        UPDATE SOLICITUD_AUTORIZACION
+        SET ESTADO = 'Rechazada', RESOLUTOR_ID = @resolutor_id, FECHA_RESOLUCION = GETDATE(),
+            MOTIVO_RECHAZO = LTRIM(RTRIM(@motivo)),
+            @vino_id = VINO_ID
+        WHERE ID = @solicitud_id AND TIPO = 'BAJA' AND ESTADO = 'Pendiente' AND EMISOR_ID <> @resolutor_id;
+        IF @@ROWCOUNT = 0
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        -- Doble escritura legada: limpia la solicitud de baja de VINO. Se elimina en el slice 3.
+        UPDATE VINO
+        SET BAJA_SOLICITADA_POR = NULL, FECHA_SOLICITUD_BAJA = NULL
+        WHERE ID = @vino_id AND ESTADO = 'Activo';
+
+        COMMIT TRAN;
+        SELECT 1 AS FILAS;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END
 GO
 
 -- ------------------------------------------------------------
@@ -2951,7 +3366,7 @@ AS
     LEFT JOIN SOCIO_VARIETAL sv ON sv.SOCIO_ID = @socio_id AND sv.VARIETAL = v.VARIETAL
     OUTER APPLY (SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END) AS STOCK
                  FROM MOVIMIENTO_STOCK m WHERE m.VINO_ID = v.ID) k
-    WHERE v.ESTADO = 'Activo' AND v.AUTORIZADO_POR IS NOT NULL AND ISNULL(k.STOCK, 0) > 0
+    WHERE v.ESTADO = 'Activo' AND ISNULL(k.STOCK, 0) > 0
     ORDER BY PREFERIDO DESC, v.PRECIO ASC, v.NOMBRE ASC
 GO
 
@@ -3813,20 +4228,47 @@ GO
 
 IF OBJECT_ID('dbo.VINO_SOLICITAR_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_SOLICITAR_BAJA]
 GO
--- Solo un vino autorizado, activo y sin solicitud previa admite la solicitud (0 filas = rechazado)
+-- Crea la solicitud BAJA Pendiente solo si el vino está Activo, no tiene otra baja pendiente
+-- y no tiene stock (RN-15, leído con UPDLOCK/HOLDLOCK). 0 FILAS = rechazado. El vino sigue Activo (R1).
+-- El índice UX_SOLAUT_PENDIENTE es el backstop de carreras (error 2601/2627).
 CREATE PROCEDURE [dbo].[VINO_SOLICITAR_BAJA]
     @id             INT,
     @solicitante_id INT
 AS
-    UPDATE VINO
-    SET BAJA_SOLICITADA_POR = @solicitante_id, FECHA_SOLICITUD_BAJA = GETDATE()
-    WHERE ID = @id
-      AND ESTADO = 'Activo'
-      AND AUTORIZADO_POR IS NOT NULL
-      AND BAJA_SOLICITADA_POR IS NULL
-      -- RN-15: solo se solicita la baja de un vino sin stock en depósito
-      AND ISNULL((SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END)
-                  FROM MOVIMIENTO_STOCK m WHERE m.VINO_ID = @id), 0) = 0
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    DECLARE @filas INT = 0;
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        INSERT INTO SOLICITUD_AUTORIZACION (TIPO, VINO_ID, ESTADO, EMISOR_ID, FECHA_EMISION)
+        SELECT 'BAJA', v.ID, 'Pendiente', @solicitante_id, GETDATE()
+        FROM VINO v WITH (UPDLOCK, HOLDLOCK)
+        WHERE v.ID = @id
+          AND v.ESTADO = 'Activo'
+          AND NOT EXISTS (SELECT 1 FROM SOLICITUD_AUTORIZACION s
+                          WHERE s.VINO_ID = v.ID AND s.TIPO = 'BAJA' AND s.ESTADO = 'Pendiente')
+          -- RN-15: solo se solicita la baja de un vino sin stock en depósito
+          AND ISNULL((SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END)
+                      FROM MOVIMIENTO_STOCK m WITH (UPDLOCK, HOLDLOCK) WHERE m.VINO_ID = @id), 0) = 0;
+        SET @filas = @@ROWCOUNT;
+
+        -- Doble escritura legada (BAJA_SOLICITADA_POR / FECHA_SOLICITUD_BAJA): se elimina en el slice 3.
+        IF @filas > 0
+            UPDATE VINO
+            SET BAJA_SOLICITADA_POR = @solicitante_id, FECHA_SOLICITUD_BAJA = GETDATE()
+            WHERE ID = @id;
+
+        COMMIT TRAN;
+        SELECT @filas AS FILAS;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END
 GO
 
 IF OBJECT_ID('dbo.VINO_LISTAR_PENDIENTES_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_LISTAR_PENDIENTES_BAJA]
@@ -3901,7 +4343,7 @@ AS
     JOIN BODEGA b ON b.ID = v.BODEGA_ID
     OUTER APPLY (SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END) AS STOCK
                  FROM MOVIMIENTO_STOCK m WHERE m.VINO_ID = v.ID) k
-    WHERE v.ESTADO = 'Activo' AND v.AUTORIZADO_POR IS NOT NULL
+    WHERE v.ESTADO = 'Activo'
       AND ISNULL(k.STOCK, 0) < v.STOCK_MINIMO
     ORDER BY FALTANTE DESC, v.NOMBRE
 GO
@@ -4138,4 +4580,25 @@ SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_StockActual
 EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Estoque atual'
 SET @cideBaja = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Faltante')
 EXEC TRADUCCION_GUARDAR @idiomaIdBaja, @cideBaja, 'Faltante'
+GO
+
+-- ============================================================
+-- i18n — SOLICITUD DE AUTORIZACIÓN, bloque E (slice 1: motivo de rechazo en CU-25)
+-- Las claves nuevas de los slices siguientes se agregan en bloques posteriores.
+-- ============================================================
+EXEC CONTROL_REGISTRAR 'lblMotivoRechazo', 'Motivo de rechazo:'
+GO
+
+DECLARE @idiomaIdSol INT
+DECLARE @cideSol INT
+
+SET @idiomaIdSol = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+SET @cideSol = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblMotivoRechazo')
+EXEC TRADUCCION_GUARDAR @idiomaIdSol, @cideSol, 'Motivo de rechazo:'
+
+SET @idiomaIdSol = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+EXEC TRADUCCION_GUARDAR @idiomaIdSol, @cideSol, 'Rejection reason:'
+
+SET @idiomaIdSol = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+EXEC TRADUCCION_GUARDAR @idiomaIdSol, @cideSol, 'Motivo da rejeição:'
 GO

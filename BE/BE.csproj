@@ -48,6 +48,7 @@
     <Compile Include="CajaVino.cs" />
     <Compile Include="CONTROL_IDIOMA.cs" />
     <Compile Include="EstadoCaja.cs" />
+    <Compile Include="EstadoSolicitud.cs" />
     <Compile Include="EstadoVino.cs" />
     <Compile Include="IDIOMA.cs" />
     <Compile Include="LoginResultado.cs" />
@@ -62,6 +63,8 @@
     <Compile Include="TipoMovimiento.cs" />
     <Compile Include="USUARIO.cs" />
     <Compile Include="UsuarioHistorial.cs" />
+    <Compile Include="SolicitudAutorizacion.cs" />
+    <Compile Include="TipoSolicitud.cs" />
     <Compile Include="Vino.cs" />
     <Compile Include="VinoCandidato.cs" />
   </ItemGroup>
