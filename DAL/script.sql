@@ -4801,3 +4801,488 @@ SET @cideS2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblAyudaBaja')
 EXEC TRADUCCION_GUARDAR @idiomaIdS2, @cideS2, 'Você não pode autorizar nem rejeitar uma solicitação que você mesmo emitiu.'
 
 GO
+
+-- ============================================================
+-- DATOS DE PRUEBA
+-- Datos de demostración para recorrer todos los casos de uso sin cargar nada a mano.
+-- Idempotente: cada bloque inserta solo lo que falta y, una vez creado un vino, un socio o una
+-- caja, no vuelve a tocarlo (así un nuevo ejecutar del script no pisa lo que se hizo desde la
+-- aplicación). Orden FK: BODEGA -> USUARIO -> VINO -> SOLICITUD_AUTORIZACION -> MOVIMIENTO_STOCK
+-- -> SOCIO -> CAJA_MENSUAL -> CAJA_VINO -> SUSTITUCION.
+--
+-- Cuentas de prueba (todas con la contraseña  Club2026 , hash SHA-256 en minúsculas igual que Hasher):
+--   admin        Administrador                  (ya existente, contraseña 1234)
+--   admin2       Administrador                  segundo administrador, necesario por RN-01
+--   compras      Encargado de Compras/Bodega    propone altas, bajas, entradas y ajustes
+--   compras2     Encargado de Compras/Bodega    segundo proponente
+--   deposito     Encargado de Depósito          picking y sustituciones (CU-29)
+--   curador      Curador de Producto            arma cajas (CU-28)
+--   atencion     Atención al Socio              gestiona socios (CU-30)
+--   logistica    Logística                      despacha cajas (CU-31/32)
+--   usuario1     Usuario                        usuario común (solo cambia su contraseña)
+--   bloqueado1   Usuario                        cuenta bloqueada, para el caso de desbloqueo
+--
+-- Integridad (DVH/DVV): los usuarios nuevos se insertan con DVH = 0 y, solo cuando se insertó
+-- alguno, se borran los DVV de USUARIO. En el siguiente inicio la aplicación detecta que no está
+-- inicializada y recalcula todos los dígitos (mismo procedimiento de "Resetting integrity").
+-- ============================================================
+
+SET ANSI_NULLS ON
+SET QUOTED_IDENTIFIER ON
+GO
+
+-- ------------------------------------------------------------
+-- BODEGAS (las 4 originales ya se siembran arriba; se agregan 3 más)
+-- ------------------------------------------------------------
+IF NOT EXISTS (SELECT 1 FROM BODEGA WHERE NOMBRE = 'Bodega Norton')
+    INSERT INTO BODEGA (NOMBRE, PAIS, REGION, HABILITADO) VALUES ('Bodega Norton', 'Argentina', 'Luján de Cuyo', 1)
+IF NOT EXISTS (SELECT 1 FROM BODEGA WHERE NOMBRE = 'Viña Errázuriz')
+    INSERT INTO BODEGA (NOMBRE, PAIS, REGION, HABILITADO) VALUES ('Viña Errázuriz', 'Chile', 'Valle de Aconcagua', 1)
+IF NOT EXISTS (SELECT 1 FROM BODEGA WHERE NOMBRE = 'Bodega La Rural (inactiva)')
+    INSERT INTO BODEGA (NOMBRE, PAIS, REGION, HABILITADO) VALUES ('Bodega La Rural (inactiva)', 'Argentina', 'Maipú', 0)
+GO
+
+-- ------------------------------------------------------------
+-- USUARIOS DE PRUEBA (un usuario por perfil) + perfil + historial de alta
+-- ------------------------------------------------------------
+SET XACT_ABORT ON
+BEGIN TRAN
+
+DECLARE @pass VARCHAR(64) = LOWER(CONVERT(VARCHAR(64), HASHBYTES('SHA2_256', 'Club2026'), 2))
+
+DECLARE @u TABLE (
+    LOGIN    VARCHAR(50)  COLLATE DATABASE_DEFAULT,
+    NOMBRE   VARCHAR(50)  COLLATE DATABASE_DEFAULT,
+    APELLIDO VARCHAR(50)  COLLATE DATABASE_DEFAULT,
+    ROL      VARCHAR(100) COLLATE DATABASE_DEFAULT,
+    TELEFONO VARCHAR(30)  COLLATE DATABASE_DEFAULT,
+    EMAIL    VARCHAR(100) COLLATE DATABASE_DEFAULT,
+    BLOQUEADO BIT,
+    INTENTOS  INT
+)
+INSERT INTO @u (LOGIN, NOMBRE, APELLIDO, ROL, TELEFONO, EMAIL, BLOQUEADO, INTENTOS) VALUES
+    ('admin2',     'Sofía',    'Navarro',  'Administrador',               '1155550100', 'admin2@clubdevinos.test',     0, 0),
+    ('compras',    'Carolina', 'Méndez',   'Encargado de Compras/Bodega', '1155550101', 'compras@clubdevinos.test',    0, 0),
+    ('compras2',   'Ramiro',   'Benítez',  'Encargado de Compras/Bodega', '1155550102', 'compras2@clubdevinos.test',   0, 0),
+    ('deposito',   'Luciano',  'Paredes',  'Encargado de Depósito',       '1155550103', 'deposito@clubdevinos.test',   0, 0),
+    ('curador',    'Valeria',  'Soto',     'Curador de Producto',         '1155550104', 'curador@clubdevinos.test',    0, 0),
+    ('atencion',   'Julieta',  'Rossi',    'Atención al Socio',           '1155550105', 'atencion@clubdevinos.test',   0, 0),
+    ('logistica',  'Matías',   'Acosta',   'Logística',                   '1155550106', 'logistica@clubdevinos.test',  0, 0),
+    ('usuario1',   'Pablo',    'Ledesma',  'Usuario',                     '1155550107', 'usuario1@clubdevinos.test',   0, 0),
+    ('bloqueado1', 'Diego',    'Cabrera',  'Usuario',                     '1155550108', 'bloqueado1@clubdevinos.test', 1, 3)
+
+DECLARE @ins TABLE (ID INT, LOGIN VARCHAR(50) COLLATE DATABASE_DEFAULT)
+
+INSERT INTO USUARIO (USUARIO, PASS, INTENTOS_FALLIDOS, BLOQUEADO, ROL, ROL_ID, NOMBRE, APELLIDO, TELEFONO, EMAIL)
+OUTPUT inserted.ID, inserted.USUARIO INTO @ins (ID, LOGIN)
+SELECT x.LOGIN, @pass, x.INTENTOS, x.BLOQUEADO,
+       CASE WHEN r.PROTEGIDO = 1 THEN 'admin' ELSE 'usuario' END,
+       r.ID, x.NOMBRE, x.APELLIDO, x.TELEFONO, x.EMAIL
+FROM @u x
+JOIN ROL r ON r.NOMBRE = x.ROL AND r.PADRE_ID IS NULL
+WHERE NOT EXISTS (SELECT 1 FROM USUARIO WHERE USUARIO = x.LOGIN)
+
+-- El rol elegido también se asigna como perfil (igual que USUARIO_CREAR)
+INSERT INTO USUARIO_PERFIL (USUARIO_ID, PERFIL_ID)
+SELECT i.ID, usr.ROL_ID
+FROM @ins i
+JOIN USUARIO usr ON usr.ID = i.ID
+WHERE usr.ROL_ID IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM USUARIO_PERFIL up WHERE up.USUARIO_ID = i.ID AND up.PERFIL_ID = usr.ROL_ID)
+
+-- Historial: ALTA para cada usuario nuevo (fecha anterior a cualquier otro cambio)
+INSERT INTO USUARIO_HISTORIAL
+    (USUARIO_ID, USUARIO_LOGIN, ROL, BLOQUEADO, INTENTOS_FALLIDOS, PERFILES, FECHA_CAMBIO,
+     REALIZADO_POR, TIPO_CAMBIO, VERSION_ORIGEN, NOMBRE, APELLIDO, TELEFONO, EMAIL, ROL_ID)
+SELECT usr.ID, usr.USUARIO, usr.ROL, 0, 0, CAST(usr.ROL_ID AS VARCHAR(20)), DATEADD(DAY, -30, GETDATE()),
+       'admin', 'ALTA', NULL, usr.NOMBRE, usr.APELLIDO, usr.TELEFONO, usr.EMAIL, usr.ROL_ID
+FROM @ins i
+JOIN USUARIO usr ON usr.ID = i.ID
+
+-- Historial: el bloqueo de bloqueado1 (3 intentos fallidos)
+INSERT INTO USUARIO_HISTORIAL
+    (USUARIO_ID, USUARIO_LOGIN, ROL, BLOQUEADO, INTENTOS_FALLIDOS, PERFILES, FECHA_CAMBIO,
+     REALIZADO_POR, TIPO_CAMBIO, VERSION_ORIGEN, NOMBRE, APELLIDO, TELEFONO, EMAIL, ROL_ID)
+SELECT usr.ID, usr.USUARIO, usr.ROL, 1, usr.INTENTOS_FALLIDOS, CAST(usr.ROL_ID AS VARCHAR(20)), DATEADD(DAY, -2, GETDATE()),
+       usr.USUARIO, 'BLOQUEO', NULL, usr.NOMBRE, usr.APELLIDO, usr.TELEFONO, usr.EMAIL, usr.ROL_ID
+FROM @ins i
+JOIN USUARIO usr ON usr.ID = i.ID
+WHERE usr.BLOQUEADO = 1
+
+-- Si se agregó algún usuario, la aplicación debe recalcular DVH/DVV al iniciar (ver cabecera)
+IF EXISTS (SELECT 1 FROM @ins)
+    DELETE FROM DIGITO_VERIFICADOR_VERTICAL WHERE TABLA = 'USUARIO'
+
+COMMIT TRAN
+GO
+
+-- ------------------------------------------------------------
+-- VINOS + SOLICITUDES DE AUTORIZACION
+-- Cubre todos los estados: Pendiente (3), Activo (9), Rechazado (2), Descontinuado (1).
+-- Un vino sin ninguna solicitud previa recibe su juego completo de solicitudes; uno que ya tiene
+-- solicitudes (por ejemplo, porque se operó desde la aplicación) no se toca.
+-- ------------------------------------------------------------
+SET XACT_ABORT ON
+BEGIN TRAN
+
+DECLARE @v TABLE (
+    CODIGO   VARCHAR(20)  COLLATE DATABASE_DEFAULT,
+    NOMBRE   VARCHAR(100) COLLATE DATABASE_DEFAULT,
+    BODEGA   VARCHAR(100) COLLATE DATABASE_DEFAULT,
+    VARIETAL VARCHAR(50)  COLLATE DATABASE_DEFAULT,
+    ANIADA   INT,
+    PRECIO   DECIMAL(10,2),
+    MINIMO   INT,
+    ESTADO   VARCHAR(15)  COLLATE DATABASE_DEFAULT,
+    MARIDAJE VARCHAR(200) COLLATE DATABASE_DEFAULT,
+    PUNTAJE  INT,
+    CREADOR  VARCHAR(50)  COLLATE DATABASE_DEFAULT,
+    DIAS_ALTA INT
+)
+INSERT INTO @v (CODIGO, NOMBRE, BODEGA, VARIETAL, ANIADA, PRECIO, MINIMO, ESTADO, MARIDAJE, PUNTAJE, CREADOR, DIAS_ALTA) VALUES
+ ('DEMO-001', 'Catena Malbec',                    'Bodega Catena Zapata', 'Malbec',             2021, 18500.00, 12, 'Activo',        'Carnes rojas a la parrilla',        93,   'compras',  120),
+ ('DEMO-002', 'Rutini Cabernet Sauvignon',        'Bodega Rutini',        'Cabernet Sauvignon', 2020, 16200.00, 12, 'Activo',        'Cordero y quesos curados',          91,   'compras2', 120),
+ ('DEMO-003', 'Salentein Reserve Pinot Noir',     'Bodega Salentein',     'Pinot Noir',         2022, 14800.00, 10, 'Activo',        'Pato y hongos',                     90,   'compras',  120),
+ ('DEMO-004', 'Casillero del Diablo Chardonnay',  'Concha y Toro',        'Chardonnay',         2023,  7900.00, 20, 'Activo',        'Pescados y mariscos',               88,   'compras2', 120),
+ ('DEMO-005', 'Norton Barrel Select Syrah',       'Bodega Norton',        'Syrah',              2021, 11200.00, 10, 'Activo',        'Pastas con salsas intensas',        89,   'compras',  110),
+ ('DEMO-006', 'Norton Torrontés Reserva',         'Bodega Norton',        'Torrontés',          2023,  8400.00, 15, 'Activo',        'Empanadas y quesos blandos',        87,   'compras',  115),
+ ('DEMO-007', 'Errázuriz Max Reserva Merlot',     'Viña Errázuriz',       'Merlot',             2020, 12700.00,  8, 'Activo',        'Cerdo y platos especiados',         90,   'compras2', 120),
+ ('DEMO-008', 'Rutini Trumpeter Malbec',          'Bodega Rutini',        'Malbec',             2022, 13400.00,  5, 'Activo',        'Milanesas y estofados',             88,   'compras',  125),
+ ('DEMO-009', 'Catena Chardonnay',                'Bodega Catena Zapata', 'Chardonnay',         2022, 15300.00,  6, 'Activo',        'Salmón y aves',                     92,   'compras',  120),
+ ('DEMO-010', 'Salentein Numina Gran Corte',      'Bodega Salentein',     'Blend',              2019, 21500.00,  6, 'Pendiente',     'Carnes de caza',                    94,   'compras',    4),
+ ('DEMO-011', 'Marqués de Casa Concha Cabernet',  'Concha y Toro',        'Cabernet Sauvignon', 2021, 13900.00, 10, 'Pendiente',     'Asado y provoleta',                 91,   'compras2',   3),
+ ('DEMO-012', 'Norton Privada Blend',             'Bodega Norton',        'Blend',              2020, 12100.00,  8, 'Pendiente',     'Tablas de fiambres',                89,   'admin',      2),
+ ('DEMO-013', 'Rutini Encuentro Malbec',          'Bodega Rutini',        'Malbec',             2021, 29900.00,  6, 'Rechazado',     'Carnes rojas',                      92,   'compras',   12),
+ ('DEMO-014', 'Salentein Killka Chardonnay',      'Bodega Salentein',     'Chardonnay',         2022, 11600.00,  8, 'Rechazado',     NULL,                                NULL, 'compras2',   9),
+ ('DEMO-015', 'Errázuriz Carménère',              'Viña Errázuriz',       'Carménère',          2018,  9800.00,  8, 'Descontinuado', 'Guisos y legumbres',                86,   'compras',  150)
+
+INSERT INTO VINO (CODIGO, NOMBRE, BODEGA_ID, VARIETAL, ANIADA, PRECIO, STOCK_MINIMO, ESTADO, MARIDAJE, PUNTAJE, CREADO_POR, FECHA_ALTA)
+SELECT x.CODIGO, x.NOMBRE, b.ID, x.VARIETAL, x.ANIADA, x.PRECIO, x.MINIMO, x.ESTADO, x.MARIDAJE, x.PUNTAJE, u.ID,
+       DATEADD(DAY, -x.DIAS_ALTA, GETDATE())
+FROM @v x
+JOIN BODEGA b ON b.NOMBRE = x.BODEGA
+JOIN USUARIO u ON u.USUARIO = x.CREADOR
+WHERE NOT EXISTS (SELECT 1 FROM VINO WHERE CODIGO = x.CODIGO)
+
+-- Solicitudes. Respetan CK_SOLAUT_*: pendiente sin resolutor; resuelta con resolutor y fecha;
+-- rechazo con motivo; RN-01 (emisor distinto de resolutor). El orden de ID sigue el orden cronológico.
+DECLARE @s TABLE (
+    ORDEN     INT,
+    CODIGO    VARCHAR(20)  COLLATE DATABASE_DEFAULT,
+    TIPO      VARCHAR(10)  COLLATE DATABASE_DEFAULT,
+    ESTADO    VARCHAR(10)  COLLATE DATABASE_DEFAULT,
+    EMISOR    VARCHAR(50)  COLLATE DATABASE_DEFAULT,
+    DIAS_EMI  INT,
+    RESOLUTOR VARCHAR(50)  COLLATE DATABASE_DEFAULT,
+    DIAS_RES  INT,
+    MOTIVO    VARCHAR(200) COLLATE DATABASE_DEFAULT
+)
+INSERT INTO @s (ORDEN, CODIGO, TIPO, ESTADO, EMISOR, DIAS_EMI, RESOLUTOR, DIAS_RES, MOTIVO) VALUES
+ -- Altas aprobadas de los vinos activos
+ (1,  'DEMO-001', 'ALTA', 'Aprobada',  'compras',  120, 'admin',  118, NULL),
+ (2,  'DEMO-002', 'ALTA', 'Aprobada',  'compras2', 120, 'admin',  118, NULL),
+ (3,  'DEMO-003', 'ALTA', 'Aprobada',  'compras',  120, 'admin2', 118, NULL),
+ (4,  'DEMO-004', 'ALTA', 'Aprobada',  'compras2', 120, 'admin',  118, NULL),
+ (5,  'DEMO-005', 'ALTA', 'Aprobada',  'compras',  110, 'admin',  108, NULL),
+ -- DEMO-006: primero rechazada, luego corregida y repropuesta (historial de CU-21/CU-22)
+ (6,  'DEMO-006', 'ALTA', 'Rechazada', 'compras',  115, 'admin',  113, 'Falta cargar el puntaje y el maridaje del vino.'),
+ (7,  'DEMO-006', 'ALTA', 'Aprobada',  'compras',  112, 'admin2', 110, NULL),
+ (8,  'DEMO-007', 'ALTA', 'Aprobada',  'compras2', 120, 'admin',  118, NULL),
+ -- DEMO-008: activo sin stock con una baja pendiente (CU-25)
+ (9,  'DEMO-008', 'ALTA', 'Aprobada',  'compras',  125, 'admin',  123, NULL),
+ (10, 'DEMO-008', 'BAJA', 'Pendiente', 'compras2',   1, NULL,   NULL, NULL),
+ -- DEMO-009: baja rechazada en el pasado; hoy tiene stock, por lo que RN-15 impide pedir otra
+ (11, 'DEMO-009', 'ALTA', 'Aprobada',  'compras',  120, 'admin',  118, NULL),
+ (12, 'DEMO-009', 'BAJA', 'Rechazada', 'compras',  100, 'admin',   98, 'Se reanuda la comercialización: hay una nueva partida comprometida con la bodega.'),
+ -- Altas pendientes (CU-22). DEMO-012 la emitió admin: admin no puede resolverla (RN-01), admin2 sí
+ (13, 'DEMO-010', 'ALTA', 'Pendiente', 'compras',    4, NULL,   NULL, NULL),
+ (14, 'DEMO-011', 'ALTA', 'Pendiente', 'compras2',   3, NULL,   NULL, NULL),
+ (15, 'DEMO-012', 'ALTA', 'Pendiente', 'admin',      2, NULL,   NULL, NULL),
+ -- Altas rechazadas (CU-21: corregir y reproponer)
+ (16, 'DEMO-013', 'ALTA', 'Rechazada', 'compras',   12, 'admin',   10, 'Precio de lista fuera del rango acordado con la bodega. Corregir y volver a proponer.'),
+ (17, 'DEMO-014', 'ALTA', 'Rechazada', 'compras2',   9, 'admin2',   7, 'Falta cargar el maridaje y el puntaje de la añada.'),
+ -- Vino descontinuado: alta y baja aprobadas
+ (18, 'DEMO-015', 'ALTA', 'Aprobada',  'compras',  150, 'admin',  148, NULL),
+ (19, 'DEMO-015', 'BAJA', 'Aprobada',  'compras',   85, 'admin',   83, NULL)
+
+INSERT INTO SOLICITUD_AUTORIZACION (TIPO, VINO_ID, ESTADO, EMISOR_ID, FECHA_EMISION, RESOLUTOR_ID, FECHA_RESOLUCION, MOTIVO_RECHAZO)
+SELECT x.TIPO, v.ID, x.ESTADO, ue.ID, DATEADD(DAY, -x.DIAS_EMI, GETDATE()),
+       ur.ID, CASE WHEN x.DIAS_RES IS NULL THEN NULL ELSE DATEADD(DAY, -x.DIAS_RES, GETDATE()) END, x.MOTIVO
+FROM @s x
+JOIN VINO v ON v.CODIGO = x.CODIGO
+JOIN USUARIO ue ON ue.USUARIO = x.EMISOR
+LEFT JOIN USUARIO ur ON ur.USUARIO = x.RESOLUTOR
+WHERE NOT EXISTS (SELECT 1 FROM SOLICITUD_AUTORIZACION s WHERE s.VINO_ID = v.ID)
+ORDER BY x.ORDEN
+
+COMMIT TRAN
+GO
+
+-- ------------------------------------------------------------
+-- MOVIMIENTOS DE STOCK (kardex, RN-02: el stock se deriva, nunca se guarda)
+-- Un ajuste es TIPO Entrada/Salida con REFERENCIA_TIPO = 'AJUSTE' (CU-27). Los despachos de
+-- caja se agregan más abajo, junto con las cajas. Stock resultante tras todo el bloque:
+--   DEMO-001 47   DEMO-002 35   DEMO-003 24   DEMO-004 57   DEMO-005 6 (bajo mínimo)
+--   DEMO-006  3 (bajo mínimo)   DEMO-007 0 (activo, sin stock: admite baja, RN-15)
+--   DEMO-008  0 (baja pendiente)   DEMO-009 20 (baja bloqueada por RN-15)   DEMO-015 0
+-- ------------------------------------------------------------
+SET XACT_ABORT ON
+BEGIN TRAN
+
+DECLARE @m TABLE (
+    CODIGO VARCHAR(20)  COLLATE DATABASE_DEFAULT,
+    TIPO   VARCHAR(10)  COLLATE DATABASE_DEFAULT,
+    CANT   INT,
+    MOTIVO VARCHAR(100) COLLATE DATABASE_DEFAULT,
+    RESP   VARCHAR(50)  COLLATE DATABASE_DEFAULT,
+    REFTIPO VARCHAR(20) COLLATE DATABASE_DEFAULT,
+    DIAS   INT
+)
+INSERT INTO @m (CODIGO, TIPO, CANT, MOTIVO, RESP, REFTIPO, DIAS) VALUES
+ ('DEMO-001', 'Entrada', 50, 'Compra a bodega - remito 0001-00001201',        'compras',  NULL,     100),
+ ('DEMO-001', 'Salida',   2, 'Rotura de botellas en depósito',                'compras',  'AJUSTE',  50),
+ ('DEMO-002', 'Entrada', 24, 'Compra a bodega - remito 0001-00001202',        'compras2', NULL,     100),
+ ('DEMO-002', 'Entrada', 12, 'Reposición - remito 0001-00001240',             'compras2', NULL,      70),
+ ('DEMO-003', 'Entrada', 24, 'Compra a bodega - remito 0003-00000877',        'compras',  NULL,     100),
+ ('DEMO-004', 'Entrada', 60, 'Compra a bodega - remito 0004-00000310',        'compras2', NULL,     100),
+ ('DEMO-005', 'Entrada', 12, 'Compra a bodega - remito 0005-00000455',        'compras',  NULL,     100),
+ ('DEMO-005', 'Salida',   6, 'Diferencia de inventario en conteo físico',     'compras',  'AJUSTE',  30),
+ ('DEMO-006', 'Entrada',  6, 'Compra a bodega - remito 0005-00000456',        'compras',  NULL,     100),
+ ('DEMO-006', 'Salida',   3, 'Botellas dañadas en traslado',                  'compras',  'AJUSTE',  25),
+ ('DEMO-007', 'Entrada', 10, 'Compra a bodega - remito 0006-00000121',        'compras2', NULL,     100),
+ ('DEMO-007', 'Salida',  10, 'Baja por vencimiento de la partida',            'compras2', 'AJUSTE',  40),
+ ('DEMO-008', 'Entrada',  8, 'Compra a bodega - remito 0002-00000650',        'compras',  NULL,     100),
+ ('DEMO-008', 'Salida',   8, 'Devolución de la partida a la bodega',          'compras',  'AJUSTE',   1),
+ ('DEMO-009', 'Entrada',  6, 'Compra a bodega - remito 0001-00001190',        'compras',  NULL,     110),
+ ('DEMO-009', 'Salida',   6, 'Devolución de la partida a la bodega',          'compras',  'AJUSTE', 105),
+ ('DEMO-009', 'Entrada', 20, 'Nueva partida - remito 0001-00001260',          'compras',  NULL,      60),
+ ('DEMO-015', 'Entrada', 12, 'Compra a bodega - remito 0006-00000099',        'compras',  NULL,     140),
+ ('DEMO-015', 'Salida',  12, 'Liquidación del remanente antes de la baja',    'compras',  'AJUSTE',  90)
+
+INSERT INTO MOVIMIENTO_STOCK (VINO_ID, FECHA, TIPO, CANTIDAD, MOTIVO, RESPONSABLE, REFERENCIA_TIPO, REFERENCIA_ID)
+SELECT v.ID, DATEADD(DAY, -x.DIAS, GETDATE()), x.TIPO, x.CANT, x.MOTIVO, x.RESP, x.REFTIPO, NULL
+FROM @m x
+JOIN VINO v ON v.CODIGO = x.CODIGO
+WHERE NOT EXISTS (SELECT 1 FROM MOVIMIENTO_STOCK k WHERE k.VINO_ID = v.ID)
+ORDER BY x.DIAS DESC
+
+COMMIT TRAN
+GO
+
+-- ------------------------------------------------------------
+-- SOCIOS Y VARIETALES PREFERIDOS (CU-30)
+-- Se identifican por email para no duplicarlos al reejecutar el script.
+-- ------------------------------------------------------------
+SET XACT_ABORT ON
+BEGIN TRAN
+
+DECLARE @so TABLE (
+    NOMBRE   VARCHAR(50)  COLLATE DATABASE_DEFAULT,
+    APELLIDO VARCHAR(50)  COLLATE DATABASE_DEFAULT,
+    EMAIL    VARCHAR(100) COLLATE DATABASE_DEFAULT,
+    TELEFONO VARCHAR(20)  COLLATE DATABASE_DEFAULT,
+    DOMICILIO VARCHAR(150) COLLATE DATABASE_DEFAULT,
+    PRESUPUESTO DECIMAL(10,2),
+    ACTIVO   BIT
+)
+INSERT INTO @so (NOMBRE, APELLIDO, EMAIL, TELEFONO, DOMICILIO, PRESUPUESTO, ACTIVO) VALUES
+ ('Martina', 'García',    'martina.garcia@socios.test',    '1144440001', 'Av. Santa Fe 1850, CABA',        40000.00, 1),
+ ('Julián',  'López',     'julian.lopez@socios.test',      '1144440002', 'Calle Mitre 420, Quilmes',       35000.00, 1),
+ ('Lucía',   'Fernández', 'lucia.fernandez@socios.test',   '1144440003', 'Belgrano 765, Rosario',          50000.00, 1),
+ ('Ana',     'Díaz',      'ana.diaz@socios.test',          '1144440004', 'Av. Cabildo 2300, CABA',         45000.00, 1),
+ ('Tomás',   'Romero',    'tomas.romero@socios.test',      '1144440005', 'San Martín 98, La Plata',        25000.00, 1),
+ ('Pedro',   'Molina',    'pedro.molina@socios.test',      '1144440006', 'Av. Corrientes 3100, CABA',      30000.00, 1),
+ ('Marcela', 'Paz',       'marcela.paz@socios.test',       '1144440007', 'Rivadavia 1520, Morón',          28000.00, 0)
+
+INSERT INTO SOCIO (NOMBRE, APELLIDO, EMAIL, TELEFONO, DOMICILIO, PRESUPUESTO_MENSUAL, ACTIVO, FECHA_ALTA, CREADO_POR)
+SELECT x.NOMBRE, x.APELLIDO, x.EMAIL, x.TELEFONO, x.DOMICILIO, x.PRESUPUESTO, x.ACTIVO,
+       DATEADD(DAY, -90, GETDATE()), u.ID
+FROM @so x
+CROSS JOIN (SELECT ID FROM USUARIO WHERE USUARIO = 'atencion') u
+WHERE NOT EXISTS (SELECT 1 FROM SOCIO WHERE EMAIL = x.EMAIL)
+
+DECLARE @sv TABLE (EMAIL VARCHAR(100) COLLATE DATABASE_DEFAULT, VARIETAL VARCHAR(50) COLLATE DATABASE_DEFAULT)
+INSERT INTO @sv (EMAIL, VARIETAL) VALUES
+ ('martina.garcia@socios.test',  'Malbec'),
+ ('martina.garcia@socios.test',  'Chardonnay'),
+ ('julian.lopez@socios.test',    'Pinot Noir'),
+ ('lucia.fernandez@socios.test', 'Malbec'),
+ ('lucia.fernandez@socios.test', 'Cabernet Sauvignon'),
+ ('ana.diaz@socios.test',        'Merlot'),
+ ('ana.diaz@socios.test',        'Syrah'),
+ ('tomas.romero@socios.test',    'Chardonnay'),
+ ('pedro.molina@socios.test',    'Malbec'),
+ ('pedro.molina@socios.test',    'Syrah'),
+ ('marcela.paz@socios.test',     'Torrontés')
+
+-- Solo para socios recién creados (sin varietales cargados), para no pisar ediciones hechas desde la aplicación
+INSERT INTO SOCIO_VARIETAL (SOCIO_ID, VARIETAL)
+SELECT s.ID, x.VARIETAL
+FROM @sv x
+JOIN SOCIO s ON s.EMAIL = x.EMAIL
+WHERE NOT EXISTS (SELECT 1 FROM SOCIO_VARIETAL sv WHERE sv.SOCIO_ID = s.ID)
+
+COMMIT TRAN
+GO
+
+-- ------------------------------------------------------------
+-- CAJAS MENSUALES (CU-28 a CU-32). Un socio sin ninguna caja recibe su juego de cajas.
+--   García   : 2 cajas Despachadas (meses -2 y -1) -> historial de despachos (CU-32)
+--   López    : caja Armada lista para picking y despacho
+--   Fernández: caja Armada con una línea sin stock (DEMO-008) -> requiere sustitución (CU-29)
+--   Díaz     : caja Armada con la sustitución ya registrada (DEMO-007 -> DEMO-005), lista para despachar
+--   Romero   : caja Cancelada con motivo
+--   Molina   : sin caja, para armar una desde cero (CU-28)
+-- RN-10: quien despacha o sustituye no es quien armó la caja (curador arma; deposito y logistica resuelven).
+-- Los snapshots de nombre y precio se congelan desde el catálogo (RN-04).
+-- ------------------------------------------------------------
+SET XACT_ABORT ON
+BEGIN TRAN
+
+DECLARE @curador   INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'curador')
+DECLARE @logistica INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'logistica')
+DECLARE @deposito  INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'deposito')
+DECLARE @socio INT
+DECLARE @caja  INT
+
+IF @curador IS NOT NULL AND @logistica IS NOT NULL AND @deposito IS NOT NULL
+BEGIN
+    -- García: caja de hace dos meses (Despachada)
+    SET @socio = (SELECT ID FROM SOCIO WHERE EMAIL = 'martina.garcia@socios.test')
+    IF @socio IS NOT NULL AND NOT EXISTS (SELECT 1 FROM CAJA_MENSUAL WHERE SOCIO_ID = @socio)
+    BEGIN
+        INSERT INTO CAJA_MENSUAL (SOCIO_ID, PERIODO, ESTADO, PRESUPUESTO_SNAPSHOT, FECHA_ARMADO, ARMADO_POR, FECHA_DESPACHO, DESPACHADO_POR)
+        SELECT ID, CONVERT(CHAR(7), DATEADD(MONTH, -2, GETDATE()), 120), 'Despachada', PRESUPUESTO_MENSUAL,
+               DATEADD(DAY, -62, GETDATE()), @curador, DATEADD(DAY, -60, GETDATE()), @logistica
+        FROM SOCIO WHERE ID = @socio
+        SET @caja = SCOPE_IDENTITY()
+
+        INSERT INTO CAJA_VINO (CAJA_ID, VINO_ID, CANTIDAD, NOMBRE_SNAPSHOT, PRECIO_SNAPSHOT)
+        SELECT @caja, v.ID, l.CANT, v.NOMBRE, v.PRECIO
+        FROM (VALUES ('DEMO-002', 1), ('DEMO-004', 1)) l (COD, CANT)
+        JOIN VINO v ON v.CODIGO = l.COD
+
+        INSERT INTO MOVIMIENTO_STOCK (VINO_ID, FECHA, TIPO, CANTIDAD, MOTIVO, RESPONSABLE, REFERENCIA_TIPO, REFERENCIA_ID)
+        SELECT cv.VINO_ID, DATEADD(DAY, -60, GETDATE()), 'Salida', cv.CANTIDAD, 'Despacho de caja mensual', 'logistica', 'CAJA', @caja
+        FROM CAJA_VINO cv WHERE cv.CAJA_ID = @caja
+
+        -- García: caja del mes anterior (Despachada)
+        INSERT INTO CAJA_MENSUAL (SOCIO_ID, PERIODO, ESTADO, PRESUPUESTO_SNAPSHOT, FECHA_ARMADO, ARMADO_POR, FECHA_DESPACHO, DESPACHADO_POR)
+        SELECT ID, CONVERT(CHAR(7), DATEADD(MONTH, -1, GETDATE()), 120), 'Despachada', PRESUPUESTO_MENSUAL,
+               DATEADD(DAY, -32, GETDATE()), @curador, DATEADD(DAY, -30, GETDATE()), @logistica
+        FROM SOCIO WHERE ID = @socio
+        SET @caja = SCOPE_IDENTITY()
+
+        INSERT INTO CAJA_VINO (CAJA_ID, VINO_ID, CANTIDAD, NOMBRE_SNAPSHOT, PRECIO_SNAPSHOT)
+        SELECT @caja, v.ID, l.CANT, v.NOMBRE, v.PRECIO
+        FROM (VALUES ('DEMO-001', 1), ('DEMO-004', 2)) l (COD, CANT)
+        JOIN VINO v ON v.CODIGO = l.COD
+
+        INSERT INTO MOVIMIENTO_STOCK (VINO_ID, FECHA, TIPO, CANTIDAD, MOTIVO, RESPONSABLE, REFERENCIA_TIPO, REFERENCIA_ID)
+        SELECT cv.VINO_ID, DATEADD(DAY, -30, GETDATE()), 'Salida', cv.CANTIDAD, 'Despacho de caja mensual', 'logistica', 'CAJA', @caja
+        FROM CAJA_VINO cv WHERE cv.CAJA_ID = @caja
+    END
+
+    -- López: caja Armada del mes actual
+    SET @socio = (SELECT ID FROM SOCIO WHERE EMAIL = 'julian.lopez@socios.test')
+    IF @socio IS NOT NULL AND NOT EXISTS (SELECT 1 FROM CAJA_MENSUAL WHERE SOCIO_ID = @socio)
+    BEGIN
+        INSERT INTO CAJA_MENSUAL (SOCIO_ID, PERIODO, ESTADO, PRESUPUESTO_SNAPSHOT, FECHA_ARMADO, ARMADO_POR)
+        SELECT ID, CONVERT(CHAR(7), GETDATE(), 120), 'Armada', PRESUPUESTO_MENSUAL, DATEADD(DAY, -3, GETDATE()), @curador
+        FROM SOCIO WHERE ID = @socio
+        SET @caja = SCOPE_IDENTITY()
+
+        INSERT INTO CAJA_VINO (CAJA_ID, VINO_ID, CANTIDAD, NOMBRE_SNAPSHOT, PRECIO_SNAPSHOT)
+        SELECT @caja, v.ID, l.CANT, v.NOMBRE, v.PRECIO
+        FROM (VALUES ('DEMO-003', 1), ('DEMO-004', 1), ('DEMO-006', 1)) l (COD, CANT)
+        JOIN VINO v ON v.CODIGO = l.COD
+    END
+
+    -- Fernández: caja Armada con una línea cuyo vino quedó sin stock (necesita sustitución)
+    SET @socio = (SELECT ID FROM SOCIO WHERE EMAIL = 'lucia.fernandez@socios.test')
+    IF @socio IS NOT NULL AND NOT EXISTS (SELECT 1 FROM CAJA_MENSUAL WHERE SOCIO_ID = @socio)
+    BEGIN
+        INSERT INTO CAJA_MENSUAL (SOCIO_ID, PERIODO, ESTADO, PRESUPUESTO_SNAPSHOT, FECHA_ARMADO, ARMADO_POR)
+        SELECT ID, CONVERT(CHAR(7), GETDATE(), 120), 'Armada', PRESUPUESTO_MENSUAL, DATEADD(DAY, -2, GETDATE()), @curador
+        FROM SOCIO WHERE ID = @socio
+        SET @caja = SCOPE_IDENTITY()
+
+        INSERT INTO CAJA_VINO (CAJA_ID, VINO_ID, CANTIDAD, NOMBRE_SNAPSHOT, PRECIO_SNAPSHOT)
+        SELECT @caja, v.ID, l.CANT, v.NOMBRE, v.PRECIO
+        FROM (VALUES ('DEMO-008', 1), ('DEMO-001', 1)) l (COD, CANT)
+        JOIN VINO v ON v.CODIGO = l.COD
+    END
+
+    -- Díaz: caja Armada con una sustitución ya registrada
+    SET @socio = (SELECT ID FROM SOCIO WHERE EMAIL = 'ana.diaz@socios.test')
+    IF @socio IS NOT NULL AND NOT EXISTS (SELECT 1 FROM CAJA_MENSUAL WHERE SOCIO_ID = @socio)
+    BEGIN
+        INSERT INTO CAJA_MENSUAL (SOCIO_ID, PERIODO, ESTADO, PRESUPUESTO_SNAPSHOT, FECHA_ARMADO, ARMADO_POR)
+        SELECT ID, CONVERT(CHAR(7), GETDATE(), 120), 'Armada', PRESUPUESTO_MENSUAL, DATEADD(DAY, -2, GETDATE()), @curador
+        FROM SOCIO WHERE ID = @socio
+        SET @caja = SCOPE_IDENTITY()
+
+        INSERT INTO CAJA_VINO (CAJA_ID, VINO_ID, CANTIDAD, NOMBRE_SNAPSHOT, PRECIO_SNAPSHOT)
+        SELECT @caja, v.ID, l.CANT, v.NOMBRE, v.PRECIO
+        FROM (VALUES ('DEMO-007', 1), ('DEMO-002', 1)) l (COD, CANT)
+        JOIN VINO v ON v.CODIGO = l.COD
+
+        INSERT INTO SUSTITUCION (CAJA_VINO_ID, VINO_ORIGINAL_ID, VINO_REEMPLAZO_ID, NOMBRE_SNAPSHOT, PRECIO_SNAPSHOT, MOTIVO, RESPONSABLE_ID, FECHA)
+        SELECT cv.ID, orig.ID, repl.ID, repl.NOMBRE, repl.PRECIO,
+               'Sin stock del vino original; se reemplaza por otro Activo con stock.', @deposito, DATEADD(DAY, -1, GETDATE())
+        FROM CAJA_VINO cv
+        JOIN VINO orig ON orig.ID = cv.VINO_ID AND orig.CODIGO = 'DEMO-007'
+        JOIN VINO repl ON repl.CODIGO = 'DEMO-005'
+        WHERE cv.CAJA_ID = @caja
+    END
+
+    -- Romero: caja Cancelada
+    SET @socio = (SELECT ID FROM SOCIO WHERE EMAIL = 'tomas.romero@socios.test')
+    IF @socio IS NOT NULL AND NOT EXISTS (SELECT 1 FROM CAJA_MENSUAL WHERE SOCIO_ID = @socio)
+    BEGIN
+        INSERT INTO CAJA_MENSUAL (SOCIO_ID, PERIODO, ESTADO, PRESUPUESTO_SNAPSHOT, FECHA_ARMADO, ARMADO_POR,
+                                  FECHA_CANCELACION, CANCELADA_POR, MOTIVO_CANCELACION)
+        SELECT ID, CONVERT(CHAR(7), GETDATE(), 120), 'Cancelada', PRESUPUESTO_MENSUAL, DATEADD(DAY, -5, GETDATE()), @curador,
+               DATEADD(DAY, -4, GETDATE()), @curador, 'El socio pidió pausar el envío de este mes.'
+        FROM SOCIO WHERE ID = @socio
+        SET @caja = SCOPE_IDENTITY()
+
+        INSERT INTO CAJA_VINO (CAJA_ID, VINO_ID, CANTIDAD, NOMBRE_SNAPSHOT, PRECIO_SNAPSHOT)
+        SELECT @caja, v.ID, l.CANT, v.NOMBRE, v.PRECIO
+        FROM (VALUES ('DEMO-004', 2)) l (COD, CANT)
+        JOIN VINO v ON v.CODIGO = l.COD
+    END
+END
+
+COMMIT TRAN
+GO
+
+-- ------------------------------------------------------------
+-- BITÁCORA de ejemplo (CU "Ver bitácora"). Las acciones usan el mismo formato que la BLL.
+-- ------------------------------------------------------------
+DECLARE @b TABLE (
+    USUARIO VARCHAR(50) COLLATE DATABASE_DEFAULT,
+    ACCION  VARCHAR(50) COLLATE DATABASE_DEFAULT,
+    DIAS    INT
+)
+INSERT INTO @b (USUARIO, ACCION, DIAS) VALUES
+ ('compras',    'ALTA_VINO:DEMO-010',            4),
+ ('compras2',   'ALTA_VINO:DEMO-011',            3),
+ ('admin',      'ALTA_VINO:DEMO-012',            2),
+ ('admin',      'RECHAZO_ALTA_VINO:DEMO-013',   10),
+ ('admin2',     'RECHAZO_ALTA_VINO:DEMO-014',    7),
+ ('compras2',   'BAJA_SOLICITADA_VINO:DEMO-008', 1),
+ ('admin',      'RECHAZO_BAJA_VINO:DEMO-009',   98)
+
+INSERT INTO BITACORA (USUARIO, ACCION, FECHA)
+SELECT x.USUARIO, x.ACCION, DATEADD(DAY, -x.DIAS, GETDATE())
+FROM @b x
+WHERE NOT EXISTS (SELECT 1 FROM BITACORA WHERE USUARIO = x.USUARIO AND ACCION = x.ACCION)
+
+-- Tres intentos fallidos y el bloqueo de la cuenta bloqueado1
+INSERT INTO BITACORA (USUARIO, ACCION, FECHA)
+SELECT 'bloqueado1', t.ACCION, DATEADD(MINUTE, t.MIN, DATEADD(DAY, -2, GETDATE()))
+FROM (VALUES ('LOGIN_FALLIDO', -3), ('LOGIN_FALLIDO', -2), ('LOGIN_FALLIDO', -1), ('USUARIO_BLOQUEADO', 0)) t (ACCION, MIN)
+WHERE EXISTS (SELECT 1 FROM USUARIO WHERE USUARIO = 'bloqueado1')
+  AND NOT EXISTS (SELECT 1 FROM BITACORA WHERE USUARIO = 'bloqueado1')
+GO
