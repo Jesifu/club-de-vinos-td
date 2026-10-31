@@ -180,6 +180,20 @@
     <Compile Include="frmHistorialDespachos.Designer.cs">
       <DependentUpon>frmHistorialDespachos.cs</DependentUpon>
     </Compile>
+    <Compile Include="frmAnalisisRotacion.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmAnalisisRotacion.Designer.cs">
+      <DependentUpon>frmAnalisisRotacion.cs</DependentUpon>
+    </Compile>
+    <Compile Include="frmAyuda.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmAyuda.Designer.cs">
+      <DependentUpon>frmAyuda.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Ayuda\AyudaRepositorio.cs" />
+    <Compile Include="Ayuda\AyudaContexto.cs" />
     <Compile Include="LogIn.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -193,8 +207,13 @@
     <Compile Include="IdiomaUIHelper.cs" />
     <Compile Include="MsgBox.cs" />
     <Compile Include="RemitoDespachoPdf.cs" />
+    <Compile Include="RotacionReposicionPdf.cs" />
+    <Compile Include="ConfiguracionRotacionStore.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <EmbeddedResource Include="Ayuda\ayuda_es.xml">
+      <LogicalName>CAPAS.Ayuda.ayuda_es.xml</LogicalName>
+    </EmbeddedResource>
     <EmbeddedResource Include="frmAdminUsuarios.resx">
       <DependentUpon>frmAdminUsuarios.cs</DependentUpon>
     </EmbeddedResource>

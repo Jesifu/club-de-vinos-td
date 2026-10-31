@@ -13,9 +13,51 @@ namespace CAPAS
         private readonly Dictionary<string, string> _menuDefaults = new Dictionary<string, string>();
         private bool _cargandoIdiomas;
 
+        // Menú Ayuda (D02): se arma por código para no tocar frmMenu.Designer.cs. Se crea antes de
+        // Load, así GuardarMenuDefaults lo incluye en la traducción. Visible para todo usuario con sesión.
+        private ToolStripMenuItem ayudaToolStripMenuItem;
+        private ToolStripMenuItem ayudaEnLineaToolStripMenuItem;
+        private ToolStripMenuItem acercaDeToolStripMenuItem;
+
         public frmMenu()
         {
             InitializeComponent();
+            CrearMenuAyuda();
+        }
+
+        private void CrearMenuAyuda()
+        {
+            ayudaEnLineaToolStripMenuItem = new ToolStripMenuItem("Ayuda en línea (F1)")
+            {
+                Name = "ayudaEnLineaToolStripMenuItem"
+            };
+            ayudaEnLineaToolStripMenuItem.Click += ayudaEnLineaToolStripMenuItem_Click;
+
+            acercaDeToolStripMenuItem = new ToolStripMenuItem("Acerca de")
+            {
+                Name = "acercaDeToolStripMenuItem"
+            };
+            acercaDeToolStripMenuItem.Click += acercaDeToolStripMenuItem_Click;
+
+            ayudaToolStripMenuItem = new ToolStripMenuItem("Ayuda") { Name = "ayudaToolStripMenuItem" };
+            ayudaToolStripMenuItem.DropDownItems.Add(ayudaEnLineaToolStripMenuItem);
+            ayudaToolStripMenuItem.DropDownItems.Add(acercaDeToolStripMenuItem);
+            menuStrip1.Items.Add(ayudaToolStripMenuItem);
+        }
+
+        private void ayudaEnLineaToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            AbrirAyuda();
+        }
+
+        private void acercaDeToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            var mgr = SeguridadYServicios.IdiomaManager.getInstance();
+            string titulo = mgr.Traducir("acercaDeToolStripMenuItem") ?? "Acerca de";
+            string etiquetaVersion = mgr.Traducir("ayuda_acercaDe_version") ?? "Versión";
+            Version version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+            MsgBox.Show("Club de Vinos" + Environment.NewLine + etiquetaVersion + " " + version,
+                titulo, MsgBox.Botones.OK, MsgBox.Icono.Info);
         }
 
         private void frmMenu_Load(object sender, EventArgs e)
@@ -44,6 +86,7 @@ namespace CAPAS
             bool puedeArmar = sm.TienePermiso("Armar cajas mensuales");
             bool puedePicking = sm.TienePermiso("Registrar picking y sustituciones");
             bool puedeDespachar = sm.TienePermiso("Despachar cajas");
+            bool puedeRotacion = sm.TienePermiso("Analizar rotación de stock");
 
             usuariosBloqueadosToolStripMenuItem.Visible = puedeAdminUsuarios;
             perfilesToolStripMenuItem.Visible = puedeGestionRoles;
@@ -59,7 +102,8 @@ namespace CAPAS
             alertaStockToolStripMenuItem.Visible = puedeCatalogo;
             autorizarVinoToolStripMenuItem.Visible = puedeAutorizarCatalogo;
             autorizarBajaVinoToolStripMenuItem.Visible = puedeAutorizarCatalogo;
-            catalogoToolStripMenuItem.Visible = puedeCatalogo || puedeAutorizarCatalogo;
+            rotacionStockToolStripMenuItem.Visible = puedeRotacion;
+            catalogoToolStripMenuItem.Visible = puedeCatalogo || puedeAutorizarCatalogo || puedeRotacion;
 
             // CU-28/29/31: los ítems ya existen y quedan visibles-pero-inertes hasta
             // que su propio slice los conecte (Reconciliation note 2 del apply de tasks).
@@ -193,6 +237,11 @@ namespace CAPAS
         private void autorizarBajaVinoToolStripMenuItem_Click(object sender, EventArgs e)
         {
             new frmAutorizarBajaVino().ShowDialog();
+        }
+
+        private void rotacionStockToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new frmAnalisisRotacion().ShowDialog();
         }
 
         private void sociosToolStripMenuItem_Click(object sender, EventArgs e)

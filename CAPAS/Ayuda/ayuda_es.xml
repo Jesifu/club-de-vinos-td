@@ -1,0 +1,588 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Contenido de la ayuda en línea (español). Recurso incrustado: CAPAS.Ayuda.ayuda_es.xml.
+     Estructura: Tema (id, titulo) > Resumen | Permiso | Pasos/Paso | Reglas/Regla | Mensajes/Mensaje | Tema (hijos).
+     Un Tema sin Pasos es un "área" y muestra la lista de sus subtemas. -->
+<Ayuda>
+
+  <Tema id="inicio" titulo="Bienvenida">
+    <Resumen>Esta es la ayuda en línea del sistema Club de Vinos. Explica, por área, las funciones principales: qué hace cada una, quién puede usarla, cómo se hace paso a paso, qué reglas de negocio (RN) aplican y qué significan los mensajes más comunes.</Resumen>
+    <Permiso>La ayuda está disponible para cualquier usuario con sesión iniciada y no requiere permiso. Los temas indican el permiso que hace falta para cada función; si una opción de menú no aparece, es porque su usuario no tiene ese permiso.</Permiso>
+    <Pasos>
+      <Paso>Presione F1 en cualquier pantalla para abrir la ayuda directamente en el tema de esa pantalla. En el menú principal, F1 abre esta bienvenida.</Paso>
+      <Paso>También puede abrirla desde el menú Ayuda > Ayuda en línea (F1).</Paso>
+      <Paso>Elija un tema en el árbol de la izquierda para leerlo a la derecha.</Paso>
+      <Paso>Para buscar, escriba una palabra en el cuadro Buscar: el árbol muestra solo los temas cuyo título o contenido la incluyen (no distingue mayúsculas ni tildes). Borre el texto para ver todos los temas.</Paso>
+      <Paso>El menú Ayuda > Acerca de muestra el nombre del producto y la versión instalada.</Paso>
+    </Pasos>
+    <Mensajes>
+      <Mensaje>El contenido de la ayuda está disponible en español. Si cambia el idioma de la interfaz, los rótulos de esta ventana se traducen pero el texto de los temas se sigue mostrando en español.</Mensaje>
+    </Mensajes>
+  </Tema>
+
+  <Tema id="acceso" titulo="Acceso y cuenta">
+    <Resumen>Inicio de sesión, bloqueo de cuenta, cambio de contraseña y cambio de idioma de la interfaz.</Resumen>
+
+    <Tema id="login" titulo="Inicio de sesión">
+      <Resumen>Pantalla inicial del sistema. Autentica al usuario con su nombre de usuario y contraseña y abre el menú principal con las opciones que su perfil permite.</Resumen>
+      <Permiso>Ninguno: cualquier usuario registrado puede iniciar sesión.</Permiso>
+      <Pasos>
+        <Paso>Escriba su usuario y su contraseña.</Paso>
+        <Paso>Presione Ingresar. Si los datos son correctos, el sistema muestra "Bienvenido, " seguido de su nombre de usuario y abre el menú principal.</Paso>
+        <Paso>Para salir, use el menú Usuario > Cerrar Sesión: vuelve a la pantalla de inicio de sesión y queda registrado en la bitácora.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>Tres intentos fallidos seguidos bloquean la cuenta; solo un administrador (con permiso Administrar usuarios) puede desbloquearla desde Gestión de usuarios.</Regla>
+        <Regla>Cada inicio de sesión, cierre de sesión, intento fallido y bloqueo se registra en la bitácora.</Regla>
+        <Regla>Al iniciar, el sistema verifica la integridad de los datos de usuarios. Si detecta una alteración, solo un administrador cuyos propios datos no estén comprometidos puede decidir cómo continuar (ver el tema Integridad de datos).</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Completá usuario y contraseña." - falta completar alguno de los dos campos.</Mensaje>
+        <Mensaje>"Usuario o contraseña incorrectos." - los datos no coinciden; cada error suma un intento fallido.</Mensaje>
+        <Mensaje>"Usuario bloqueado por intentos fallidos. Contactate con un administrador." - la cuenta alcanzó los tres intentos fallidos.</Mensaje>
+        <Mensaje>"El sistema no puede iniciarse debido a un problema interno." - se detectó un problema de integridad y su usuario no puede resolverlo; avise al administrador.</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="clave" titulo="Cambio de contraseña">
+      <Resumen>Permite al usuario con sesión iniciada reemplazar su propia contraseña.</Resumen>
+      <Permiso>Menú Configuración > Cambiar Contraseña. El menú Configuración se muestra a todos los usuarios con sesión (el permiso "Cambiar contraseña" existe en el catálogo de permisos y forma parte del rol Usuario).</Permiso>
+      <Pasos>
+        <Paso>Abra Configuración > Cambiar Contraseña.</Paso>
+        <Paso>Escriba la contraseña actual.</Paso>
+        <Paso>Escriba la nueva contraseña y repítala en Confirmar Contraseña.</Paso>
+        <Paso>Presione Continuar. Cancelar cierra la ventana sin cambios.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>La contraseña nueva debe tener 6 o más caracteres, al menos una letra mayúscula y al menos un número.</Regla>
+        <Regla>La contraseña se guarda con hash unidireccional; nadie puede consultarla, ni siquiera un administrador.</Regla>
+        <Regla>El cambio queda en el historial del usuario como CAMBIO_CLAVE.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Completá todos los campos."</Mensaje>
+        <Mensaje>"Las contraseñas no coinciden." - la nueva contraseña y su confirmación son distintas.</Mensaje>
+        <Mensaje>"La contraseña debe tener al menos 6 caracteres" / "...una letra mayúscula" / "...un número" - la nueva contraseña no cumple las reglas.</Mensaje>
+        <Mensaje>"La contraseña actual es incorrecta."</Mensaje>
+        <Mensaje>"Contraseña cambiada exitosamente."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="idioma-propio" titulo="Cambiar el idioma de la interfaz">
+      <Resumen>Cada pantalla tiene en la parte inferior un selector "Idioma:". Al cambiarlo, todas las ventanas abiertas se traducen al instante y el sistema recuerda su elección para el próximo inicio de sesión.</Resumen>
+      <Permiso>Ninguno. Solo se listan los idiomas habilitados.</Permiso>
+      <Pasos>
+        <Paso>Despliegue el selector Idioma de la barra inferior (o de la barra de estado del menú principal).</Paso>
+        <Paso>Elija el idioma. La interfaz se actualiza de inmediato.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>Si un texto no tiene traducción cargada, se muestra en español.</Regla>
+        <Regla>Los informes PDF (remito e informe de rotación) se emiten siempre en español.</Regla>
+      </Reglas>
+    </Tema>
+  </Tema>
+
+  <Tema id="administracion" titulo="Administración del sistema">
+    <Resumen>Usuarios, roles y permisos, idiomas, bitácora e integridad de datos. Las opciones están en los menús Administración y Bitácora.</Resumen>
+
+    <Tema id="usuarios" titulo="Gestión de usuarios">
+      <Resumen>Alta, edición, desbloqueo y baja de usuarios, asignación de perfiles y acceso al historial de cambios de cada usuario.</Resumen>
+      <Permiso>Administrar usuarios (menú Administración > Gestión de usuarios).</Permiso>
+      <Pasos>
+        <Paso>Abra Administración > Gestión de usuarios. La grilla se pagina (Anterior / Siguiente) y se puede filtrar con Buscar.</Paso>
+        <Paso>Nuevo usuario: complete nombre, apellido, teléfono, email (opcionales), usuario, contraseña y rol, y presione Crear.</Paso>
+        <Paso>Editar datos: seleccione un usuario y cambie nombre, apellido o email.</Paso>
+        <Paso>Modificar perfiles: seleccione un usuario, tilde los roles que le corresponden en el árbol y presione Guardar.</Paso>
+        <Paso>Desbloquear seleccionado: confirma y vuelve a habilitar una cuenta bloqueada.</Paso>
+        <Paso>Eliminar usuario: seleccione, confirme la advertencia (no se puede deshacer).</Paso>
+        <Paso>Ver historial: abre el historial de cambios del usuario (ver el tema siguiente).</Paso>
+        <Paso>Refrescar vuelve a leer la lista desde la base de datos.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>La contraseña inicial debe cumplir las mismas reglas que un cambio de contraseña (6 caracteres, una mayúscula y un número).</Regla>
+        <Regla>No se puede eliminar al propio usuario con sesión iniciada.</Regla>
+        <Regla>Los permisos de un usuario son exactamente los de los roles que tiene asignados; no hay herencia entre roles.</Regla>
+        <Regla>Todo alta, baja, bloqueo, desbloqueo, cambio de clave, asignación de perfil y edición queda registrado en el historial del usuario y actualiza los dígitos verificadores de integridad.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Ingresá un nombre de usuario." / "Ingresá una contraseña." / "Seleccioná un rol." - faltan datos en el alta.</Mensaje>
+        <Mensaje>"El nombre de usuario ya existe."</Mensaje>
+        <Mensaje>"Seleccioná un usuario." - hay que elegir una fila antes de usar el botón.</Mensaje>
+        <Mensaje>"El usuario no está bloqueado." - se intentó desbloquear una cuenta activa.</Mensaje>
+        <Mensaje>"No podés eliminar tu propio usuario."</Mensaje>
+        <Mensaje>"Asignaciones guardadas." - los perfiles del usuario se actualizaron.</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="usuarios-historial" titulo="Historial de cambios y restauración de un usuario">
+      <Resumen>Muestra, paginado, cada cambio hecho sobre un usuario (alta, baja, bloqueo, desbloqueo, cambio de clave, asignación de perfil, edición de datos, rollback) como una copia del estado en ese momento. Permite volver a un estado anterior.</Resumen>
+      <Permiso>Administrar usuarios (se abre con el botón Ver historial de Gestión de usuarios).</Permiso>
+      <Pasos>
+        <Paso>En Gestión de usuarios, seleccione el usuario y presione Ver historial.</Paso>
+        <Paso>Elija la versión a la que desea volver y presione Restaurar versión.</Paso>
+        <Paso>Lea la confirmación y acepte. El sistema aplica rol, bloqueo, intentos fallidos, perfiles, nombre y apellido de esa versión.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>La contraseña nunca se guarda en el historial ni se modifica al restaurar.</Regla>
+        <Regla>No se puede restaurar una versión que ya es un rollback; el rollback en sí queda como un nuevo registro ROLLBACK.</Regla>
+        <Regla>El historial es de solo agregado: no se edita ni se borra, y sobrevive a la eliminación del usuario.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"No se puede restaurar una versión que ya es un rollback."</Mensaje>
+        <Mensaje>"Estado restaurado correctamente."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="perfiles" titulo="Roles y permisos">
+      <Resumen>Administra los roles (perfiles) y los permisos que cada uno otorga. Los roles se muestran en un árbol; los permisos son un catálogo fijo que se tilda o destilda por rol.</Resumen>
+      <Permiso>Gestión de roles (menú Administración > Roles y Permisos).</Permiso>
+      <Pasos>
+        <Paso>Abra Administración > Roles y Permisos.</Paso>
+        <Paso>Agregar Rol: si hay un rol seleccionado, el nuevo queda debajo de él; ingrese el nombre cuando se lo pida.</Paso>
+        <Paso>Permisos del rol: seleccione un rol, tilde los permisos que debe tener y presione Guardar permisos.</Paso>
+        <Paso>Rol padre: elija otro rol en el combo y presione Asignar padre para reubicarlo en el árbol.</Paso>
+        <Paso>Eliminar: seleccione el rol y confirme; también se eliminan sus sub-roles.</Paso>
+        <Paso>Para dar un rol a un usuario, use Modificar perfiles en Gestión de usuarios.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>El rol padre solo organiza el árbol: un rol NO hereda los permisos de su padre ni de sus hijos.</Regla>
+        <Regla>El rol Administrador es del sistema y no puede eliminarse.</Regla>
+        <Regla>No se puede eliminar un rol (ni uno de sus sub-roles) que tenga usuarios asignados.</Regla>
+        <Regla>Los permisos del catálogo no se crean ni se eliminan desde la pantalla; solo se asignan o quitan a los roles.</Regla>
+        <Regla>No se admiten referencias circulares ni mover un rol bajo un ancestro de su padre actual (esas opciones se ven atenuadas en el combo).</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Este rol es del sistema y no puede eliminarse."</Mensaje>
+        <Mensaje>"No se puede eliminar un rol que tiene usuarios asignados. Reasignálos primero."</Mensaje>
+        <Mensaje>"No se puede asignar ese padre: generaría una referencia circular."</Mensaje>
+        <Mensaje>"No se puede asignar como padre a un ancestro del padre actual del rol."</Mensaje>
+        <Mensaje>"Los permisos del catálogo no se pueden eliminar. Desasignalo usando los checkboxes."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="idiomas" titulo="Gestión de idiomas">
+      <Resumen>Permite agregar idiomas, renombrarlos, habilitarlos o deshabilitarlos, eliminarlos y cargar la traducción de cada texto de la interfaz.</Resumen>
+      <Permiso>Gestión de idiomas (menú Administración > Gestión de idiomas).</Permiso>
+      <Pasos>
+        <Paso>Abra Administración > Gestión de idiomas.</Paso>
+        <Paso>Agregar idioma o Renombrar idioma: ingrese el nombre.</Paso>
+        <Paso>Habilitar/Deshabilitar: controla si el idioma aparece en los selectores de idioma.</Paso>
+        <Paso>Seleccione un idioma para ver sus traducciones, edite la columna de traducción y presione Guardar traducciones.</Paso>
+        <Paso>Eliminar idioma: seleccione y confirme.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>El idioma predeterminado del sistema (Español) no puede eliminarse.</Regla>
+        <Regla>Un idioma asignado a algún usuario no puede eliminarse.</Regla>
+        <Regla>Los textos sin traducción se muestran en español.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Seleccioná un idioma."</Mensaje>
+        <Mensaje>"No se puede eliminar el idioma predeterminado del sistema."</Mensaje>
+        <Mensaje>"No se puede eliminar un idioma que está en uso por algún usuario."</Mensaje>
+        <Mensaje>"Traducciones guardadas."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="bitacora" titulo="Bitácora del sistema">
+      <Resumen>Registro cronológico de las acciones relevantes: inicios y cierres de sesión, intentos fallidos y bloqueos, altas y autorizaciones de vinos, movimientos de stock, armado, sustitución, despacho y cancelación de cajas.</Resumen>
+      <Permiso>Ver bitácora (menú Bitácora).</Permiso>
+      <Pasos>
+        <Paso>Abra el menú Bitácora.</Paso>
+        <Paso>Opcional: filtre por Usuario, Acción y rango Desde / Hasta, y presione Filtrar.</Paso>
+        <Paso>Limpiar quita los filtros. Use Anterior / Siguiente para recorrer las páginas.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>La bitácora es de consulta: no se edita ni se borra desde el sistema.</Regla>
+        <Regla>Los registros de acciones sobre vinos, stock y cajas incluyen el código (SKU) o el número de caja afectado.</Regla>
+      </Reglas>
+    </Tema>
+
+    <Tema id="integridad" titulo="Integridad de datos">
+      <Resumen>El sistema protege la tabla de usuarios contra modificaciones hechas por fuera de la aplicación mediante dígitos verificadores. La verificación es automática al iniciar; no hay una pantalla propia en el menú.</Resumen>
+      <Permiso>La pantalla de restauración la ve solo un usuario con permiso Administrar usuarios cuyos propios datos no estén comprometidos.</Permiso>
+      <Pasos>
+        <Paso>Si al iniciar sesión se detecta una alteración, un administrador confiable ve la ventana "Se detectaron problemas de integridad en la base de datos" con el detalle.</Paso>
+        <Paso>Recalcular y continuar: acepta el estado actual como legítimo, recalcula los dígitos y abre el menú.</Paso>
+        <Paso>Restaurar desde historial: permite volver cada usuario afectado a una versión anterior de su historial. Se habilita solo si algún usuario afectado tiene historial.</Paso>
+        <Paso>Cancelar: cierra la sesión y vuelve al inicio.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>El sistema no se bloquea al arrancar: la pantalla de inicio de sesión siempre se muestra.</Regla>
+        <Regla>Si la integridad está comprometida, un intento de inicio de sesión fallido no recalcula nada, para no ocultar la alteración.</Regla>
+        <Regla>Cada vez que se muestra la ventana de restauración se anota el detalle en el archivo integridad_error.log dentro de %LocalAppData%\ClubDeVinos.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"El sistema no puede iniciarse debido a un problema interno. Comuníquese con el administrador del sistema." - su usuario no puede resolver el problema de integridad.</Mensaje>
+      </Mensajes>
+    </Tema>
+  </Tema>
+
+  <Tema id="catalogo" titulo="Catálogo de vinos">
+    <Resumen>Alta de vinos, autorización, corrección de rechazos y descontinuación. Todo alta y toda baja de un vino requiere dos personas: quien propone y quien autoriza. Están en el menú Catálogo.</Resumen>
+
+    <Tema id="cat-alta" titulo="Proponer el alta de un vino">
+      <Resumen>Registra un vino nuevo en estado Pendiente y emite una solicitud de alta que debe autorizar otra persona. Hasta ser autorizado, el vino no puede usarse en stock ni en cajas. La pantalla también lista el catálogo (vinos activos y los propios pendientes o rechazados).</Resumen>
+      <Permiso>Gestionar catálogo de vinos (menú Catálogo > Gestionar catálogo de vinos). Por defecto lo tienen los roles Encargado de Compras/Bodega y Administrador.</Permiso>
+      <Pasos>
+        <Paso>Abra Catálogo > Gestionar catálogo de vinos.</Paso>
+        <Paso>Complete SKU, Nombre, Bodega, Varietal, Añada, Precio y Stock mínimo. Maridaje es opcional.</Paso>
+        <Paso>Si el vino tiene puntaje, tilde Incluir puntaje y cargue un valor entre 0 y 100.</Paso>
+        <Paso>Presione Proponer alta. El vino queda Pendiente de autorización y el hecho se registra en la bitácora.</Paso>
+        <Paso>Limpiar vacía el formulario.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>RN-01: quien propone un alta no puede autorizarla ni rechazarla.</Regla>
+        <Regla>El SKU es único: no puede haber dos vinos con el mismo.</Regla>
+        <Regla>El precio debe ser mayor a cero y el stock mínimo no puede ser negativo.</Regla>
+        <Regla>Solo los vinos en estado Activo pueden operarse (stock, cajas, alertas).</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"El SKU es obligatorio." / "El nombre es obligatorio." / "El varietal es obligatorio." / "Debe seleccionar una bodega válida."</Mensaje>
+        <Mensaje>"El año de añada no es válido." / "El precio debe ser mayor a cero." / "El stock mínimo no puede ser negativo." / "El puntaje debe estar entre 0 y 100."</Mensaje>
+        <Mensaje>"Ya existe un vino con el SKU indicado."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="cat-autorizar-alta" titulo="Autorizar o rechazar un alta de vino">
+      <Resumen>Lista las solicitudes de alta pendientes. Quien autoriza revisa el detalle y aprueba (el vino pasa a Activo) o rechaza con un motivo (el vino pasa a Rechazado).</Resumen>
+      <Permiso>Autorizar alta de vinos (menú Catálogo > Autorizar alta de vinos). Por defecto, el rol Administrador.</Permiso>
+      <Pasos>
+        <Paso>Abra Catálogo > Autorizar alta de vinos y seleccione una solicitud; el panel muestra su detalle.</Paso>
+        <Paso>Para aprobar, presione Autorizar. El vino queda Activo.</Paso>
+        <Paso>Para rechazar, escriba el Motivo de rechazo y presione Rechazar alta; confirme. El vino queda Rechazado y Compras podrá corregirlo.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>RN-01: no puede autorizar ni rechazar una solicitud que usted mismo emitió; los botones se deshabilitan en ese caso.</Regla>
+        <Regla>El motivo de rechazo es obligatorio y admite entre 1 y 200 caracteres.</Regla>
+        <Regla>Una solicitud ya resuelta no puede resolverse de nuevo.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Seleccione una solicitud de alta pendiente."</Mensaje>
+        <Mensaje>"Debe indicar el motivo del rechazo." / "El motivo del rechazo no puede superar los 200 caracteres."</Mensaje>
+        <Mensaje>"No puede autorizar una solicitud que usted mismo emitió." (o "rechazar ...")</Mensaje>
+        <Mensaje>"La solicitud ya fue resuelta." - otro usuario la resolvió antes; actualice la lista.</Mensaje>
+        <Mensaje>"Vino autorizado correctamente." / "Alta rechazada. El vino quedó rechazado."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="cat-reproponer" titulo="Corregir y reproponer un vino rechazado">
+      <Resumen>Un vino rechazado puede corregirse y volver a proponerse con el mismo SKU. La solicitud rechazada queda como historial y se emite una nueva solicitud de alta.</Resumen>
+      <Permiso>Gestionar catálogo de vinos.</Permiso>
+      <Pasos>
+        <Paso>En Gestionar catálogo de vinos, seleccione el vino en estado Rechazado de la grilla.</Paso>
+        <Paso>Presione Corregir y reproponer: sus datos se cargan en el formulario (el SKU queda bloqueado).</Paso>
+        <Paso>Corrija lo necesario y presione Proponer alta; se emite una nueva solicitud de alta pendiente y el sistema avisa "Vino repropuesto correctamente".</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>Solo se puede reproponer un vino Rechazado, y solo si no tiene ya una solicitud de alta pendiente.</Regla>
+        <Regla>RN-01 aplica igual a la nueva solicitud: otra persona debe autorizarla.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Seleccione un vino rechazado."</Mensaje>
+        <Mensaje>"Vino repropuesto correctamente. Se emitió una nueva solicitud de alta, pendiente de autorización."</Mensaje>
+        <Mensaje>"Solo se puede reproponer un vino rechazado."</Mensaje>
+        <Mensaje>"El vino ya tiene una solicitud de alta pendiente de autorización."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="cat-baja" titulo="Solicitar la descontinuación (baja) de un vino">
+      <Resumen>Pide que un vino Activo deje de comercializarse. Es una baja lógica: el vino no se borra, pasa a Descontinuado cuando otra persona la autoriza.</Resumen>
+      <Permiso>Gestionar catálogo de vinos.</Permiso>
+      <Pasos>
+        <Paso>En Gestionar catálogo de vinos, seleccione un vino Activo. El botón Solicitar descontinuación solo está habilitado si el vino está Activo y no tiene otra baja pendiente.</Paso>
+        <Paso>Presione Solicitar descontinuación y confirme.</Paso>
+        <Paso>El sistema informa "Descontinuación solicitada, pendiente de autorización."</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>RN-15: no se puede descontinuar un vino que aún tiene botellas en depósito (el stock debe ser cero).</Regla>
+        <Regla>RN-04: la baja es lógica; el vino no se elimina.</Regla>
+        <Regla>RN-01: quien solicita la baja no puede autorizarla.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Seleccioná un vino."</Mensaje>
+        <Mensaje>"Solo se puede solicitar la baja de un vino activo." / "El vino ya está descontinuado." / "El vino ya tiene una baja solicitada, pendiente de autorización."</Mensaje>
+        <Mensaje>"No se pudo solicitar la baja: el estado o el stock del vino cambiaron. Actualice e intente nuevamente."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="cat-autorizar-baja" titulo="Autorizar o rechazar una descontinuación">
+      <Resumen>Lista los vinos con baja solicitada. Quien autoriza revisa el detalle y aprueba (el vino pasa a Descontinuado) o rechaza con motivo (el vino sigue Activo).</Resumen>
+      <Permiso>Autorizar alta de vinos (el mismo permiso cubre altas y bajas; menú Catálogo > Autorizar descontinuación de vinos).</Permiso>
+      <Pasos>
+        <Paso>Abra Catálogo > Autorizar descontinuación de vinos y seleccione una solicitud.</Paso>
+        <Paso>Autorizar baja: confirme el aviso; el vino deja de estar disponible.</Paso>
+        <Paso>Rechazar baja: escriba el Motivo de rechazo y confirme; el vino sigue activo.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>RN-01: no puede resolver una solicitud que usted mismo emitió (botones deshabilitados).</Regla>
+        <Regla>RN-15: el stock se revalida al autorizar; si entró mercadería desde la solicitud, la baja no puede autorizarse.</Regla>
+        <Regla>El motivo de rechazo es obligatorio (1 a 200 caracteres).</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Seleccioná un vino con baja solicitada."</Mensaje>
+        <Mensaje>"Debe indicar el motivo del rechazo."</Mensaje>
+        <Mensaje>"No se pudo autorizar la baja: el vino cambió de estado o de stock. Actualice e intente nuevamente."</Mensaje>
+        <Mensaje>"Vino descontinuado correctamente." / "Solicitud de descontinuación rechazada. El vino sigue activo."</Mensaje>
+      </Mensajes>
+    </Tema>
+  </Tema>
+
+  <Tema id="stock" titulo="Stock">
+    <Resumen>Registro de entradas y ajustes de inventario y alerta de stock mínimo. Solo los vinos Activos admiten movimientos. Están en el menú Catálogo.</Resumen>
+
+    <Tema id="stock-entrada" titulo="Registrar una entrada de stock">
+      <Resumen>Suma botellas al stock de un vino (por ejemplo, por compra a la bodega).</Resumen>
+      <Permiso>Gestionar catálogo de vinos (menú Catálogo > Registrar entrada de stock).</Permiso>
+      <Pasos>
+        <Paso>Abra Catálogo > Registrar entrada de stock.</Paso>
+        <Paso>Elija el Vino; el stock actual se muestra al lado.</Paso>
+        <Paso>Ingrese la Cantidad y el Motivo.</Paso>
+        <Paso>Presione Registrar entrada.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>La cantidad debe ser mayor a cero y el motivo es obligatorio.</Regla>
+        <Regla>El vino debe estar autorizado (Activo).</Regla>
+        <Regla>Cada entrada genera un movimiento de stock y un registro en la bitácora.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Seleccioná un vino."</Mensaje>
+        <Mensaje>"La cantidad debe ser mayor a cero." / "El motivo es obligatorio."</Mensaje>
+        <Mensaje>"El vino debe estar autorizado para registrar movimientos de stock."</Mensaje>
+        <Mensaje>"Entrada de stock registrada correctamente."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="stock-ajuste" titulo="Registrar un ajuste de inventario">
+      <Resumen>Corrige el stock por diferencias del conteo físico, roturas o mermas. Puede aumentar o disminuir el stock.</Resumen>
+      <Permiso>Gestionar catálogo de vinos (menú Catálogo > Registrar ajuste de inventario).</Permiso>
+      <Pasos>
+        <Paso>Abra Catálogo > Registrar ajuste de inventario y elija el Vino.</Paso>
+        <Paso>Elija el Sentido: Aumenta el stock o Disminuye el stock.</Paso>
+        <Paso>Ingrese la Cantidad y el Motivo (por ejemplo rotura, merma o corrección de conteo).</Paso>
+        <Paso>Presione Registrar ajuste.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>RN-03: el stock nunca puede quedar por debajo de cero; un ajuste negativo mayor al stock se rechaza.</Regla>
+        <Regla>El motivo es obligatorio y la cantidad debe ser mayor a cero.</Regla>
+        <Regla>Los ajustes negativos cuentan como unidades perdidas en el análisis de rotación.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Stock insuficiente: el ajuste dejaría el stock por debajo de cero (stock actual: N)."</Mensaje>
+        <Mensaje>"Ajuste de inventario registrado correctamente."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="stock-alerta" titulo="Alerta de stock mínimo">
+      <Resumen>Lista los vinos activos cuyo stock actual está por debajo del stock mínimo, con el faltante de cada uno. Es una consulta: no se muestra ningún aviso automático al iniciar sesión.</Resumen>
+      <Permiso>Gestionar catálogo de vinos (menú Catálogo > Consultar alerta de stock mínimo).</Permiso>
+      <Pasos>
+        <Paso>Abra Catálogo > Consultar alerta de stock mínimo.</Paso>
+        <Paso>Revise la grilla (SKU, nombre, bodega, stock mínimo, stock actual y faltante).</Paso>
+        <Paso>Para reponer, registre una entrada de stock; para decidir cuánto, vea el Análisis de rotación.</Paso>
+      </Pasos>
+      <Mensajes>
+        <Mensaje>"No hay vinos por debajo del stock mínimo." - ningún vino activo está en alerta.</Mensaje>
+      </Mensajes>
+    </Tema>
+  </Tema>
+
+  <Tema id="club" titulo="Club de socios y cajas mensuales">
+    <Resumen>Gestión de socios y circuito de la caja mensual: armado, picking con sustituciones, despacho con remito en PDF e historial. Está en el menú Club de Socios.</Resumen>
+
+    <Tema id="socios" titulo="Socios y perfil del socio">
+      <Resumen>Alta y modificación de los socios del club: datos de contacto, domicilio de entrega, presupuesto mensual y varietales preferidos.</Resumen>
+      <Permiso>Gestionar socios (menú Club de Socios > Gestionar Socios). Por defecto, el rol Atención al Socio y el Administrador.</Permiso>
+      <Pasos>
+        <Paso>Abra Club de Socios > Gestionar Socios.</Paso>
+        <Paso>Para un socio nuevo presione Nuevo; para modificar uno, selecciónelo en la grilla.</Paso>
+        <Paso>Complete Apellido, Nombre, Domicilio y Presupuesto mensual. Email y Teléfono son opcionales.</Paso>
+        <Paso>Tilde los Varietales preferidos (la lista sale de los varietales del catálogo).</Paso>
+        <Paso>Tilde o destilde Activo y presione Guardar.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>Nombre, apellido y domicilio son obligatorios y el presupuesto mensual debe ser mayor a cero.</Regla>
+        <Regla>RN-05.1: el presupuesto mensual es el tope del total de cada caja del socio.</Regla>
+        <Regla>RN-05.2: los varietales preferidos no restringen las opciones; solo resaltan y ordenan primero los vinos coincidentes al armar la caja.</Regla>
+        <Regla>RN-14: si falta el domicilio o el teléfono, el remito imprime un texto de reemplazo en lugar de dejar el campo vacío.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"El nombre es obligatorio." / "El apellido es obligatorio." / "El domicilio es obligatorio."</Mensaje>
+        <Mensaje>"El presupuesto mensual debe ser mayor a cero."</Mensaje>
+        <Mensaje>"Socio guardado correctamente."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="caja-armar" titulo="Armar la caja mensual de un socio">
+      <Resumen>Compone la caja de un socio para un período con vinos disponibles, sin superar su presupuesto. La caja queda en estado Armada.</Resumen>
+      <Permiso>Armar cajas mensuales (menú Club de Socios > Armar Caja Mensual). Por defecto, el rol Curador de Producto y el Administrador.</Permiso>
+      <Pasos>
+        <Paso>Abra Club de Socios > Armar Caja Mensual y elija el Socio.</Paso>
+        <Paso>Escriba el Período con formato AAAA-MM (por ejemplo 2026-11).</Paso>
+        <Paso>En Vinos disponibles para el socio, seleccione un vino (los de sus varietales preferidos aparecen primero y resaltados), indique la Cantidad y presione Agregar a la caja.</Paso>
+        <Paso>Controle el Total frente al Presupuesto mensual que se muestran abajo.</Paso>
+        <Paso>Presione Confirmar armado. El botón solo se habilita con un socio elegido, al menos un vino, período válido y total dentro del presupuesto.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>RN-06: solo se ofrecen vinos Activos, autorizados y con stock disponible.</Regla>
+        <Regla>RN-05.1: el total de la caja no puede superar el presupuesto mensual del socio.</Regla>
+        <Regla>RN-05.2: los varietales preferidos se resaltan y ordenan primero, sin ocultar el resto.</Regla>
+        <Regla>RN-04: la caja congela nombre y precio de cada vino al momento del armado.</Regla>
+        <Regla>Un socio no puede tener más de una caja armada para el mismo período. Armar no descuenta stock; el stock se descuenta al despachar.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Seleccioná un socio." / "Seleccioná un vino de la lista."</Mensaje>
+        <Mensaje>"La caja debe tener al menos un vino."</Mensaje>
+        <Mensaje>"El total de la caja supera el presupuesto mensual del socio."</Mensaje>
+        <Mensaje>"El socio ya tiene una caja armada para ese período."</Mensaje>
+        <Mensaje>"Uno de los vinos seleccionados ya no está disponible para este socio."</Mensaje>
+        <Mensaje>"Caja armada correctamente."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="caja-picking" titulo="Picking y sustitución de vinos">
+      <Resumen>El Encargado de Depósito revisa la composición efectiva de las cajas armadas y, si a un vino le falta stock, registra una sustitución por otro vino disponible para el socio. La pantalla también muestra el historial de sustituciones de la caja.</Resumen>
+      <Permiso>Registrar picking y sustituciones (menú Club de Socios > Picking y Sustituciones). Por defecto, el rol Encargado de Depósito y el Administrador.</Permiso>
+      <Pasos>
+        <Paso>Abra Club de Socios > Picking y Sustituciones y seleccione una caja en Cajas armadas.</Paso>
+        <Paso>Revise la Composición efectiva; las líneas con stock insuficiente se resaltan con fondo rosado.</Paso>
+        <Paso>Seleccione la línea a sustituir.</Paso>
+        <Paso>En Reemplazar por, elija el vino sustituto y escriba el Motivo.</Paso>
+        <Paso>Presione Registrar sustitución. Queda en Historial de sustituciones.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>RN-10: quien armó la caja no puede registrar sustituciones sobre ella (botón deshabilitado).</Regla>
+        <Regla>RN-08: solo se puede sustituir sobre una caja en estado Armada.</Regla>
+        <Regla>RN-06: el reemplazo debe ser un vino vigente y disponible para el socio.</Regla>
+        <Regla>RN-05: con el reemplazo aplicado, el total de la caja no puede superar su presupuesto.</Regla>
+        <Regla>RN-07: la composición efectiva (la que se despacha y se imprime en el remito) es la original con las sustituciones aplicadas.</Regla>
+        <Regla>RN-03 no bloquea la sustitución, solo el despacho: el resaltado es una señal para priorizar.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Seleccioná una línea de la composición." / "Seleccioná el vino de reemplazo." / "Ingresá un motivo para la sustitución."</Mensaje>
+        <Mensaje>"Quien armó la caja no puede registrar sustituciones sobre ella."</Mensaje>
+        <Mensaje>"Solo se pueden registrar sustituciones sobre una caja Armada."</Mensaje>
+        <Mensaje>"El vino de reemplazo no está disponible para este socio." / "El reemplazo supera el presupuesto de la caja."</Mensaje>
+        <Mensaje>"Sustitución registrada correctamente."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="caja-despacho" titulo="Despachar una caja y emitir el remito PDF">
+      <Resumen>Confirma la entrega de una caja Armada: descuenta el stock de cada vino, pasa la caja a Despachada y genera el remito en PDF.</Resumen>
+      <Permiso>Despachar cajas (menú Club de Socios > Despachar Cajas). Por defecto, el rol Logística y el Administrador.</Permiso>
+      <Pasos>
+        <Paso>Abra Club de Socios > Despachar Cajas y seleccione una caja en Cajas armadas.</Paso>
+        <Paso>Revise la Composición efectiva; las líneas con stock insuficiente se resaltan porque bloquearían el despacho.</Paso>
+        <Paso>Presione Despachar caja y confirme.</Paso>
+        <Paso>El sistema registra una Salida de stock por cada línea y abre el remito PDF.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>RN-10: quien armó la caja no puede despacharla (botón deshabilitado).</Regla>
+        <Regla>RN-08: solo una caja Armada puede despacharse; una caja Despachada ya no se modifica.</Regla>
+        <Regla>RN-03: si algún vino no tiene stock suficiente, no se despacha la caja; resuelva con una sustitución o una entrada de stock.</Regla>
+        <Regla>RN-09: se genera una salida de stock por línea, fechada en el despacho.</Regla>
+        <Regla>RN-11: el remito se genera aparte; si falla, la caja igualmente queda despachada y se puede regenerar desde el Historial de Despachos.</Regla>
+        <Regla>El remito se guarda como Remito_Caja{número}.pdf en Documentos\ClubDeVinos\Remitos.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Quien armó la caja no puede despacharla."</Mensaje>
+        <Mensaje>"No hay stock suficiente de "[vino]" para despachar la caja."</Mensaje>
+        <Mensaje>"Solo se puede despachar una caja Armada."</Mensaje>
+        <Mensaje>"Caja despachada correctamente."</Mensaje>
+        <Mensaje>"No se pudo generar el remito de despacho; la caja fue despachada igualmente." - regenere el remito desde el historial.</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="caja-historial" titulo="Historial de despachos y regeneración del remito">
+      <Resumen>Lista las cajas ya despachadas y permite volver a generar su remito en PDF.</Resumen>
+      <Permiso>Despachar cajas (menú Club de Socios > Historial de Despachos).</Permiso>
+      <Pasos>
+        <Paso>Abra Club de Socios > Historial de Despachos.</Paso>
+        <Paso>Seleccione una caja despachada (socio, período, fecha y quién despachó).</Paso>
+        <Paso>Presione Regenerar remito: se vuelve a generar y se abre el PDF.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>RN-12: regenerar sobrescribe el mismo archivo Remito_Caja{número}.pdf, sin crear copias.</Regla>
+        <Regla>La caja despachada no cambia desde esta pantalla; solo se vuelve a emitir el documento.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"No se pudo generar el remito de despacho; la caja fue despachada igualmente." - verifique que pueda escribir en Documentos\ClubDeVinos\Remitos.</Mensaje>
+      </Mensajes>
+    </Tema>
+  </Tema>
+
+  <Tema id="rotacion" titulo="Análisis de rotación y reposición">
+    <Resumen>Herramienta de apoyo a la decisión de compra: para cada vino Activo calcula cuánto se consume por mes, para cuántos meses alcanza el stock actual, lo clasifica por rotación y recomienda si conviene reponer. Sugiere; no ejecuta ninguna compra ni modifica el stock.</Resumen>
+    <Permiso>Analizar rotación de stock (menú Catálogo > Analizar rotación de stock). Por defecto, el rol Encargado de Compras/Bodega y el Administrador.</Permiso>
+    <Pasos>
+      <Paso>Abra Catálogo > Analizar rotación de stock. El período propuesto son los últimos días configurados, con hoy incluido.</Paso>
+      <Paso>Ajuste el rango con Desde y Hasta si lo necesita. Al cambiar Días de análisis en la configuración, Desde se recalcula; las fechas que edite a mano se respetan.</Paso>
+      <Paso>Revise la configuración de umbrales (tema siguiente) y presione Analizar.</Paso>
+      <Paso>Lea la grilla de resultados: los vinos más urgentes aparecen primero.</Paso>
+      <Paso>Presione Exportar a PDF para obtener el informe (tema "Informe PDF de rotación").</Paso>
+    </Pasos>
+    <Reglas>
+      <Regla>El rango es inclusive en ambos extremos y Desde no puede ser posterior a Hasta.</Regla>
+      <Regla>El stock considerado es siempre el actual (el del día de hoy). Si Hasta es anterior a hoy se muestra un aviso: la cobertura de períodos pasados puede no ser representativa.</Regla>
+      <Regla>Las unidades vendidas son las salidas de stock por despacho de cajas dentro del rango; los ajustes negativos se cuentan aparte como pérdidas.</Regla>
+      <Regla>Consumo mensual = unidades vendidas / (días del rango / 30). Cobertura (meses) = stock actual / consumo mensual.</Regla>
+    </Reglas>
+    <Mensajes>
+      <Mensaje>"La fecha desde no puede ser posterior a la fecha hasta."</Mensaje>
+      <Mensaje>"Atención: el stock es el del día de hoy; la cobertura puede no ser representativa para rangos que terminan antes de hoy."</Mensaje>
+      <Mensaje>"No se pudo guardar o leer el archivo de configuración, por lo que no se realizó el análisis." - revise los permisos de la carpeta indicada en el mensaje.</Mensaje>
+    </Mensajes>
+
+    <Tema id="rotacion-config" titulo="Configuración de umbrales y archivo configuracion_rotacion.xml">
+      <Resumen>Los umbrales con que se clasifica y se recomienda se guardan en un archivo XML y el análisis siempre los lee de ahí. Se editan en el grupo Configuración del análisis.</Resumen>
+      <Permiso>Analizar rotación de stock.</Permiso>
+      <Pasos>
+        <Paso>Edite los valores del grupo Configuración del análisis: Días de análisis, Alta rotación desde (u/mes), Baja rotación bajo (u/mes), Reposición urgente bajo (meses), Reponer bajo (meses) y Sobrestock sobre (meses).</Paso>
+        <Paso>Presione Guardar configuración para guardarlos sin analizar, o Analizar: valida lo que hay en pantalla, lo guarda en el archivo y analiza con la configuración releída del archivo.</Paso>
+        <Paso>El archivo es configuracion_rotacion.xml, en la carpeta %LocalAppData%\ClubDeVinos del usuario de Windows. Si no existe, se crea con los valores por defecto; si está dañado o incoherente, se usan los valores por defecto sin interrumpir.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>Valores por defecto: 90 días de análisis, alta rotación desde 4 u/mes, baja rotación bajo 1,5 u/mes, reposición urgente bajo 1 mes, reponer bajo 2 meses, sobrestock sobre 6 meses.</Regla>
+        <Regla>Coherencia exigida: días entre 1 y 3650; umbral bajo mayor a cero; umbral alto mayor al bajo; cobertura urgente mayor a cero; cobertura de reposición mayor a la urgente; cobertura de sobrestock mayor a la de reposición.</Regla>
+        <Regla>Si no puede guardar o releer el archivo, el análisis no se realiza.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Los días de análisis deben estar entre 1 y 3650."</Mensaje>
+        <Mensaje>"El umbral de baja rotación debe ser mayor a cero." / "El umbral de alta rotación debe ser mayor al de baja rotación."</Mensaje>
+        <Mensaje>"La cobertura de reposición urgente debe ser mayor a cero." / "La cobertura de reposición debe ser mayor a la de reposición urgente." / "La cobertura de sobrestock debe ser mayor a la de reposición."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="rotacion-resultados" titulo="Clasificaciones y recomendaciones: qué significan">
+      <Resumen>Cada vino recibe una clasificación (qué tan rápido se vende) y una recomendación (qué hacer con su stock).</Resumen>
+      <Permiso>Analizar rotación de stock.</Permiso>
+      <Pasos>
+        <Paso>Sin movimiento: no se vendió ninguna unidad en el rango.</Paso>
+        <Paso>Alta rotación: el consumo mensual es igual o mayor que el umbral de alta rotación.</Paso>
+        <Paso>Baja rotación: tuvo ventas, pero el consumo mensual está por debajo del umbral de baja rotación.</Paso>
+        <Paso>Rotación media: tuvo ventas y el consumo queda entre ambos umbrales.</Paso>
+        <Paso>Reponer urgente: el stock está en el stock mínimo o por debajo, o la cobertura es menor que la cobertura de reposición urgente. Se evalúa primero.</Paso>
+        <Paso>Sobrestock / no reponer: no hay consumo (con stock sobre el mínimo) o la cobertura supera la cobertura de sobrestock.</Paso>
+        <Paso>Reponer: la cobertura es menor que la cobertura de reposición.</Paso>
+        <Paso>Mantener: la cobertura está en el rango adecuado; no hace falta actuar.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>El orden de la grilla es por urgencia: Reponer urgente, Reponer, Mantener, Sobrestock; dentro de cada grupo, de menor a mayor cobertura.</Regla>
+        <Regla>Un vino sin consumo no tiene cobertura calculable (se muestra una raya).</Regla>
+        <Regla>Un vino de alta rotación con poca cobertura es el caso típico de reposición urgente.</Regla>
+      </Reglas>
+    </Tema>
+
+    <Tema id="rotacion-pdf" titulo="Informe PDF de rotación">
+      <Resumen>Exporta el resultado del último análisis a un informe PDF en hoja A4 apaisada, siempre en español.</Resumen>
+      <Permiso>Analizar rotación de stock.</Permiso>
+      <Pasos>
+        <Paso>Presione Analizar para obtener resultados (Exportar a PDF se habilita solo si hay resultados).</Paso>
+        <Paso>Presione Exportar a PDF. El informe se guarda y se abre.</Paso>
+        <Paso>Los informes quedan en Documentos\ClubDeVinos\Informes con el nombre Rotacion_AAAAMMDD_HHMMSS_mmm.pdf.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>Cada exportación genera un archivo nuevo (el nombre incluye fecha, hora y milisegundos); no se sobrescribe ninguno.</Regla>
+        <Regla>Si el rango termina antes de hoy, el informe incluye la nota de que el stock es el actual.</Regla>
+      </Reglas>
+    </Tema>
+  </Tema>
+
+</Ayuda>

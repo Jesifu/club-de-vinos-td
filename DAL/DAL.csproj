@@ -46,6 +46,7 @@
     <Compile Include="CajaMensualDAL.cs" />
     <Compile Include="IntegridadDAL.cs" />
     <Compile Include="MovimientoStockDAL.cs" />
+    <Compile Include="RotacionDAL.cs" />
     <Compile Include="UsuarioHistorialDAL.cs" />
     <Compile Include="IdiomaDAL.cs" />
     <Compile Include="BitacoraDAL.cs" />

@@ -5286,3 +5286,634 @@ FROM (VALUES ('LOGIN_FALLIDO', -3), ('LOGIN_FALLIDO', -2), ('LOGIN_FALLIDO', -1)
 WHERE EXISTS (SELECT 1 FROM USUARIO WHERE USUARIO = 'bloqueado1')
   AND NOT EXISTS (SELECT 1 FROM BITACORA WHERE USUARIO = 'bloqueado1')
 GO
+
+-- ============================================================
+-- N03 — Análisis de Rotación y Reposición de Stock
+-- Proceso de apoyo a la decisión que cruza el catálogo y el kardex (proceso 1) con las cajas
+-- despachadas y las sustituciones (proceso 2). La clasificación y la recomendación se calculan
+-- en RotacionBLL con los umbrales del archivo serializado configuracion_rotacion.xml; el SP solo
+-- entrega los datos crudos de cada vino Activo para el período [@desde, @hasta] (ambos inclusive).
+-- ============================================================
+
+IF OBJECT_ID('dbo.ROTACION_ANALIZAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[ROTACION_ANALIZAR]
+GO
+-- STOCK_ACTUAL es el stock derivado del kardex a hoy (misma expresión que VINO_LISTAR_STOCK_BAJO).
+-- UNIDADES_VENDIDAS: Salidas con REFERENCIA_TIPO = 'CAJA' del período (el despacho ya registra el
+-- vino efectivo, por lo que las sustituciones quedan contadas en el vino que realmente salió).
+-- UNIDADES_PERDIDAS: Salidas con REFERENCIA_TIPO = 'AJUSTE' del período (roturas, mermas).
+-- SOCIOS_ATENDIDOS: socios distintos con una caja Despachada en el período cuya línea efectiva
+-- (última SUSTITUCION si existe, si no el vino original) es este vino.
+CREATE PROCEDURE [dbo].[ROTACION_ANALIZAR]
+    @desde DATETIME,
+    @hasta DATETIME
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @ini DATETIME = CAST(CAST(@desde AS DATE) AS DATETIME);
+    DECLARE @fin DATETIME = DATEADD(DAY, 1, CAST(CAST(@hasta AS DATE) AS DATETIME));
+
+    WITH ULTIMA AS (
+        SELECT s.CAJA_VINO_ID, s.VINO_REEMPLAZO_ID,
+               ROW_NUMBER() OVER (PARTITION BY s.CAJA_VINO_ID ORDER BY s.ID DESC) AS RN
+        FROM SUSTITUCION s
+    )
+    SELECT v.ID, v.CODIGO, v.NOMBRE, b.NOMBRE AS BODEGA_NOMBRE, v.STOCK_MINIMO,
+           ISNULL(k.STOCK, 0)     AS STOCK_ACTUAL,
+           ISNULL(k.VENDIDAS, 0)  AS UNIDADES_VENDIDAS,
+           ISNULL(k.PERDIDAS, 0)  AS UNIDADES_PERDIDAS,
+           ISNULL(so.SOCIOS, 0)   AS SOCIOS_ATENDIDOS
+    FROM VINO v
+    JOIN BODEGA b ON b.ID = v.BODEGA_ID
+    OUTER APPLY (SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END) AS STOCK,
+                        SUM(CASE WHEN m.TIPO = 'Salida' AND m.REFERENCIA_TIPO = 'CAJA'
+                                  AND m.FECHA >= @ini AND m.FECHA < @fin THEN m.CANTIDAD ELSE 0 END) AS VENDIDAS,
+                        SUM(CASE WHEN m.TIPO = 'Salida' AND m.REFERENCIA_TIPO = 'AJUSTE'
+                                  AND m.FECHA >= @ini AND m.FECHA < @fin THEN m.CANTIDAD ELSE 0 END) AS PERDIDAS
+                 FROM MOVIMIENTO_STOCK m WHERE m.VINO_ID = v.ID) k
+    OUTER APPLY (SELECT COUNT(DISTINCT c.SOCIO_ID) AS SOCIOS
+                 FROM CAJA_MENSUAL c
+                 JOIN CAJA_VINO cv ON cv.CAJA_ID = c.ID
+                 LEFT JOIN ULTIMA u ON u.CAJA_VINO_ID = cv.ID AND u.RN = 1
+                 WHERE c.ESTADO = 'Despachada'
+                   AND c.FECHA_DESPACHO >= @ini AND c.FECHA_DESPACHO < @fin
+                   AND ISNULL(u.VINO_REEMPLAZO_ID, cv.VINO_ID) = v.ID) so
+    WHERE v.ESTADO = 'Activo'
+    ORDER BY v.NOMBRE
+END
+GO
+
+-- ------------------------------------------------------------
+-- SEED — permiso 'Analizar rotación de stock' (idempotente)
+-- Lo reciben el Administrador y el Encargado de Compras/Bodega (decisiones de reposición).
+-- ------------------------------------------------------------
+IF NOT EXISTS (SELECT 1 FROM PERMISO WHERE NOMBRE = 'Analizar rotación de stock')
+    INSERT INTO PERMISO (NOMBRE) VALUES ('Analizar rotación de stock')
+GO
+
+DECLARE @permRotacionId  INT = (SELECT ID FROM PERMISO WHERE NOMBRE = 'Analizar rotación de stock')
+DECLARE @rolAdminRotId   INT = (SELECT TOP 1 ID FROM ROL WHERE NOMBRE = 'Administrador' AND PADRE_ID IS NULL)
+DECLARE @rolComprasRotId INT = (SELECT ID FROM ROL WHERE NOMBRE = 'Encargado de Compras/Bodega' AND PADRE_ID IS NULL)
+
+IF @rolAdminRotId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminRotId AND PERMISO_ID = @permRotacionId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAdminRotId, @permRotacionId)
+IF @rolComprasRotId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolComprasRotId AND PERMISO_ID = @permRotacionId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolComprasRotId, @permRotacionId)
+GO
+
+-- ============================================================
+-- i18n — N03 frmAnalisisRotacion + ítem de menú
+-- Reutiliza claves ya registradas: lblDesde, lblHasta, btnCerrar, colhdr_Codigo, colhdr_NombreVino,
+-- colhdr_Bodega, colhdr_StockMinimo, colhdr_StockActual. 'lblTitulo' colisiona con otros forms:
+-- se registra 'lblTitulo_AnalisisRotacion' como clave propia.
+-- ============================================================
+EXEC CONTROL_REGISTRAR 'rotacionStockToolStripMenuItem', 'Analizar rotación de stock'
+EXEC CONTROL_REGISTRAR 'frmAnalisisRotacion', 'Análisis de rotación y reposición de stock'
+EXEC CONTROL_REGISTRAR 'lblTitulo_AnalisisRotacion', 'Análisis de rotación y reposición de stock'
+EXEC CONTROL_REGISTRAR 'btnAnalizar', 'Analizar'
+EXEC CONTROL_REGISTRAR 'grpConfiguracion', 'Configuración del análisis'
+EXEC CONTROL_REGISTRAR 'lblDiasAnalisis', 'Días de análisis:'
+EXEC CONTROL_REGISTRAR 'lblUmbralAlta', 'Alta rotación desde (u/mes):'
+EXEC CONTROL_REGISTRAR 'lblUmbralBaja', 'Baja rotación bajo (u/mes):'
+EXEC CONTROL_REGISTRAR 'lblCoberturaUrgente', 'Reposición urgente bajo (meses):'
+EXEC CONTROL_REGISTRAR 'lblCoberturaReposicion', 'Reponer bajo (meses):'
+EXEC CONTROL_REGISTRAR 'lblCoberturaSobrestock', 'Sobrestock sobre (meses):'
+EXEC CONTROL_REGISTRAR 'btnGuardarConfiguracion', 'Guardar configuración'
+EXEC CONTROL_REGISTRAR 'btnExportarPdf', 'Exportar a PDF'
+EXEC CONTROL_REGISTRAR 'colhdr_Vendidas', 'Vendidas'
+EXEC CONTROL_REGISTRAR 'colhdr_Perdidas', 'Pérdidas'
+EXEC CONTROL_REGISTRAR 'colhdr_ConsumoMensual', 'Consumo mensual'
+EXEC CONTROL_REGISTRAR 'colhdr_Cobertura', 'Cobertura (meses)'
+EXEC CONTROL_REGISTRAR 'colhdr_SociosAtendidos', 'Socios atendidos'
+EXEC CONTROL_REGISTRAR 'colhdr_Clasificacion', 'Clasificación'
+EXEC CONTROL_REGISTRAR 'colhdr_Recomendacion', 'Recomendación'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — ESPAÑOL
+-- ------------------------------------------------------------
+DECLARE @espIdRot INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @cideRot INT
+
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rotacionStockToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Analizar rotación de stock'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAnalisisRotacion')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Análisis de rotación y reposición de stock'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AnalisisRotacion')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Análisis de rotación y reposición de stock'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAnalizar')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Analizar'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'grpConfiguracion')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Configuración del análisis'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblDiasAnalisis')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Días de análisis:'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblUmbralAlta')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Alta rotación desde (u/mes):'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblUmbralBaja')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Baja rotación bajo (u/mes):'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCoberturaUrgente')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Reposición urgente bajo (meses):'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCoberturaReposicion')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Reponer bajo (meses):'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCoberturaSobrestock')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Sobrestock sobre (meses):'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarConfiguracion')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Guardar configuración'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnExportarPdf')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Exportar a PDF'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Vendidas')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Vendidas'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Perdidas')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Pérdidas'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_ConsumoMensual')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Consumo mensual'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Cobertura')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Cobertura (meses)'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_SociosAtendidos')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Socios atendidos'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Clasificacion')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Clasificación'
+SET @cideRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Recomendacion')
+EXEC TRADUCCION_GUARDAR @espIdRot, @cideRot, 'Recomendación'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — INGLÉS
+-- ------------------------------------------------------------
+DECLARE @ingIdRot INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @cidiRot INT
+
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rotacionStockToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Analyze stock rotation'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAnalisisRotacion')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Stock rotation and replenishment analysis'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AnalisisRotacion')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Stock rotation and replenishment analysis'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAnalizar')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Analyze'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'grpConfiguracion')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Analysis settings'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblDiasAnalisis')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Days to analyze:'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblUmbralAlta')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'High rotation from (units/month):'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblUmbralBaja')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Low rotation below (units/month):'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCoberturaUrgente')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Urgent replenishment below (months):'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCoberturaReposicion')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Replenish below (months):'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCoberturaSobrestock')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Overstock above (months):'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarConfiguracion')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Save settings'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnExportarPdf')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Export to PDF'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Vendidas')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Sold'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Perdidas')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Losses'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_ConsumoMensual')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Monthly consumption'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Cobertura')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Coverage (months)'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_SociosAtendidos')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Members served'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Clasificacion')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Classification'
+SET @cidiRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Recomendacion')
+EXEC TRADUCCION_GUARDAR @ingIdRot, @cidiRot, 'Recommendation'
+GO
+
+-- ------------------------------------------------------------
+-- TRADUCCIONES — PORTUGUÉS
+-- ------------------------------------------------------------
+DECLARE @ptIdRot INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cidpRot INT
+
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rotacionStockToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Analisar rotação de estoque'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAnalisisRotacion')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Análise de rotação e reposição de estoque'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblTitulo_AnalisisRotacion')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Análise de rotação e reposição de estoque'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnAnalizar')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Analisar'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'grpConfiguracion')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Configuração da análise'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblDiasAnalisis')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Dias de análise:'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblUmbralAlta')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Alta rotação a partir de (un/mês):'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblUmbralBaja')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Baixa rotação abaixo de (un/mês):'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCoberturaUrgente')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Reposição urgente abaixo de (meses):'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCoberturaReposicion')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Repor abaixo de (meses):'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCoberturaSobrestock')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Excesso de estoque acima de (meses):'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnGuardarConfiguracion')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Salvar configuração'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnExportarPdf')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Exportar para PDF'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Vendidas')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Vendidas'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Perdidas')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Perdas'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_ConsumoMensual')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Consumo mensal'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Cobertura')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Cobertura (meses)'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_SociosAtendidos')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Sócios atendidos'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Clasificacion')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Classificação'
+SET @cidpRot = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_Recomendacion')
+EXEC TRADUCCION_GUARDAR @ptIdRot, @cidpRot, 'Recomendação'
+GO
+
+-- ============================================================
+-- DATOS DE PRUEBA — N03 (rotación y reposición)
+-- Complementa el bloque anterior sin tocar ninguna fila existente: agrega 6 socios, 2 vinos y
+-- cajas Despachadas con sus salidas de kardex repartidas en ~6 meses (meses -1 a -3 dentro de los
+-- últimos 90 días; -4 a -6 solo visibles con un rango de 180 días). Entrada inicial hace 179 días
+-- por vino, de modo que el stock nunca queda negativo en ningún momento. Se identifica por el
+-- MOTIVO de las entradas: si ya existe, el bloque entero se omite (idempotente).
+-- Con los umbrales por defecto y 90 días se obtienen las 4 clasificaciones y las 4 recomendaciones:
+--   DEMO-004 Alta rotación / Reponer urgente      DEMO-001 Alta rotación / Reponer
+--   DEMO-002 Alta rotación / Mantener             DEMO-003 Rotación media / Mantener
+--   DEMO-017 Rotación media / Reponer             DEMO-005 Baja rotación / Reponer urgente
+--   DEMO-016 Baja rotación / Sobrestock           DEMO-009 Sin movimiento / Sobrestock
+--   DEMO-006/007/008 Sin movimiento / Reponer urgente (stock bajo el mínimo)
+-- ============================================================
+SET ANSI_NULLS ON
+SET QUOTED_IDENTIFIER ON
+GO
+
+SET XACT_ABORT ON
+BEGIN TRAN
+
+DECLARE @ahora     DATETIME = GETDATE()
+DECLARE @compras   INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'compras')
+DECLARE @adminRot  INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'admin')
+DECLARE @atencion  INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'atencion')
+DECLARE @curador   INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'curador')
+DECLARE @logistica INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'logistica')
+
+IF @compras IS NOT NULL AND @adminRot IS NOT NULL AND @atencion IS NOT NULL
+   AND @curador IS NOT NULL AND @logistica IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM MOVIMIENTO_STOCK WHERE MOTIVO = 'Compra a bodega - demo rotación')
+BEGIN
+    -- Vinos nuevos (Activos, con su alta aprobada)
+    INSERT INTO VINO (CODIGO, NOMBRE, BODEGA_ID, VARIETAL, ANIADA, PRECIO, STOCK_MINIMO, ESTADO, MARIDAJE, PUNTAJE, CREADO_POR, FECHA_ALTA)
+    SELECT x.CODIGO, x.NOMBRE, b.ID, x.VARIETAL, x.ANIADA, x.PRECIO, x.MINIMO, 'Activo', x.MARIDAJE, x.PUNTAJE, @compras, DATEADD(DAY, -185, @ahora)
+    FROM (VALUES
+        ('DEMO-016', 'Rutini Gewurztraminer',            'Bodega Rutini',  'Gewurztraminer',  2022, 10400.00, 5, 'Quesos azules y cocina oriental', 88),
+        ('DEMO-017', 'Errázuriz Estate Sauvignon Blanc', 'Viña Errázuriz', 'Sauvignon Blanc', 2023,  8900.00, 3, 'Ensaladas y pescados',          87)
+    ) x (CODIGO, NOMBRE, BODEGA, VARIETAL, ANIADA, PRECIO, MINIMO, MARIDAJE, PUNTAJE)
+    JOIN BODEGA b ON b.NOMBRE = x.BODEGA COLLATE DATABASE_DEFAULT
+    WHERE NOT EXISTS (SELECT 1 FROM VINO WHERE CODIGO = x.CODIGO COLLATE DATABASE_DEFAULT)
+
+    INSERT INTO SOLICITUD_AUTORIZACION (TIPO, VINO_ID, ESTADO, EMISOR_ID, FECHA_EMISION, RESOLUTOR_ID, FECHA_RESOLUCION, MOTIVO_RECHAZO)
+    SELECT 'ALTA', v.ID, 'Aprobada', @compras, DATEADD(DAY, -185, @ahora), @adminRot, DATEADD(DAY, -184, @ahora), NULL
+    FROM VINO v
+    WHERE v.CODIGO IN ('DEMO-016', 'DEMO-017')
+      AND NOT EXISTS (SELECT 1 FROM SOLICITUD_AUTORIZACION s WHERE s.VINO_ID = v.ID)
+
+    -- Socios nuevos
+    INSERT INTO SOCIO (NOMBRE, APELLIDO, EMAIL, TELEFONO, DOMICILIO, PRESUPUESTO_MENSUAL, ACTIVO, FECHA_ALTA, CREADO_POR)
+    SELECT x.NOMBRE, x.APELLIDO, x.EMAIL, x.TELEFONO, x.DOMICILIO, x.PRESUPUESTO, 1, DATEADD(DAY, -200, @ahora), @atencion
+    FROM (VALUES
+        ('Carla', 'Benítez', 'carla.benitez@socios.test', '1144440011', 'Av. Rivadavia 4200, CABA', 38000.00),
+        ('Diego', 'Suárez', 'diego.suarez@socios.test', '1144440012', 'Mitre 1130, Avellaneda', 32000.00),
+        ('Florencia', 'Ortiz', 'florencia.ortiz@socios.test', '1144440013', 'Córdoba 2750, Rosario', 45000.00),
+        ('Gonzalo', 'Vega', 'gonzalo.vega@socios.test', '1144440014', 'Av. Colón 640, Córdoba', 30000.00),
+        ('Hilda', 'Campos', 'hilda.campos@socios.test', '1144440015', 'San Juan 980, Mendoza', 36000.00),
+        ('Ignacio', 'Ferrero', 'ignacio.ferrero@socios.test', '1144440016', 'Belgrano 315, Tigre', 42000.00)
+    ) x (NOMBRE, APELLIDO, EMAIL, TELEFONO, DOMICILIO, PRESUPUESTO)
+    WHERE NOT EXISTS (SELECT 1 FROM SOCIO WHERE EMAIL = x.EMAIL COLLATE DATABASE_DEFAULT)
+
+    -- Entradas iniciales (hace 179 días): cubren las salidas antiguas y dejan el stock final previsto
+    INSERT INTO MOVIMIENTO_STOCK (VINO_ID, FECHA, TIPO, CANTIDAD, MOTIVO, RESPONSABLE, REFERENCIA_TIPO, REFERENCIA_ID)
+    SELECT v.ID, DATEADD(DAY, -179, @ahora), 'Entrada', x.CANT, 'Compra a bodega - demo rotación', 'compras', NULL, NULL
+    FROM (VALUES
+        ('DEMO-001', 10),
+        ('DEMO-002', 6),
+        ('DEMO-003', 4),
+        ('DEMO-004', 15),
+        ('DEMO-005', 3),
+        ('DEMO-009', 6),
+        ('DEMO-016', 40),
+        ('DEMO-017', 17)
+    ) x (CODIGO, CANT)
+    JOIN VINO v ON v.CODIGO = x.CODIGO COLLATE DATABASE_DEFAULT
+
+    -- Plan de cajas despachadas: socio, meses atrás (período), días atrás (despacho), vino, cantidad
+    DECLARE @c TABLE (
+        EMAIL  VARCHAR(100) COLLATE DATABASE_DEFAULT,
+        K      INT,
+        DIAS   INT,
+        CODIGO VARCHAR(20)  COLLATE DATABASE_DEFAULT,
+        CANT   INT
+    )
+    INSERT INTO @c (EMAIL, K, DIAS, CODIGO, CANT) VALUES
+        ('carla.benitez@socios.test', 1, 23, 'DEMO-004', 3),
+        ('carla.benitez@socios.test', 2, 55, 'DEMO-004', 3),
+        ('carla.benitez@socios.test', 3, 82, 'DEMO-004', 3),
+        ('diego.suarez@socios.test', 1, 25, 'DEMO-004', 3),
+        ('diego.suarez@socios.test', 2, 52, 'DEMO-004', 3),
+        ('diego.suarez@socios.test', 3, 84, 'DEMO-004', 3),
+        ('florencia.ortiz@socios.test', 1, 22, 'DEMO-004', 3),
+        ('florencia.ortiz@socios.test', 2, 54, 'DEMO-004', 3),
+        ('florencia.ortiz@socios.test', 3, 86, 'DEMO-004', 3),
+        ('gonzalo.vega@socios.test', 1, 24, 'DEMO-004', 2),
+        ('gonzalo.vega@socios.test', 2, 56, 'DEMO-004', 2),
+        ('gonzalo.vega@socios.test', 3, 81, 'DEMO-004', 2),
+        ('hilda.campos@socios.test', 1, 26, 'DEMO-004', 2),
+        ('hilda.campos@socios.test', 2, 51, 'DEMO-004', 2),
+        ('hilda.campos@socios.test', 3, 83, 'DEMO-004', 2),
+        ('ignacio.ferrero@socios.test', 1, 21, 'DEMO-004', 2),
+        ('ignacio.ferrero@socios.test', 2, 53, 'DEMO-004', 2),
+        ('ignacio.ferrero@socios.test', 3, 85, 'DEMO-004', 2),
+        ('carla.benitez@socios.test', 4, 114, 'DEMO-004', 1),
+        ('carla.benitez@socios.test', 5, 146, 'DEMO-004', 1),
+        ('carla.benitez@socios.test', 6, 168, 'DEMO-004', 1),
+        ('diego.suarez@socios.test', 4, 116, 'DEMO-004', 1),
+        ('diego.suarez@socios.test', 5, 141, 'DEMO-004', 1),
+        ('diego.suarez@socios.test', 6, 170, 'DEMO-004', 1),
+        ('florencia.ortiz@socios.test', 4, 111, 'DEMO-004', 1),
+        ('florencia.ortiz@socios.test', 5, 143, 'DEMO-004', 1),
+        ('florencia.ortiz@socios.test', 6, 172, 'DEMO-004', 1),
+        ('gonzalo.vega@socios.test', 4, 113, 'DEMO-004', 1),
+        ('gonzalo.vega@socios.test', 5, 145, 'DEMO-004', 1),
+        ('gonzalo.vega@socios.test', 6, 169, 'DEMO-004', 1),
+        ('hilda.campos@socios.test', 4, 115, 'DEMO-004', 1),
+        ('hilda.campos@socios.test', 5, 142, 'DEMO-004', 1),
+        ('hilda.campos@socios.test', 6, 171, 'DEMO-004', 1),
+        ('carla.benitez@socios.test', 1, 23, 'DEMO-001', 1),
+        ('carla.benitez@socios.test', 2, 55, 'DEMO-001', 1),
+        ('carla.benitez@socios.test', 3, 82, 'DEMO-001', 1),
+        ('diego.suarez@socios.test', 1, 25, 'DEMO-001', 1),
+        ('diego.suarez@socios.test', 2, 52, 'DEMO-001', 1),
+        ('diego.suarez@socios.test', 3, 84, 'DEMO-001', 2),
+        ('florencia.ortiz@socios.test', 1, 22, 'DEMO-001', 2),
+        ('florencia.ortiz@socios.test', 2, 54, 'DEMO-001', 2),
+        ('florencia.ortiz@socios.test', 3, 86, 'DEMO-001', 2),
+        ('gonzalo.vega@socios.test', 1, 24, 'DEMO-001', 2),
+        ('gonzalo.vega@socios.test', 2, 56, 'DEMO-001', 2),
+        ('gonzalo.vega@socios.test', 3, 81, 'DEMO-001', 2),
+        ('hilda.campos@socios.test', 1, 26, 'DEMO-001', 2),
+        ('hilda.campos@socios.test', 2, 51, 'DEMO-001', 2),
+        ('hilda.campos@socios.test', 3, 83, 'DEMO-001', 2),
+        ('ignacio.ferrero@socios.test', 1, 21, 'DEMO-001', 2),
+        ('ignacio.ferrero@socios.test', 2, 53, 'DEMO-001', 2),
+        ('ignacio.ferrero@socios.test', 3, 85, 'DEMO-001', 1),
+        ('diego.suarez@socios.test', 6, 170, 'DEMO-001', 1),
+        ('florencia.ortiz@socios.test', 4, 111, 'DEMO-001', 1),
+        ('florencia.ortiz@socios.test', 5, 143, 'DEMO-001', 1),
+        ('florencia.ortiz@socios.test', 6, 172, 'DEMO-001', 1),
+        ('gonzalo.vega@socios.test', 4, 113, 'DEMO-001', 1),
+        ('gonzalo.vega@socios.test', 5, 145, 'DEMO-001', 1),
+        ('gonzalo.vega@socios.test', 6, 169, 'DEMO-001', 1),
+        ('hilda.campos@socios.test', 4, 115, 'DEMO-001', 1),
+        ('hilda.campos@socios.test', 5, 142, 'DEMO-001', 1),
+        ('hilda.campos@socios.test', 6, 171, 'DEMO-001', 1),
+        ('carla.benitez@socios.test', 1, 23, 'DEMO-002', 1),
+        ('carla.benitez@socios.test', 2, 55, 'DEMO-002', 1),
+        ('carla.benitez@socios.test', 3, 82, 'DEMO-002', 1),
+        ('diego.suarez@socios.test', 1, 25, 'DEMO-002', 1),
+        ('diego.suarez@socios.test', 2, 52, 'DEMO-002', 1),
+        ('diego.suarez@socios.test', 3, 84, 'DEMO-002', 1),
+        ('florencia.ortiz@socios.test', 1, 22, 'DEMO-002', 1),
+        ('florencia.ortiz@socios.test', 2, 54, 'DEMO-002', 1),
+        ('florencia.ortiz@socios.test', 3, 86, 'DEMO-002', 1),
+        ('gonzalo.vega@socios.test', 2, 56, 'DEMO-002', 1),
+        ('gonzalo.vega@socios.test', 3, 81, 'DEMO-002', 1),
+        ('hilda.campos@socios.test', 1, 26, 'DEMO-002', 1),
+        ('hilda.campos@socios.test', 2, 51, 'DEMO-002', 1),
+        ('hilda.campos@socios.test', 3, 83, 'DEMO-002', 1),
+        ('ignacio.ferrero@socios.test', 1, 21, 'DEMO-002', 1),
+        ('ignacio.ferrero@socios.test', 2, 53, 'DEMO-002', 1),
+        ('ignacio.ferrero@socios.test', 3, 85, 'DEMO-002', 1),
+        ('gonzalo.vega@socios.test', 5, 145, 'DEMO-002', 1),
+        ('gonzalo.vega@socios.test', 6, 169, 'DEMO-002', 1),
+        ('hilda.campos@socios.test', 4, 115, 'DEMO-002', 1),
+        ('hilda.campos@socios.test', 5, 142, 'DEMO-002', 1),
+        ('hilda.campos@socios.test', 6, 171, 'DEMO-002', 1),
+        ('ignacio.ferrero@socios.test', 4, 112, 'DEMO-002', 1),
+        ('carla.benitez@socios.test', 1, 23, 'DEMO-003', 1),
+        ('carla.benitez@socios.test', 2, 55, 'DEMO-003', 1),
+        ('carla.benitez@socios.test', 3, 82, 'DEMO-003', 1),
+        ('diego.suarez@socios.test', 1, 25, 'DEMO-003', 1),
+        ('diego.suarez@socios.test', 2, 52, 'DEMO-003', 1),
+        ('diego.suarez@socios.test', 3, 84, 'DEMO-003', 1),
+        ('ignacio.ferrero@socios.test', 1, 21, 'DEMO-003', 1),
+        ('ignacio.ferrero@socios.test', 2, 53, 'DEMO-003', 1),
+        ('ignacio.ferrero@socios.test', 3, 85, 'DEMO-003', 1),
+        ('ignacio.ferrero@socios.test', 4, 112, 'DEMO-003', 1),
+        ('ignacio.ferrero@socios.test', 5, 144, 'DEMO-003', 1),
+        ('ignacio.ferrero@socios.test', 6, 173, 'DEMO-003', 1),
+        ('martina.garcia@socios.test', 4, 114, 'DEMO-003', 1),
+        ('carla.benitez@socios.test', 3, 82, 'DEMO-005', 1),
+        ('diego.suarez@socios.test', 1, 25, 'DEMO-005', 1),
+        ('julian.lopez@socios.test', 4, 116, 'DEMO-005', 1),
+        ('julian.lopez@socios.test', 5, 141, 'DEMO-005', 1),
+        ('lucia.fernandez@socios.test', 4, 111, 'DEMO-005', 1),
+        ('carla.benitez@socios.test', 4, 114, 'DEMO-009', 1),
+        ('carla.benitez@socios.test', 5, 146, 'DEMO-009', 1),
+        ('carla.benitez@socios.test', 6, 168, 'DEMO-009', 1),
+        ('diego.suarez@socios.test', 4, 116, 'DEMO-009', 1),
+        ('diego.suarez@socios.test', 5, 141, 'DEMO-009', 1),
+        ('ana.diaz@socios.test', 5, 145, 'DEMO-009', 1),
+        ('hilda.campos@socios.test', 1, 26, 'DEMO-016', 1),
+        ('hilda.campos@socios.test', 2, 51, 'DEMO-016', 1),
+        ('hilda.campos@socios.test', 3, 83, 'DEMO-016', 1),
+        ('diego.suarez@socios.test', 5, 141, 'DEMO-016', 1),
+        ('diego.suarez@socios.test', 6, 170, 'DEMO-016', 1),
+        ('carla.benitez@socios.test', 1, 23, 'DEMO-017', 1),
+        ('carla.benitez@socios.test', 2, 55, 'DEMO-017', 1),
+        ('carla.benitez@socios.test', 3, 82, 'DEMO-017', 1),
+        ('diego.suarez@socios.test', 1, 25, 'DEMO-017', 1),
+        ('diego.suarez@socios.test', 2, 52, 'DEMO-017', 1),
+        ('diego.suarez@socios.test', 3, 84, 'DEMO-017', 1),
+        ('florencia.ortiz@socios.test', 1, 22, 'DEMO-017', 1),
+        ('ignacio.ferrero@socios.test', 3, 85, 'DEMO-017', 1),
+        ('gonzalo.vega@socios.test', 4, 113, 'DEMO-017', 1),
+        ('gonzalo.vega@socios.test', 5, 145, 'DEMO-017', 1),
+        ('gonzalo.vega@socios.test', 6, 169, 'DEMO-017', 1),
+        ('hilda.campos@socios.test', 4, 115, 'DEMO-017', 1),
+        ('hilda.campos@socios.test', 5, 142, 'DEMO-017', 1)
+
+    -- Cajas (una por socio y período; el índice único UQ_CAJA_SOCIO_PERIODO exige períodos distintos)
+    INSERT INTO CAJA_MENSUAL (SOCIO_ID, PERIODO, ESTADO, PRESUPUESTO_SNAPSHOT, FECHA_ARMADO, ARMADO_POR, FECHA_DESPACHO, DESPACHADO_POR)
+    SELECT s.ID, CONVERT(CHAR(7), DATEADD(MONTH, -x.K, @ahora), 120), 'Despachada', s.PRESUPUESTO_MENSUAL,
+           DATEADD(DAY, -(x.DIAS + 2), @ahora), @curador, DATEADD(DAY, -x.DIAS, @ahora), @logistica
+    FROM (SELECT DISTINCT EMAIL, K, DIAS FROM @c) x
+    JOIN SOCIO s ON s.EMAIL = x.EMAIL
+    WHERE NOT EXISTS (SELECT 1 FROM CAJA_MENSUAL cm
+                      WHERE cm.SOCIO_ID = s.ID AND cm.ESTADO <> 'Cancelada'
+                        AND cm.PERIODO = CONVERT(CHAR(7), DATEADD(MONTH, -x.K, @ahora), 120))
+
+    -- Líneas de cada caja (snapshot de nombre y precio del catálogo, RN-04)
+    INSERT INTO CAJA_VINO (CAJA_ID, VINO_ID, CANTIDAD, NOMBRE_SNAPSHOT, PRECIO_SNAPSHOT)
+    SELECT cm.ID, v.ID, c.CANT, v.NOMBRE, v.PRECIO
+    FROM @c c
+    JOIN SOCIO s ON s.EMAIL = c.EMAIL
+    JOIN CAJA_MENSUAL cm ON cm.SOCIO_ID = s.ID AND cm.ESTADO = 'Despachada'
+                        AND cm.FECHA_DESPACHO = DATEADD(DAY, -c.DIAS, @ahora)
+    JOIN VINO v ON v.CODIGO = c.CODIGO
+
+    -- Una Salida por línea al despachar (RN-09), fechada en el despacho
+    INSERT INTO MOVIMIENTO_STOCK (VINO_ID, FECHA, TIPO, CANTIDAD, MOTIVO, RESPONSABLE, REFERENCIA_TIPO, REFERENCIA_ID)
+    SELECT cv.VINO_ID, cm.FECHA_DESPACHO, 'Salida', cv.CANTIDAD, 'Despacho de caja mensual', 'logistica', 'CAJA', cm.ID
+    FROM CAJA_VINO cv
+    JOIN CAJA_MENSUAL cm ON cm.ID = cv.CAJA_ID
+    WHERE cm.ESTADO = 'Despachada'
+      AND cm.FECHA_DESPACHO IN (SELECT DATEADD(DAY, -DIAS, @ahora) FROM @c)
+      AND NOT EXISTS (SELECT 1 FROM MOVIMIENTO_STOCK m WHERE m.REFERENCIA_TIPO = 'CAJA' AND m.REFERENCIA_ID = cm.ID)
+END
+
+COMMIT TRAN
+GO
+
+-- ============================================================
+-- i18n — N03 valores de clasificación y recomendación (se muestran traducidos; el valor
+-- guardado sigue siendo la constante en español de BE) y aviso de rango pasado.
+-- Idempotente: CONTROL_REGISTRAR y TRADUCCION_GUARDAR son upserts.
+-- ============================================================
+EXEC CONTROL_REGISTRAR 'rot_clas_Alta', 'Alta rotación'
+EXEC CONTROL_REGISTRAR 'rot_clas_Media', 'Rotación media'
+EXEC CONTROL_REGISTRAR 'rot_clas_Baja', 'Baja rotación'
+EXEC CONTROL_REGISTRAR 'rot_clas_SinMovimiento', 'Sin movimiento'
+EXEC CONTROL_REGISTRAR 'rot_rec_Urgente', 'Reponer urgente'
+EXEC CONTROL_REGISTRAR 'rot_rec_Reponer', 'Reponer'
+EXEC CONTROL_REGISTRAR 'rot_rec_Mantener', 'Mantener'
+EXEC CONTROL_REGISTRAR 'rot_rec_Sobrestock', 'Sobrestock / no reponer'
+EXEC CONTROL_REGISTRAR 'msg_RotacionRangoPasado', 'Atención: el stock es el del día de hoy; la cobertura puede no ser representativa para rangos que terminan antes de hoy.'
+GO
+
+DECLARE @espIdRot2 INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @ingIdRot2 INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @ptIdRot2  INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cidRot2   INT
+SET @cidRot2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_clas_Alta')
+EXEC TRADUCCION_GUARDAR @espIdRot2, @cidRot2, 'Alta rotación'
+EXEC TRADUCCION_GUARDAR @ingIdRot2, @cidRot2, 'High rotation'
+EXEC TRADUCCION_GUARDAR @ptIdRot2, @cidRot2, 'Alta rotação'
+SET @cidRot2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_clas_Media')
+EXEC TRADUCCION_GUARDAR @espIdRot2, @cidRot2, 'Rotación media'
+EXEC TRADUCCION_GUARDAR @ingIdRot2, @cidRot2, 'Medium rotation'
+EXEC TRADUCCION_GUARDAR @ptIdRot2, @cidRot2, 'Rotação média'
+SET @cidRot2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_clas_Baja')
+EXEC TRADUCCION_GUARDAR @espIdRot2, @cidRot2, 'Baja rotación'
+EXEC TRADUCCION_GUARDAR @ingIdRot2, @cidRot2, 'Low rotation'
+EXEC TRADUCCION_GUARDAR @ptIdRot2, @cidRot2, 'Baixa rotação'
+SET @cidRot2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_clas_SinMovimiento')
+EXEC TRADUCCION_GUARDAR @espIdRot2, @cidRot2, 'Sin movimiento'
+EXEC TRADUCCION_GUARDAR @ingIdRot2, @cidRot2, 'No movement'
+EXEC TRADUCCION_GUARDAR @ptIdRot2, @cidRot2, 'Sem movimento'
+SET @cidRot2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_rec_Urgente')
+EXEC TRADUCCION_GUARDAR @espIdRot2, @cidRot2, 'Reponer urgente'
+EXEC TRADUCCION_GUARDAR @ingIdRot2, @cidRot2, 'Replenish urgently'
+EXEC TRADUCCION_GUARDAR @ptIdRot2, @cidRot2, 'Repor com urgência'
+SET @cidRot2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_rec_Reponer')
+EXEC TRADUCCION_GUARDAR @espIdRot2, @cidRot2, 'Reponer'
+EXEC TRADUCCION_GUARDAR @ingIdRot2, @cidRot2, 'Replenish'
+EXEC TRADUCCION_GUARDAR @ptIdRot2, @cidRot2, 'Repor'
+SET @cidRot2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_rec_Mantener')
+EXEC TRADUCCION_GUARDAR @espIdRot2, @cidRot2, 'Mantener'
+EXEC TRADUCCION_GUARDAR @ingIdRot2, @cidRot2, 'Keep'
+EXEC TRADUCCION_GUARDAR @ptIdRot2, @cidRot2, 'Manter'
+SET @cidRot2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_rec_Sobrestock')
+EXEC TRADUCCION_GUARDAR @espIdRot2, @cidRot2, 'Sobrestock / no reponer'
+EXEC TRADUCCION_GUARDAR @ingIdRot2, @cidRot2, 'Overstock / do not replenish'
+EXEC TRADUCCION_GUARDAR @ptIdRot2, @cidRot2, 'Excesso de estoque / não repor'
+SET @cidRot2 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'msg_RotacionRangoPasado')
+EXEC TRADUCCION_GUARDAR @espIdRot2, @cidRot2, 'Atención: el stock es el del día de hoy; la cobertura puede no ser representativa para rangos que terminan antes de hoy.'
+EXEC TRADUCCION_GUARDAR @ingIdRot2, @cidRot2, 'Warning: stock reflects today only; coverage may not be representative for ranges that end before today.'
+EXEC TRADUCCION_GUARDAR @ptIdRot2, @cidRot2, 'Atenção: o estoque é o de hoje; a cobertura pode não ser representativa para períodos que terminam antes de hoje.'
+GO
+
+-- ============================================================
+-- i18n — D02 Ayuda en línea: menú Ayuda, ventana frmAyuda y rótulos de sus secciones.
+-- El contenido de los temas (CAPAS/Ayuda/ayuda_es.xml) está solo en español; acá se traduce
+-- la interfaz de la ayuda. Idempotente: CONTROL_REGISTRAR y TRADUCCION_GUARDAR son upserts.
+-- ============================================================
+EXEC CONTROL_REGISTRAR 'ayudaToolStripMenuItem', 'Ayuda'
+EXEC CONTROL_REGISTRAR 'ayudaEnLineaToolStripMenuItem', 'Ayuda en línea (F1)'
+EXEC CONTROL_REGISTRAR 'acercaDeToolStripMenuItem', 'Acerca de'
+EXEC CONTROL_REGISTRAR 'ayuda_acercaDe_version', 'Versión'
+EXEC CONTROL_REGISTRAR 'frmAyuda', 'Ayuda en línea'
+EXEC CONTROL_REGISTRAR 'lblBuscarAyuda', 'Buscar:'
+EXEC CONTROL_REGISTRAR 'ayuda_sec_Resumen', 'Qué es'
+EXEC CONTROL_REGISTRAR 'ayuda_sec_Permiso', 'Quién puede usarlo'
+EXEC CONTROL_REGISTRAR 'ayuda_sec_Pasos', 'Paso a paso'
+EXEC CONTROL_REGISTRAR 'ayuda_sec_Reglas', 'Reglas aplicables'
+EXEC CONTROL_REGISTRAR 'ayuda_sec_Mensajes', 'Mensajes frecuentes'
+EXEC CONTROL_REGISTRAR 'ayuda_sec_Temas', 'Temas de esta área'
+EXEC CONTROL_REGISTRAR 'ayuda_sinResultados', 'No se encontraron temas para la búsqueda.'
+EXEC CONTROL_REGISTRAR 'ayuda_contenidoSoloEs', 'El contenido de la ayuda está disponible en español.'
+GO
+
+DECLARE @espIdAy INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @ingIdAy INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @ptIdAy  INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cidAy   INT
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ayudaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'Ayuda'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'Help'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'Ajuda'
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ayudaEnLineaToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'Ayuda en línea (F1)'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'Online help (F1)'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'Ajuda online (F1)'
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'acercaDeToolStripMenuItem')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'Acerca de'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'About'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'Sobre'
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ayuda_acercaDe_version')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'Versión'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'Version'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'Versão'
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'frmAyuda')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'Ayuda en línea'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'Online help'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'Ajuda online'
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblBuscarAyuda')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'Buscar:'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'Search:'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'Pesquisar:'
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ayuda_sec_Resumen')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'Qué es'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'What it is'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'O que é'
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ayuda_sec_Permiso')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'Quién puede usarlo'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'Who can use it'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'Quem pode usar'
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ayuda_sec_Pasos')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'Paso a paso'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'Step by step'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'Passo a passo'
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ayuda_sec_Reglas')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'Reglas aplicables'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'Applicable rules'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'Regras aplicáveis'
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ayuda_sec_Mensajes')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'Mensajes frecuentes'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'Common messages'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'Mensagens frequentes'
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ayuda_sec_Temas')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'Temas de esta área'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'Topics in this area'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'Tópicos desta área'
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ayuda_sinResultados')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'No se encontraron temas para la búsqueda.'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'No topics found for this search.'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'Nenhum tópico encontrado para esta pesquisa.'
+SET @cidAy = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'ayuda_contenidoSoloEs')
+EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'El contenido de la ayuda está disponible en español.'
+EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'Help content is available in Spanish only.'
+EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'O conteúdo da ajuda está disponível apenas em espanhol.'
+GO

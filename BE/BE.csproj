@@ -47,6 +47,8 @@
     <Compile Include="AlertaStockMinimo.cs" />
     <Compile Include="CajaVino.cs" />
     <Compile Include="CONTROL_IDIOMA.cs" />
+    <Compile Include="ConfiguracionRotacion.cs" />
+    <Compile Include="ResultadoRotacion.cs" />
     <Compile Include="EstadoCaja.cs" />
     <Compile Include="EstadoSolicitud.cs" />
     <Compile Include="EstadoVino.cs" />

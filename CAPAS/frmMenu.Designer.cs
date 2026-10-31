@@ -30,6 +30,7 @@ namespace CAPAS
             this.ajusteInventarioToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.alertaStockToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.autorizarBajaVinoToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.rotacionStockToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.clubSociosToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.sociosToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.armarCajaToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -104,7 +105,8 @@ namespace CAPAS
             this.ajusteInventarioToolStripMenuItem,
             this.alertaStockToolStripMenuItem,
             this.autorizarVinoToolStripMenuItem,
-            this.autorizarBajaVinoToolStripMenuItem});
+            this.autorizarBajaVinoToolStripMenuItem,
+            this.rotacionStockToolStripMenuItem});
             this.catalogoToolStripMenuItem.Name = "catalogoToolStripMenuItem";
             this.catalogoToolStripMenuItem.Size = new System.Drawing.Size(100, 29);
             this.catalogoToolStripMenuItem.Text = "Catálogo";
@@ -132,6 +134,10 @@ namespace CAPAS
             this.autorizarBajaVinoToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
             this.autorizarBajaVinoToolStripMenuItem.Text = "Autorizar descontinuación de vinos";
             this.autorizarBajaVinoToolStripMenuItem.Click += new System.EventHandler(this.autorizarBajaVinoToolStripMenuItem_Click);
+            this.rotacionStockToolStripMenuItem.Name = "rotacionStockToolStripMenuItem";
+            this.rotacionStockToolStripMenuItem.Size = new System.Drawing.Size(280, 34);
+            this.rotacionStockToolStripMenuItem.Text = "Analizar rotación de stock";
+            this.rotacionStockToolStripMenuItem.Click += new System.EventHandler(this.rotacionStockToolStripMenuItem_Click);
             this.clubSociosToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.sociosToolStripMenuItem,
             this.armarCajaToolStripMenuItem,
@@ -214,6 +220,7 @@ namespace CAPAS
         private System.Windows.Forms.ToolStripMenuItem ajusteInventarioToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem alertaStockToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem autorizarBajaVinoToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem rotacionStockToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem clubSociosToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem sociosToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem armarCajaToolStripMenuItem;
