@@ -1,0 +1,64 @@
+@startuml DiagramaSecuencia_CU03_CerrarSesion
+
+title CU-03 — Cerrar Sesión — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Usuario"        as U
+participant ":frmMenu"        as FM #FEFECE
+participant ":LogIn"          as L  #FEFECE
+participant ":BitacoraBLL"    as BB #E8F4E8
+participant ":SessionManager" as SM #F4E8E8
+participant ":IdiomaManager"  as IDM #F4E8E8
+participant ":BitacoraDAL"    as BD #E8E8F4
+database    ":DB"             as DB #EEEEEE
+
+note over FM
+  Precondición: sesión activa,
+  menú principal abierto.
+end note
+
+== 1. Solicitud de cierre ==
+
+U -> FM : menú Usuario > click "Cerrar Sesion"
+activate FM
+
+FM -> SM : getUsuario()
+SM --> FM : BE.USUARIO (se usa .Usuario)
+
+== 2. Registro y cierre de sesión ==
+
+FM -> BB : RegistrarLogout(usuario)
+activate BB
+BB -> BD : Registrar(usuario, "LOGOUT")
+BD -> DB : BITACORA_INSERTAR(@usuario, @accion)
+BB --> FM : (evento registrado)
+deactivate BB
+
+FM -> SM : cerrarSesion()
+note right of SM
+  anula el usuario, los permisos
+  y la instancia para permitir
+  re-autenticación
+end note
+
+== 3. Vuelta al login ==
+
+FM -> L : new LogIn().Show()
+note right of L : el LogIn original quedó oculto\n(this.Hide() de CU-01) y no se cierra;\nse muestra una instancia nueva
+FM -> FM : this.Close()
+FM -> IDM : Desregistrar(this)
+note right of IDM : por el evento FormClosed de frmMenu
+deactivate FM
+
+L --> U : formulario de login visible
+
+@enduml

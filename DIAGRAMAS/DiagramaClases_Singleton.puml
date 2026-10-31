@@ -20,7 +20,7 @@ package "SeguridadYServicios" #F4E8E8 {
     + getUsuario() : USUARIO
     + setUsuario(usuario : USUARIO)
     + setPermisos(permisos : List<string>)
-    + TienePermiso(nombre : string) : bool
+    + TienePermiso(nombrePermiso : string) : bool
     + EsAdmin() : bool
     + cerrarSesion()
   }
@@ -31,15 +31,23 @@ package "SeguridadYServicios" #F4E8E8 {
     - _observers : List<IObservadorIdioma>
     - _traducciones : Dictionary<string,string>
     - _idiomaActivo : IDIOMA
+    + IdiomaActivo : IDIOMA
     --
     - IdiomaManager()
     + {static} getInstance() : IdiomaManager
     + Registrar(obs : IObservadorIdioma)
     + Desregistrar(obs : IObservadorIdioma)
-    + CambiarIdioma(idioma : IDIOMA, traducciones : Dictionary)
+    + CambiarIdioma(idioma : IDIOMA, traducciones : Dictionary<string,string>)
+    - Notificar()
     + Traducir(clave : string) : string
   }
 }
+
+package "BE" #FEFECE {
+  class IDIOMA
+}
+
+IdiomaManager --> IDIOMA : IdiomaActivo >
 
 ' ─────────────────────────────────────────
 ' Comentarios sobre la implementación del patrón
@@ -92,11 +100,24 @@ end note
 ' Clientes (uso del singleton)
 ' ─────────────────────────────────────────
 
-class "LogIn" as LogIn <<Form>>
-class "frmMenu / demás Forms" as OtrosForms <<Form>>
+package "BLL" #FFE6CC {
+  class LoginBLL <<BLL>>
+  class UsuarioBLL <<BLL>>
+  class UsuarioPerfilBLL <<BLL>>
+  class UsuarioHistorialBLL <<BLL>>
+}
 
-LogIn ..> SessionManager : getInstance()\n.setUsuario() / .setPermisos()
-OtrosForms ..> SessionManager : getInstance()\n.TienePermiso() / .EsAdmin()
+package "CAPAS" #F8CECC {
+  class "LogIn" as LogIn <<Form>>
+  class "frmMenu / demás Forms" as OtrosForms <<Form>>
+}
+
+LoginBLL ..> SessionManager : getInstance()\n.setUsuario() / .setPermisos()
+UsuarioPerfilBLL ..> SessionManager : getInstance()\n.getUsuario() / .setUsuario() / .setPermisos()
+UsuarioHistorialBLL ..> SessionManager : getInstance()\n.getUsuario() / .setUsuario() / .setPermisos()
+UsuarioBLL ..> SessionManager : getInstance()\n.getUsuario()
+LogIn ..> SessionManager : getInstance()\n.getUsuario() / .TienePermiso() / .cerrarSesion()
+OtrosForms ..> SessionManager : getInstance()\n.getUsuario() / .TienePermiso()
 OtrosForms ..> IdiomaManager : getInstance()\n.Registrar(this) / .Traducir()
 
 note bottom of OtrosForms

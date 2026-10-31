@@ -30,6 +30,8 @@ sqlcmd -S . -d BDCAPAS -E -I -f 65001 -i "DAL\script.sql"
 
 The script is append-only and mostly idempotent: `CONTROL_REGISTRAR` and `TRADUCCION_GUARDAR` are upserts, but early `CREATE TABLE` / `CREATE PROCEDURE` blocks will error if objects already exist (harmless — the rest of the batch still runs). Later blocks use `IF OBJECT_ID ... DROP` before recreating, so they are fully idempotent.
 
+**Datos de prueba** — el final de `DAL/script.sql` (sección `-- DATOS DE PRUEBA`) siembra, de forma idempotente, datos para recorrer los CU-21..CU-32 sin cargar nada a mano: 3 bodegas más, 15 vinos `DEMO-001..015` en todos los estados (9 Activo, 3 Pendiente, 2 Rechazado con motivo, 1 Descontinuado; 19 solicitudes, entre ellas una BAJA Pendiente en `DEMO-008` y una BAJA Rechazada en `DEMO-009`), kardex coherente (stock 0 en `DEMO-007/008/015`, stock bajo mínimo en `DEMO-005/006/007/008`, `DEMO-009` con stock para ver RN-15), 7 socios, 6 cajas (2 Despachadas, 2 Armadas listas, 1 Armada que exige sustitución, 1 con sustitución ya hecha, 1 Cancelada) y bitácora de ejemplo. Un vino, socio o caja que ya existe no se vuelve a tocar, así que reejecutar el script no pisa lo operado desde la app. Cuentas de prueba, **todas con la contraseña `Club2026`** (`admin` conserva `1234`): `admin2` (Administrador, necesario por RN-01), `compras`/`compras2` (Encargado de Compras/Bodega), `deposito` (Encargado de Depósito), `curador` (Curador de Producto), `atencion` (Atención al Socio), `logistica` (Logística), `usuario1` (Usuario) y `bloqueado1` (Usuario, cuenta bloqueada). Los usuarios se insertan con `DVH = 0` y, solo si se agregó alguno, el script borra los DVV de `USUARIO`: en el siguiente inicio la app recalcula la integridad sola (mismo procedimiento que el reset de abajo), sin avisar de manipulación.
+
 **Resetting integrity for testing** — if you need to force the app to reinitialize DVH/DVV (e.g., after a direct DB edit):
 ```sql
 DELETE FROM DIGITO_VERIFICADOR_VERTICAL WHERE TABLA = 'USUARIO';
@@ -308,7 +310,7 @@ Regenerar un PNG individual (desde `DIAGRAMAS/`):
 python generar_png.py <archivo.puml> <archivo.png>
 ```
 
-`DiagramaClases.puml` es tan ancho que excede el límite de 4096 px de PlantUML y su PNG sale recortado (limitación previa, no del contenido); además la URL GET de `generar_png.py` da HTTP 414 con ese archivo, por lo que hay que hacer POST del texto a `https://kroki.io/plantuml/png`.
+`DiagramaClases.puml` es muy grande: la URL GET de `generar_png.py` da HTTP 414 y el PNG de PlantUML se recorta a 4096 px. Se renderiza con POST del texto a `https://kroki.io/plantuml/svg` (header `User-Agent: Mozilla/5.0`) y conversión local del SVG a PNG con Edge headless (cairosvg no funciona aquí). El layout vertical (capas apiladas, clases en grilla) está en el bloque final del `.puml`.
 
 Regenerar en lote todos los diagramas de secuencia (con reintentos):
 

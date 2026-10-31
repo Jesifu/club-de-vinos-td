@@ -22,28 +22,46 @@ note over FI
   Precondición: sesión activa,
   permiso "Gestión de idiomas",
   existe al menos un idioma.
+  Al abrirse, frmIdiomas se registra en IdiomaManager, carga la
+  grilla de idiomas (CargarIdiomas), traduce sus controles y
+  agrega el selector de idiomas.
 end note
 
 == 1. Selección ==
 
 A -> FI : seleccionar un idioma en la grilla
-FI -> FI : dgvIdiomas_SelectionChanged\n→ _idiomaSeleccionado
+FI -> FI : dgvIdiomas_SelectionChanged\n→ _idiomaSeleccionado = CurrentRow?.DataBoundItem as IDIOMA
 
-A -> FI : click "Renombrar" o\n"Habilitar/Deshabilitar"
-
-opt 1a. ningún idioma seleccionado
-  FI --> A : "Seleccioná un idioma." (Aviso)
-  note right of FI : el caso de uso termina
+opt _idiomaSeleccionado != null
+  FI -> FI : CargarTraducciones()
+  FI -> IB : ListarControlesConTraduccion(idiomaId)
+  IB -> IDD : ListarControlesConTraduccion(idiomaId)
+  IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)
+  DB --> IDD : filas (ID, CLAVE, TEXTO_DEFAULT, TEXTO_TRADUCCION)
+  IDD --> IB : List<CONTROL_IDIOMA>
+  IB --> FI : List<CONTROL_IDIOMA>
+  FI -> FI : dgvTraducciones.DataSource = null;\ndgvTraducciones.DataSource = controles
+  note right of FI : la selección también carga la grilla de\ntraducciones del idioma (ver CU-19)
 end
 
-alt acción = Renombrar
+A -> FI : click "Renombrar idioma" o\n"Habilitar/Deshabilitar"
 
-  == 2a. Renombrar ==
+break 1a. ningún idioma seleccionado
+  FI --> A : "Seleccioná un idioma."\n(título "Aviso")
+  note right of FI
+    el caso de uso termina (el chequeo
+    se repite en cada uno de los dos handlers)
+  end note
+end
 
-  FI --> A : InputBox "Nuevo nombre:"\n(valor actual precargado)
+alt acción = Renombrar idioma
+
+  == Renombrar idioma ==
+
+  FI --> A : InputBox "Nuevo nombre:"\n(título "Renombrar idioma", valor actual precargado)
   A --> FI : ingresar nuevo nombre + Aceptar
 
-  opt 3a. nuevo nombre vacío o igual al actual
+  break 2a. nuevo nombre vacío (o solo espacios), cancelado o igual al actual
     FI -> FI : return (no hace nada)
     note right of FI : el caso de uso termina\nsin modificar el idioma
   end
@@ -54,17 +72,17 @@ alt acción = Renombrar
 
 else acción = Habilitar/Deshabilitar
 
-  == 2b. Alternar estado ==
+  == Habilitar / Deshabilitar ==
 
-  FI -> IB : ActualizarEstado(id, !habilitadoActual)
+  FI -> IB : ActualizarEstado(id, !_idiomaSeleccionado.Habilitado)
   IB -> IDD : ActualizarEstado(id, habilitado)
   IDD -> DB : IDIOMA_ACTUALIZAR_ESTADO(@id, @habilitado)
 
   note right of IB
-    RN-01: solo los idiomas
+    RT-01: solo los idiomas
     habilitados aparecen en el
     selector de los formularios.
-    RN-02: deshabilitar no borra
+    RT-02: deshabilitar no borra
     las traducciones — el idioma
     puede rehabilitarse sin pérdida.
   end note
@@ -79,7 +97,16 @@ IDD -> DB : IDIOMA_LISTAR_TODOS
 DB --> IDD : filas de IDIOMA
 IDD --> IB : List<IDIOMA>
 IB --> FI : List<IDIOMA>
-FI -> FI : dgvIdiomas.DataSource = idiomas
-FI --> A : grilla refrescada con\nel nuevo nombre / estado
+FI -> FI : dgvIdiomas.DataSource = null;\ndgvIdiomas.DataSource = idiomas
+FI -> FI : dgvIdiomas_SelectionChanged\n(al re-enlazar la grilla queda seleccionada\nla primera fila: _idiomaSeleccionado)
+FI -> FI : CargarTraducciones()
+FI -> IB : ListarControlesConTraduccion(idiomaId)
+IB -> IDD : ListarControlesConTraduccion(idiomaId)
+IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)
+DB --> IDD : filas (ID, CLAVE, TEXTO_DEFAULT, TEXTO_TRADUCCION)
+IDD --> IB : List<CONTROL_IDIOMA>
+IB --> FI : List<CONTROL_IDIOMA>
+FI -> FI : dgvTraducciones.DataSource = null;\ndgvTraducciones.DataSource = controles
+FI --> A : grilla refrescada con el nuevo nombre / estado\n(tras el re-enlace queda seleccionada la primera fila,\nno necesariamente el idioma editado)
 
 @enduml

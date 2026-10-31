@@ -4,7 +4,6 @@ skinparam classAttributeIconSize 0
 skinparam packageStyle rectangle
 skinparam linetype ortho
 hide empty members
-scale 0.43
 
 ' ─────────────────────────────────────────
 ' CAPA BE
@@ -113,6 +112,7 @@ package "BE" #FEFECE {
     + Codigo : string
     + Nombre : string
     + BodegaId : int
+    + BodegaNombre : string
     + Varietal : string
     + Aniada : int
     + Precio : decimal
@@ -121,6 +121,7 @@ package "BE" #FEFECE {
     + Maridaje : string
     + Puntaje : int?
     + CreadoPor : int
+    + CreadoPorLogin : string
     + FechaAlta : DateTime
     + UltimaSolicitudTipo : TipoSolicitud?
     + UltimaSolicitudEstado : EstadoSolicitud?
@@ -131,10 +132,15 @@ package "BE" #FEFECE {
     + Id : int
     + Tipo : TipoSolicitud
     + VinoId : int
+    + VinoCodigo : string
+    + VinoNombre : string
+    + BodegaNombre : string
     + Estado : EstadoSolicitud
     + EmisorId : int
+    + EmisorLogin : string
     + FechaEmision : DateTime
     + ResolutorId : int?
+    + ResolutorLogin : string
     + FechaResolucion : DateTime?
     + MotivoRechazo : string
     + StockActual : int
@@ -147,11 +153,13 @@ package "BE" #FEFECE {
     + Pais : string
     + Region : string
     + Habilitado : bool
+    + ToString() : string
   }
 
   class MovimientoStock {
     + Id : int
     + VinoId : int
+    + VinoNombre : string
     + Fecha : DateTime
     + Tipo : TipoMovimiento
     + Cantidad : int
@@ -161,9 +169,21 @@ package "BE" #FEFECE {
     + ReferenciaId : int?
   }
 
+  class AlertaStockMinimo {
+    + VinoId : int
+    + Codigo : string
+    + Nombre : string
+    + BodegaNombre : string
+    + StockMinimo : int
+    + StockActual : int
+    + Faltante : int
+  }
+
   Vino --> EstadoVino
+  Vino --> TipoSolicitud
+  Vino --> EstadoSolicitud
   Vino --> Bodega : BodegaId >
-  SolicitudAutorizacion --> Vino : VinoId >
+  SolicitudAutorizacion "0..*" --> "1" Vino : Vino >
   SolicitudAutorizacion --> TipoSolicitud
   SolicitudAutorizacion --> EstadoSolicitud
   MovimientoStock --> TipoMovimiento
@@ -182,26 +202,35 @@ package "BE" #FEFECE {
     + Apellido : string
     + Email : string
     + Telefono : string
+    + Domicilio : string
     + PresupuestoMensual : decimal
     + Activo : bool
     + FechaAlta : DateTime
     + CreadoPor : int
+    + CreadoPorLogin : string
     + VarietalesPreferidos : List<string>
+    + ToString() : string
   }
 
   class CajaMensual {
     + Id : int
     + SocioId : int
+    + SocioNombre : string
+    + SocioDomicilio : string
+    + SocioTelefono : string
     + Periodo : string
     + Estado : EstadoCaja
     + PresupuestoSnapshot : decimal
     + FechaArmado : DateTime
     + ArmadoPor : int
+    + ArmadoPorLogin : string
     + FechaDespacho : DateTime?
     + DespachadoPor : int?
+    + DespachadoPorLogin : string
     + FechaCancelacion : DateTime?
     + CanceladaPor : int?
     + MotivoCancelacion : string
+    + Lineas : List<CajaVino>
   }
 
   class CajaVino {
@@ -211,6 +240,11 @@ package "BE" #FEFECE {
     + Cantidad : int
     + NombreSnapshot : string
     + PrecioSnapshot : decimal
+    + VinoEfectivoId : int
+    + NombreEfectivo : string
+    + PrecioEfectivo : decimal
+    + Sustituido : bool
+    + StockDisponible : int
   }
 
   class Sustitucion {
@@ -222,20 +256,26 @@ package "BE" #FEFECE {
     + PrecioSnapshot : decimal
     + Motivo : string
     + ResponsableId : int
+    + ResponsableLogin : string
     + Fecha : DateTime
   }
 
   class VinoCandidato {
-    + VinoId : int
+    + Id : int
+    + Codigo : string
     + Nombre : string
+    + BodegaNombre : string
+    + Varietal : string
+    + Aniada : int
     + Precio : decimal
     + Stock : int
     + Preferido : bool
+    + ToString() : string
   }
 
-  Socio        "1" o-- "0..*" CajaMensual : SocioId >
-  CajaMensual  "1" o-- "0..*" CajaVino    : CajaId >
-  CajaVino     "1" o-- "0..*" Sustitucion : CajaVinoId >
+  CajaMensual  "0..*" --> "1" Socio : SocioId >
+  CajaMensual  "1" o-- "0..*" CajaVino : Lineas
+  Sustitucion  "0..*" --> "1" CajaVino : CajaVinoId >
   CajaMensual  --> EstadoCaja
 
   abstract class NodoPermiso {
@@ -243,8 +283,8 @@ package "BE" #FEFECE {
     + Nombre : string
     + PadreId : int?
     + DVH : int
-    + {abstract} Agregar(n : NodoPermiso) : void
-    + {abstract} Quitar(n : NodoPermiso) : void
+    + {abstract} Agregar(nodo : NodoPermiso) : void
+    + {abstract} Quitar(nodo : NodoPermiso) : void
     + {abstract} ObtenerHijos() : IList<NodoPermiso>
     + {abstract} EsHoja() : bool
     + ToString() : string
@@ -253,15 +293,15 @@ package "BE" #FEFECE {
   class Rol {
     + Protegido : bool
     - _hijos : List<NodoPermiso>
-    + Agregar(n : NodoPermiso) : void
-    + Quitar(n : NodoPermiso) : void
+    + Agregar(nodo : NodoPermiso) : void
+    + Quitar(nodo : NodoPermiso) : void
     + ObtenerHijos() : IList<NodoPermiso>
     + EsHoja() : bool
   }
 
   class Permiso {
-    + Agregar(n : NodoPermiso) : void
-    + Quitar(n : NodoPermiso) : void
+    + Agregar(nodo : NodoPermiso) : void
+    + Quitar(nodo : NodoPermiso) : void
     + ObtenerHijos() : IList<NodoPermiso>
     + EsHoja() : bool
   }
@@ -278,10 +318,6 @@ package "SeguridadYServicios" #D5E8D4 {
 
   interface IObservadorIdioma {
     + ActualizarIdioma() : void
-  }
-
-  interface IEntidadVerificable {
-    + ObtenerAtributosParaDVH() : string[]
   }
 
   class Hasher <<static>> {
@@ -305,11 +341,11 @@ package "SeguridadYServicios" #D5E8D4 {
     - _permisos : List<string>
     + {static} getInstance() : SessionManager
     + getUsuario() : USUARIO
-    + setUsuario(u : USUARIO) : void
-    + setPermisos(p : List<string>) : void
-    + TienePermiso(permiso : string) : bool
-    + EsAdmin() : bool
+    + setUsuario(usuario : USUARIO) : void
+    + setPermisos(permisos : List<string>) : void
+    + TienePermiso(nombrePermiso : string) : bool
     + cerrarSesion() : void
+    + EsAdmin() : bool
   }
 
   class IdiomaManager <<singleton>> {
@@ -322,12 +358,13 @@ package "SeguridadYServicios" #D5E8D4 {
     + IdiomaActivo : IDIOMA
     + Registrar(obs : IObservadorIdioma) : void
     + Desregistrar(obs : IObservadorIdioma) : void
-    + CambiarIdioma(idioma : IDIOMA, trad : Dictionary<string,string>) : void
+    + CambiarIdioma(idioma : IDIOMA, traducciones : Dictionary<string, string>) : void
     - Notificar() : void
     + Traducir(clave : string) : string
   }
 
-  IdiomaManager "1" --> "0..*" IObservadorIdioma : notifica >
+  IdiomaManager "1" o-- "0..*" IObservadorIdioma : _observers
+  IdiomaManager --> IDIOMA : IdiomaActivo >
   SessionManager --> USUARIO : usa >
 }
 
@@ -344,29 +381,28 @@ package "DAL" #DAE8FC {
     + IniciarTx() : void
     + ConfirmarTX() : void
     + DeshacerTX() : void
-    + Escribir(sp : string, params : List<SqlParameter>?) : int
-    + Leer(sp : string, params : List<SqlParameter>?) : DataTable
+    + Escribir(sql : string, parametros : List<SqlParameter> = null) : int
+    + Leer(sql : string, parametros : List<SqlParameter> = null) : DataTable
     + CrearParametro(nombre : string, valor : string) : SqlParameter
     + CrearParametro(nombre : string, valor : int) : SqlParameter
   }
 
   class UsuarioDAL {
     - _acceso : Acceso
-    + ObtenerPorCredenciales(u : string, p : string) : USUARIO
-    + CambiarContrasena(u : string, hash : string) : bool
-    + EstaBloqueado(u : string) : bool
-    + IncrementarIntentos(u : string) : bool
-    + ResetearIntentos(u : string) : void
-    + ListarTodos() : List<USUARIO>
+    + ObtenerPorCredenciales(usuario : string, contrasena : string) : USUARIO
+    + CambiarContrasena(usuario : string, nuevaPassHash : string) : bool
+    + EstaBloqueado(usuario : string) : bool
+    + IncrementarIntentos(usuario : string) : bool
+    + ResetearIntentos(usuario : string) : void
     + ListarPaginado(busqueda : string, pagina : int, tamanio : int) : PaginaResultado<USUARIO>
     + Eliminar(id : int) : void
     + Crear(usuario : string, passHash : string, rolId : int, nombre : string, apellido : string, telefono : string = null, email : string = null) : bool
     + ObtenerPorId(id : int) : USUARIO
-    + ObtenerIdPorNombre(u : string) : int?
+    + ObtenerIdPorNombre(usuario : string) : int?
     + AplicarEstado(id : int, rol : string, bloqueado : bool, intentosFallidos : int, rolId : int? = null) : void
-    + ActualizarDatos(id : int, nombre : string, apellido : string, telefono : string, email : string) : void
+    + ActualizarDatos(id : int, nombre : string, apellido : string, telefono : string = null, email : string = null) : void
     + ActualizarIdioma(id : int, idiomaId : int) : void
-    + Desbloquear(u : string) : void
+    + Desbloquear(usuario : string) : void
   }
 
   class PerfilDAL {
@@ -375,8 +411,8 @@ package "DAL" #DAE8FC {
     + ListarPermisosDisponibles() : List<Permiso>
     + ListarRolPermisos() : List<Permiso>
     + GuardarPermisosDeRol(rolId : int, permisoIds : List<int>) : void
-    + TieneUsuariosAsignados(rolId : int) : bool
     + Insertar(nombre : string, padreId : int?) : int
+    + TieneUsuariosAsignados(rolId : int) : bool
     + CambiarPadre(rolId : int, nuevoPadreId : int?) : void
     + Eliminar(id : int) : void
     + ListarParaCombo() : List<Rol>
@@ -393,7 +429,6 @@ package "DAL" #DAE8FC {
   class BitacoraDAL {
     - _acceso : Acceso
     + Registrar(usuario : string, accion : string) : void
-    + Listar() : List<BITACORA>
     + ListarPaginado(usuario : string, accion : string, fechaDesde : DateTime?, fechaHasta : DateTime?, pagina : int, tamanio : int) : PaginaResultado<BITACORA>
     + ListarUsuariosDistinct() : List<string>
     + ListarAccionesDistinct() : List<string>
@@ -436,11 +471,13 @@ package "DAL" #DAE8FC {
     - _acceso : Acceso
     + Insertar(v : Vino) : void
     + Reproponer(v : Vino, emisorId : int) : int
+    + ListarCatalogo(usuarioId : int) : List<Vino>
     + ObtenerPorCodigo(codigo : string) : Vino
     + ObtenerPorId(id : int) : Vino
-    + ListarCatalogo(usuarioId : int) : List<Vino>
     + ListarAutorizados() : List<Vino>
     + SolicitarBaja(vinoId : int, solicitanteId : int) : int
+    + ListarBajoStockMinimo() : List<AlertaStockMinimo>
+    + ListarCandidatos(socioId : int) : List<VinoCandidato>
   }
 
   class SolicitudAutorizacionDAL {
@@ -452,20 +489,20 @@ package "DAL" #DAE8FC {
     + RechazarAlta(solicitudId : int, resolutorId : int, motivo : string) : int
     + AprobarBaja(solicitudId : int, resolutorId : int) : int
     + RechazarBaja(solicitudId : int, resolutorId : int, motivo : string) : int
+    ~ {static} TipoDesdeDb(valor : string) : TipoSolicitud
   }
 
   class BodegaDAL {
     - _acceso : Acceso
     + ListarHabilitadas() : List<Bodega>
-    + Insertar(bodega : Bodega) : int
   }
 
-  class StockDAL {
+  class MovimientoStockDAL {
     - _acceso : Acceso
-    + Insertar(mov : MovimientoStock) : void
-    + ObtenerStockActual(vinoId : int) : int
+    + Insertar(m : MovimientoStock) : void
+    + InsertarSalida(m : MovimientoStock) : int
     + ListarPorVino(vinoId : int) : List<MovimientoStock>
-    + ListarBajoStockMinimo() : List<Vino>
+    + ObtenerStockActual(vinoId : int) : int
   }
 
   UsuarioDAL --> Acceso
@@ -475,13 +512,14 @@ package "DAL" #DAE8FC {
   IntegridadDAL --> Acceso
   IdiomaDAL --> Acceso
   UsuarioHistorialDAL --> Acceso
-  UsuarioDAL --> PaginaResultado
-  BitacoraDAL --> PaginaResultado
-  UsuarioHistorialDAL --> PaginaResultado
+  UsuarioDAL ..> PaginaResultado
+  BitacoraDAL ..> PaginaResultado
+  UsuarioHistorialDAL ..> PaginaResultado
   VinoDAL --> Acceso
   SolicitudAutorizacionDAL --> Acceso
   BodegaDAL --> Acceso
-  StockDAL --> Acceso
+  MovimientoStockDAL --> Acceso
+  VinoDAL ..> SolicitudAutorizacionDAL : TipoDesdeDb >
 
   ' ── Dominio: curación y armado de cajas mensuales ──
   class SocioDAL {
@@ -490,18 +528,15 @@ package "DAL" #DAE8FC {
     + Actualizar(s : Socio) : void
     + ObtenerPorId(id : int) : Socio
     + ListarActivos() : List<Socio>
-    + LimpiarVarietales(socioId : int) : void
-    + InsertarVarietal(socioId : int, varietal : string) : void
-    + ListarCatalogoVarietales() : List<string>
+    + ListarVarietalesDeCatalogo() : List<string>
   }
 
   class CajaMensualDAL {
     - _acceso : Acceso
     + Armar(caja : CajaMensual) : int
-    + ObtenerConComposicionEfectiva(cajaId : int) : CajaMensual
     + ObtenerPorId(id : int) : CajaMensual
+    + ListarComposicionEfectiva(cajaId : int) : List<CajaVino>
     + ListarPorEstado(estado : string) : List<CajaMensual>
-    + ListarPorSocio(socioId : int) : List<CajaMensual>
     + Despachar(cajaId : int, despachadoPor : int, responsableLogin : string) : int
     + Cancelar(cajaId : int, motivo : string, canceladaPor : int) : int
   }
@@ -533,9 +568,9 @@ package "BLL" #FFE6CC {
     - _dal : IntegridadDAL
     - _perfilDal : UsuarioPerfilDAL
     - ExtraerAtributosUsuario(fila : DataRow, perfilesStr : string) : string[]
-    - ObtenerPerfilesStr(id : int) : string
-    - VerificarTabla(...) : void
-    - RecalcularTabla(...) : void
+    - ObtenerPerfilesStr(usuarioId : int) : string
+    - VerificarTabla(nombreTabla : string, columnas : string[], datos : DataTable, extraerAtributos : Func<DataRow, string[]>, resultado : ResultadoIntegridad) : void
+    - RecalcularTabla(nombreTabla : string, columnas : string[], datos : DataTable, extraerAtributos : Func<DataRow, string[]>, actualizarDVH : Action<int, int>) : void
     + VerificarIntegridad() : ResultadoIntegridad
     + RecalcularIntegridadUsuarios() : void
     + RecalcularIntegridad() : void
@@ -548,15 +583,14 @@ package "BLL" #FFE6CC {
     - _integridad : IntegridadBLL
     - _historial : UsuarioHistorialBLL
     + ObtenerPorId(id : int) : USUARIO
-    + VerificarContrasena(u : string, contrasena : string) : bool
-    + CambiarContrasena(u : string, nuevaContrasena : string) : bool
-    + ListarTodos() : List<USUARIO>
+    + VerificarContrasena(usuario : string, contrasena : string) : bool
+    + CambiarContrasena(usuario : string, nuevaContrasena : string) : bool
     + ListarPaginado(busqueda : string, pagina : int, tamanio : int) : PaginaResultado<USUARIO>
     + Eliminar(id : int) : void
     + Crear(usuario : string, contrasena : string, rolId : int, nombre : string, apellido : string, telefono : string = null, email : string = null) : bool
-    + ActualizarDatos(id : int, nombre : string, apellido : string, telefono : string, email : string) : void
+    + ActualizarDatos(id : int, nombre : string, apellido : string, telefono : string = null, email : string = null) : void
     + ActualizarIdioma(id : int, idiomaId : int) : void
-    + Desbloquear(u : string) : void
+    + Desbloquear(usuario : string) : void
   }
 
   class LoginBLL {
@@ -595,7 +629,6 @@ package "BLL" #FFE6CC {
     + RegistrarLogin(usuario : string) : void
     + RegistrarLogout(usuario : string) : void
     + RegistrarAccion(usuario : string, accion : string) : void
-    + Listar() : List<BITACORA>
     + ListarPaginado(usuario : string, accion : string, fechaDesde : DateTime?, fechaHasta : DateTime?, pagina : int, tamanio : int) : PaginaResultado<BITACORA>
     + ListarUsuariosDistinct() : List<string>
     + ListarAccionesDistinct() : List<string>
@@ -621,17 +654,21 @@ package "BLL" #FFE6CC {
     - _dal : UsuarioHistorialDAL
     - _usuarioDal : UsuarioDAL
     - _perfilDal : UsuarioPerfilDAL
-    - ParsearPerfiles(perfilesStr : string) : List<int>
-    + RegistrarCambio(usuarioId : int, tipo : string, realizadoPor : string, versionOrigen : int?) : void
+    + RegistrarCambio(usuarioId : int, tipoCambio : string, realizadoPor : string, versionOrigen : int? = null) : void
     + ObtenerHistorial(usuarioId : int) : List<UsuarioHistorial>
     + ObtenerHistorialPaginado(usuarioId : int, pagina : int, tamanio : int) : PaginaResultado<UsuarioHistorial>
     + Rollback(historialId : int, realizadoPor : string) : void
+    - ParsearPerfiles(perfilesStr : string) : List<int>
   }
 
   ' ── Dominio: catálogo y stock de vinos ──
   class VinoBLL {
     - _dal : VinoDAL
     - _solicitudDal : SolicitudAutorizacionDAL
+    - _bodegaDal : BodegaDAL
+    - _movimientoDal : MovimientoStockDAL
+    - _bitacora : BitacoraBLL
+    + ListarBodegas() : List<Bodega>
     + ProponerAlta(v : Vino, sesion : USUARIO) : void
     + Reproponer(v : Vino, sesion : USUARIO) : void
     + ListarCatalogo(sesion : USUARIO) : List<Vino>
@@ -642,21 +679,18 @@ package "BLL" #FFE6CC {
     + SolicitarBaja(vinoId : int, sesion : USUARIO) : void
     + AutorizarBaja(solicitudId : int, sesion : USUARIO) : void
     + RechazarBaja(solicitudId : int, motivo : string, sesion : USUARIO) : void
+    + ListarAlertaStockMinimo() : List<AlertaStockMinimo>
   }
 
-  class BodegaBLL {
-    - _dal : BodegaDAL
-    + ListarHabilitadas() : List<Bodega>
-    + Crear(bodega : Bodega) : int
-  }
-
-  class StockBLL {
-    - _dal : StockDAL
-    + RegistrarEntrada(mov : MovimientoStock) : void
-    + RegistrarSalida(mov : MovimientoStock) : void
+  class MovimientoStockBLL {
+    - _dal : MovimientoStockDAL
+    - _vinoDal : VinoDAL
+    - _bitacora : BitacoraBLL
+    + RegistrarEntrada(m : MovimientoStock, sesion : USUARIO) : void
+    + RegistrarSalida(m : MovimientoStock, sesion : USUARIO) : void
+    + {static} ReferenciaAjuste : string = "AJUSTE"
     + ObtenerStockActual(vinoId : int) : int
-    + ListarKardex(vinoId : int) : List<MovimientoStock>
-    + ListarBajoStockMinimo() : List<Vino>
+    + ObtenerMovimientos(vinoId : int) : List<MovimientoStock>
   }
 
   IntegridadBLL --> IntegridadDAL
@@ -667,127 +701,210 @@ package "BLL" #FFE6CC {
   UsuarioBLL --> UsuarioHistorialBLL
   LoginBLL --> UsuarioDAL
   LoginBLL --> BitacoraBLL
-  LoginBLL --> UsuarioPerfilBLL
+  LoginBLL ..> IdiomaBLL
   LoginBLL --> UsuarioHistorialBLL
-  LoginBLL --> IdiomaBLL
-  LoginBLL --> IdiomaManager
+  LoginBLL --> UsuarioPerfilBLL
   PerfilBLL --> PerfilDAL
-  UsuarioPerfilBLL --> UsuarioPerfilDAL
   UsuarioPerfilBLL --> UsuarioDAL
+  UsuarioPerfilBLL --> UsuarioPerfilDAL
   UsuarioPerfilBLL --> IntegridadBLL
   UsuarioPerfilBLL --> UsuarioHistorialBLL
   BitacoraBLL --> BitacoraDAL
   IdiomaBLL --> IdiomaDAL
-  UsuarioHistorialBLL --> UsuarioHistorialDAL
   UsuarioHistorialBLL --> UsuarioDAL
+  UsuarioHistorialBLL --> UsuarioHistorialDAL
   UsuarioHistorialBLL --> UsuarioPerfilDAL
-  UsuarioHistorialBLL --> IntegridadBLL
-  LoginBLL --> LoginResultado
-  UsuarioBLL --> PaginaResultado
-  BitacoraBLL --> PaginaResultado
-  UsuarioHistorialBLL --> PaginaResultado
-  VinoBLL --> VinoDAL
+  UsuarioHistorialBLL ..> IntegridadBLL
+  VinoBLL --> BodegaDAL
+  VinoBLL --> MovimientoStockDAL
   VinoBLL --> SolicitudAutorizacionDAL
-  BodegaBLL --> BodegaDAL
-  StockBLL --> StockDAL
+  VinoBLL --> VinoDAL
+  VinoBLL --> BitacoraBLL
+  MovimientoStockBLL --> MovimientoStockDAL
+  MovimientoStockBLL --> VinoDAL
+  MovimientoStockBLL --> BitacoraBLL
+  IntegridadBLL ..> CalculadorDVH
+  UsuarioBLL ..> SessionManager
+  UsuarioBLL ..> Hasher
+  LoginBLL ..> IdiomaManager
+  LoginBLL ..> SessionManager
+  LoginBLL ..> Hasher
+  UsuarioPerfilBLL ..> SessionManager
+  UsuarioHistorialBLL ..> SessionManager
+  IntegridadBLL ..> ResultadoIntegridad
+  LoginBLL ..> LoginResultado
+  UsuarioBLL ..> PaginaResultado
+  BitacoraBLL ..> PaginaResultado
+  UsuarioHistorialBLL ..> PaginaResultado
 
   ' ── Dominio: curación y armado de cajas mensuales ──
   class SocioBLL {
     - _dal : SocioDAL
+    - _bitacora : BitacoraBLL
     + ListarActivos() : List<Socio>
     + ObtenerPorId(id : int) : Socio
     + ListarVarietalesDeCatalogo() : List<string>
-    + Registrar(s : Socio, sesion : BE.USUARIO) : void
-    + Actualizar(s : Socio, sesion : BE.USUARIO) : void
+    + Registrar(s : Socio, sesion : USUARIO) : void
+    + Actualizar(s : Socio, sesion : USUARIO) : void
   }
 
   class CajaMensualBLL {
     - _dal : CajaMensualDAL
+    - _vinoDal : VinoDAL
+    - _socioDal : SocioDAL
+    - _sustitucionDal : SustitucionDAL
+    - _bitacora : BitacoraBLL
     + ListarCandidatos(socioId : int) : List<VinoCandidato>
     + CalcularTotal(lineas : IEnumerable<CajaVino>) : decimal
-    + Armar(caja : CajaMensual, sesion : BE.USUARIO) : int
+    + ListarArmadas() : List<CajaMensual>
+    + ListarDespachadas() : List<CajaMensual>
+    + Armar(caja : CajaMensual, sesion : USUARIO) : int
     + ObtenerConComposicionEfectiva(cajaId : int) : CajaMensual
-    + RegistrarSustitucion(cajaVinoId : int, vinoReemplazoId : int, motivo : string, sesion : BE.USUARIO) : void
-    + Despachar(cajaId : int, sesion : BE.USUARIO) : void
-    + Cancelar(cajaId : int, motivo : string, sesion : BE.USUARIO) : void
+    + ListarTrazaSustituciones(cajaId : int) : List<Sustitucion>
+    + RegistrarSustitucion(cajaId : int, cajaVinoId : int, vinoReemplazoId : int, motivo : string, sesion : USUARIO) : void
+    + Despachar(cajaId : int, sesion : USUARIO) : void
+    + Cancelar(cajaId : int, motivo : string, sesion : USUARIO) : void
   }
 
   SocioBLL --> SocioDAL
+  SocioBLL --> BitacoraBLL
   CajaMensualBLL --> CajaMensualDAL
   CajaMensualBLL --> SocioDAL
-  CajaMensualBLL --> VinoDAL
   CajaMensualBLL --> SustitucionDAL
+  CajaMensualBLL --> VinoDAL
+  CajaMensualBLL --> BitacoraBLL
 }
 
 ' ─────────────────────────────────────────
-' CAPA CAPAS (presentacion)
+' CAPA CAPAS (presentación)
 ' ─────────────────────────────────────────
 package "CAPAS" #F8CECC {
 
   class IdiomaUIHelper <<static>> {
-    + {static} AgregarSelector(form : Form) : void
+    ~ {static} AgregarSelector(form : Form) : void
+  }
+
+  class FormBase {
+    # OnPaint(e : PaintEventArgs) : void
+  }
+
+  note right of FormBase : Hereda de ReaLTaiizor.Forms.MaterialForm
+
+  class AppTheme <<static>> {
+    ~ {static} AplicarTema(form : Form) : void
+    ~ {static} EstilizarMenuStrip(ms : MenuStrip) : void
+    ~ {static} EstilizarStatusStrip(ss : StatusStrip) : void
+  }
+
+  class MsgBox <<static>> {
+    ~ {static} Show(mensaje : string, titulo : string, botones : Botones = Botones.OK, icono : Icono = Icono.Info) : DialogResult
+  }
+
+  class FrmMensaje {
+    ~ FrmMensaje(mensaje : string, titulo : string, botones : MsgBox.Botones, icono : MsgBox.Icono)
+  }
+
+  class Program <<static>> {
+    ~ {static} ResultadoIntegridad : ResultadoIntegridad
+    ~ {static} GuardarLogIntegridad(errores : List<string>) : void
+  }
+
+  class RemitoDespachoPdf <<static>> {
+    ~ {static} Generar(caja : CajaMensual) : string
+    ~ {static} Abrir(rutaPdf : string) : void
   }
 
   together {
     class LogIn {
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + LogIn()
       + ActualizarIdioma() : void
     }
     class frmMenu {
       - _menuItems : Dictionary<string, ToolStripItem>
       - _menuDefaults : Dictionary<string, string>
+      + frmMenu()
+      + ActualizarVisibilidadMenu() : void
       + ActualizarIdioma() : void
     }
     class frmAdminUsuarios {
+      - _bll : UsuarioBLL
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmAdminUsuarios()
       + ActualizarIdioma() : void
       - ActualizarEncabezados() : void
     }
     class frmNuevoUsuario {
+      - _perfilBll : PerfilBLL
+      + NombreUsuario : string
+      + Contrasena : string
+      + RolId : int
+      + Nombre : string
+      + Apellido : string
+      + Telefono : string
+      + Email : string
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmNuevoUsuario()
       + ActualizarIdioma() : void
     }
     class frmEditarUsuario {
+      + Nombre : string
+      + Apellido : string
+      + Telefono : string
+      + Email : string
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmEditarUsuario(usuario : USUARIO)
       + ActualizarIdioma() : void
     }
     class frmContraseña {
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmContraseña()
       + ActualizarIdioma() : void
     }
   }
 
   together {
     class frmHistorialUsuario {
+      - _bll : UsuarioHistorialBLL
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmHistorialUsuario(usuario : USUARIO)
       + ActualizarIdioma() : void
       - ActualizarEncabezados() : void
     }
     class frmBitacora {
+      - _bll : BitacoraBLL
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmBitacora()
       + ActualizarIdioma() : void
       - ActualizarEncabezados() : void
     }
     class frmPerfiles {
+      - _bll : PerfilBLL
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmPerfiles()
       + ActualizarIdioma() : void
     }
     class frmAsignarPerfiles {
+      - _perfilBll : PerfilBLL
+      - _asignacionBll : UsuarioPerfilBLL
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmAsignarPerfiles(usuario : USUARIO)
       + ActualizarIdioma() : void
     }
     class frmIdiomas {
+      - _bll : IdiomaBLL
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmIdiomas()
       + ActualizarIdioma() : void
       - ActualizarEncabezados() : void
     }
@@ -797,41 +914,132 @@ package "CAPAS" #F8CECC {
     - _resultado : ResultadoIntegridad
     - _usuarioBll : UsuarioBLL
     - _historialBll : UsuarioHistorialBLL
+    + frmRestaurarIntegridad(resultado : ResultadoIntegridad)
   }
 
   ' ── Dominio: catálogo y stock de vinos ──
   together {
     class frmCatalogoVinos {
+      - _bll : VinoBLL
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmCatalogoVinos()
       + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
     }
-    class frmNuevoVino {
+    class frmAutorizarAltaVino {
+      - _bll : VinoBLL
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmAutorizarAltaVino()
       + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
     }
-    class frmAutorizarVinos {
+    class frmAutorizarBajaVino {
+      - _bll : VinoBLL
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmAutorizarBajaVino()
       + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
     }
-    class frmMovimientoStock {
+    class frmRegistrarEntradaStock {
+      - _bll : MovimientoStockBLL
+      - _vinoBll : VinoBLL
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmRegistrarEntradaStock()
       + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
     }
-    class frmKardexVino {
+    class frmRegistrarAjusteInventario {
+      - _bll : MovimientoStockBLL
+      - _vinoBll : VinoBLL
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmRegistrarAjusteInventario()
       + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
     }
     class frmAlertaStockMinimo {
+      - _bll : VinoBLL
       - _controles : Dictionary<string, Control>
       - _defaults : Dictionary<string, string>
+      + frmAlertaStockMinimo()
       + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
     }
   }
+
+  ' ── Dominio: curación y armado de cajas mensuales ──
+  together {
+    class frmSocios {
+      - _bll : SocioBLL
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + frmSocios()
+      + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
+    }
+    class frmArmarCaja {
+      - _bll : CajaMensualBLL
+      - _socioBll : SocioBLL
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + frmArmarCaja()
+      + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
+    }
+    class frmPickingCaja {
+      - _bll : CajaMensualBLL
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + frmPickingCaja()
+      + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
+    }
+    class frmDespacharCaja {
+      - _bll : CajaMensualBLL
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + frmDespacharCaja()
+      + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
+    }
+    class frmHistorialDespachos {
+      - _bll : CajaMensualBLL
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + frmHistorialDespachos()
+      + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
+    }
+  }
+
+  FormBase <|-- LogIn
+  FormBase <|-- frmMenu
+  FormBase <|-- frmAdminUsuarios
+  FormBase <|-- frmNuevoUsuario
+  FormBase <|-- frmEditarUsuario
+  FormBase <|-- frmContraseña
+  FormBase <|-- frmHistorialUsuario
+  FormBase <|-- frmBitacora
+  FormBase <|-- frmPerfiles
+  FormBase <|-- frmAsignarPerfiles
+  FormBase <|-- frmIdiomas
+  FormBase <|-- frmRestaurarIntegridad
+  FormBase <|-- frmCatalogoVinos
+  FormBase <|-- frmAutorizarAltaVino
+  FormBase <|-- frmAutorizarBajaVino
+  FormBase <|-- frmRegistrarEntradaStock
+  FormBase <|-- frmRegistrarAjusteInventario
+  FormBase <|-- frmAlertaStockMinimo
+  FormBase <|-- frmSocios
+  FormBase <|-- frmArmarCaja
+  FormBase <|-- frmPickingCaja
+  FormBase <|-- frmDespacharCaja
+  FormBase <|-- frmHistorialDespachos
+  FormBase <|-- FrmMensaje
 
   IObservadorIdioma <|.. LogIn
   IObservadorIdioma <|.. frmMenu
@@ -845,80 +1053,256 @@ package "CAPAS" #F8CECC {
   IObservadorIdioma <|.. frmAsignarPerfiles
   IObservadorIdioma <|.. frmIdiomas
   IObservadorIdioma <|.. frmCatalogoVinos
-  IObservadorIdioma <|.. frmNuevoVino
-  IObservadorIdioma <|.. frmAutorizarVinos
-  IObservadorIdioma <|.. frmMovimientoStock
-  IObservadorIdioma <|.. frmKardexVino
+  IObservadorIdioma <|.. frmAutorizarAltaVino
+  IObservadorIdioma <|.. frmAutorizarBajaVino
+  IObservadorIdioma <|.. frmRegistrarEntradaStock
+  IObservadorIdioma <|.. frmRegistrarAjusteInventario
   IObservadorIdioma <|.. frmAlertaStockMinimo
-
-  ' ── Dominio: curación y armado de cajas mensuales ──
-  together {
-    class frmSocios {
-      - _controles : Dictionary<string, Control>
-      - _defaults : Dictionary<string, string>
-      + ActualizarIdioma() : void
-    }
-    class frmArmarCaja {
-      - _controles : Dictionary<string, Control>
-      - _defaults : Dictionary<string, string>
-      + ActualizarIdioma() : void
-    }
-    class frmPickingCaja {
-      - _controles : Dictionary<string, Control>
-      - _defaults : Dictionary<string, string>
-      + ActualizarIdioma() : void
-    }
-    class frmDespacharCaja {
-      - _controles : Dictionary<string, Control>
-      - _defaults : Dictionary<string, string>
-      + ActualizarIdioma() : void
-    }
-  }
-
   IObservadorIdioma <|.. frmSocios
   IObservadorIdioma <|.. frmArmarCaja
   IObservadorIdioma <|.. frmPickingCaja
   IObservadorIdioma <|.. frmDespacharCaja
+  IObservadorIdioma <|.. frmHistorialDespachos
 }
 
 ' ─────────────────────────────────────────
 ' Dependencias entre capas
 ' ─────────────────────────────────────────
-LogIn --> LoginBLL
-LogIn --> IntegridadBLL
-LogIn --> SessionManager
+' Núcleo / seguridad
+LogIn ..> IntegridadBLL
+LogIn ..> LoginBLL
+LogIn ..> SessionManager
 frmAdminUsuarios --> UsuarioBLL
 frmNuevoUsuario --> PerfilBLL
-frmContraseña --> UsuarioBLL
+frmContraseña ..> UsuarioBLL
+frmContraseña ..> ValidadorContrasena
 frmBitacora --> BitacoraBLL
 frmPerfiles --> PerfilBLL
-frmAsignarPerfiles --> UsuarioPerfilBLL
 frmAsignarPerfiles --> PerfilBLL
+frmAsignarPerfiles --> UsuarioPerfilBLL
 frmIdiomas --> IdiomaBLL
+frmIdiomas ..> IdiomaManager
 frmHistorialUsuario --> UsuarioHistorialBLL
-frmRestaurarIntegridad --> IntegridadBLL
+frmRestaurarIntegridad ..> IntegridadBLL
 frmRestaurarIntegridad --> UsuarioBLL
 frmRestaurarIntegridad --> UsuarioHistorialBLL
-frmMenu --> SessionManager
-frmMenu --> IdiomaManager
-frmMenu --> IdiomaBLL
-frmMenu --> UsuarioBLL
-frmMenu --> BitacoraBLL
+frmMenu ..> BitacoraBLL
+frmMenu ..> IdiomaBLL
+frmMenu ..> UsuarioBLL
+frmMenu ..> SessionManager
+frmMenu ..> IdiomaManager
+IdiomaUIHelper ..> IdiomaBLL
+IdiomaUIHelper ..> UsuarioBLL
+IdiomaUIHelper ..> IdiomaManager
+Program ..> IntegridadBLL
 
 ' Dominio: catálogo y stock de vinos
-frmCatalogoVinos    --> VinoBLL
-frmNuevoVino         --> VinoBLL
-frmNuevoVino         --> BodegaBLL
-frmAutorizarVinos    --> VinoBLL
-frmMovimientoStock   --> StockBLL
-frmKardexVino        --> StockBLL
-frmAlertaStockMinimo --> StockBLL
+frmCatalogoVinos --> VinoBLL
+frmAutorizarAltaVino --> VinoBLL
+frmAutorizarBajaVino --> VinoBLL
+frmRegistrarEntradaStock --> MovimientoStockBLL
+frmRegistrarEntradaStock --> VinoBLL
+frmRegistrarAjusteInventario --> MovimientoStockBLL
+frmRegistrarAjusteInventario --> VinoBLL
+frmAlertaStockMinimo --> VinoBLL
 
 ' Dominio: curación y armado de cajas mensuales
-frmSocios        --> SocioBLL
-frmArmarCaja     --> CajaMensualBLL
-frmArmarCaja     --> SocioBLL
-frmPickingCaja   --> CajaMensualBLL
+frmSocios --> SocioBLL
+frmArmarCaja --> CajaMensualBLL
+frmArmarCaja --> SocioBLL
+frmPickingCaja --> CajaMensualBLL
 frmDespacharCaja --> CajaMensualBLL
+frmDespacharCaja ..> RemitoDespachoPdf
+frmHistorialDespachos --> CajaMensualBLL
+frmHistorialDespachos ..> RemitoDespachoPdf
+
+' Navegación entre formularios y utilidades de presentación
+Program ..> LogIn
+LogIn ..> frmMenu
+frmMenu ..> LogIn
+frmRestaurarIntegridad --> ResultadoIntegridad
+LogIn ..> frmRestaurarIntegridad
+frmRestaurarIntegridad ..> frmHistorialUsuario
+frmAdminUsuarios ..> frmNuevoUsuario
+frmAdminUsuarios ..> frmEditarUsuario
+frmAdminUsuarios ..> frmHistorialUsuario
+frmAdminUsuarios ..> frmAsignarPerfiles
+Program --> ResultadoIntegridad
+Program ..> AppTheme
+FormBase ..> AppTheme
+MsgBox ..> FrmMensaje
+note bottom of frmMenu
+  Abre con ShowDialog() los formularios de sus ítems de menú
+  (contraseña, usuarios, perfiles, idiomas, bitácora, catálogo,
+  stock, socios y cajas). Los demás los abren otros formularios
+  (frmAdminUsuarios, LogIn, frmRestaurarIntegridad) o MsgBox.
+  Al cerrar sesión muestra LogIn con Show().
+end note
+
+' ═══ DISPOSICIÓN VERTICAL (solo directivas de layout) ═══
+' Disposición vertical: las capas se apilan de arriba hacia abajo con enlaces
+' ocultos entre paquetes; las clases de cada paquete se acomodan en una grilla
+' de varias filas con enlaces ocultos entre clases (no modifican el modelo).
+skinparam nodesep 20
+skinparam ranksep 30
+SeguridadYServicios -[hidden]down-> CAPAS
+CAPAS -[hidden]down-> BLL
+BLL -[hidden]down-> DAL
+DAL -[hidden]down-> BE
+SessionManager -[hidden]down-> IdiomaUIHelper
+SessionManager -[hidden]down-> IdiomaUIHelper
+SessionManager -[hidden]down-> IdiomaUIHelper
+SessionManager -[hidden]down-> IdiomaUIHelper
+RemitoDespachoPdf -[hidden]down-> ResultadoIntegridad
+RemitoDespachoPdf -[hidden]down-> ResultadoIntegridad
+RemitoDespachoPdf -[hidden]down-> ResultadoIntegridad
+RemitoDespachoPdf -[hidden]down-> ResultadoIntegridad
+IntegridadBLL -[hidden]down-> UsuarioDAL
+IntegridadBLL -[hidden]down-> UsuarioDAL
+IntegridadBLL -[hidden]down-> UsuarioDAL
+IntegridadBLL -[hidden]down-> UsuarioDAL
+CajaMensualDAL -[hidden]down-> LoginResultado
+CajaMensualDAL -[hidden]down-> LoginResultado
+CajaMensualDAL -[hidden]down-> LoginResultado
+CajaMensualDAL -[hidden]down-> LoginResultado
+' Grilla de SeguridadYServicios
+Hasher -[hidden]right-> ValidadorContrasena
+Hasher -[hidden]down-> SessionManager
+ValidadorContrasena -[hidden]right-> CalculadorDVH
+ValidadorContrasena -[hidden]down-> IdiomaManager
+CalculadorDVH -[hidden]down-> IObservadorIdioma
+SessionManager -[hidden]right-> IdiomaManager
+IdiomaManager -[hidden]right-> IObservadorIdioma
+' Grilla de CAPAS
+IdiomaUIHelper -[hidden]right-> LogIn
+IdiomaUIHelper -[hidden]down-> FormBase
+LogIn -[hidden]right-> frmMenu
+LogIn -[hidden]down-> frmEditarUsuario
+frmMenu -[hidden]right-> frmAdminUsuarios
+frmMenu -[hidden]down-> frmContraseña
+frmAdminUsuarios -[hidden]right-> frmNuevoUsuario
+frmAdminUsuarios -[hidden]down-> frmHistorialUsuario
+frmNuevoUsuario -[hidden]down-> frmBitacora
+FormBase -[hidden]right-> frmEditarUsuario
+FormBase -[hidden]down-> AppTheme
+frmEditarUsuario -[hidden]right-> frmContraseña
+frmEditarUsuario -[hidden]down-> frmPerfiles
+frmContraseña -[hidden]right-> frmHistorialUsuario
+frmContraseña -[hidden]down-> frmAsignarPerfiles
+frmHistorialUsuario -[hidden]right-> frmBitacora
+frmHistorialUsuario -[hidden]down-> frmIdiomas
+frmBitacora -[hidden]down-> frmRestaurarIntegridad
+AppTheme -[hidden]right-> frmPerfiles
+AppTheme -[hidden]down-> MsgBox
+frmPerfiles -[hidden]right-> frmAsignarPerfiles
+frmPerfiles -[hidden]down-> frmCatalogoVinos
+frmAsignarPerfiles -[hidden]right-> frmIdiomas
+frmAsignarPerfiles -[hidden]down-> frmAutorizarAltaVino
+frmIdiomas -[hidden]right-> frmRestaurarIntegridad
+frmIdiomas -[hidden]down-> frmAutorizarBajaVino
+frmRestaurarIntegridad -[hidden]down-> frmRegistrarEntradaStock
+MsgBox -[hidden]right-> frmCatalogoVinos
+MsgBox -[hidden]down-> FrmMensaje
+frmCatalogoVinos -[hidden]right-> frmAutorizarAltaVino
+frmCatalogoVinos -[hidden]down-> frmRegistrarAjusteInventario
+frmAutorizarAltaVino -[hidden]right-> frmAutorizarBajaVino
+frmAutorizarAltaVino -[hidden]down-> frmAlertaStockMinimo
+frmAutorizarBajaVino -[hidden]right-> frmRegistrarEntradaStock
+frmAutorizarBajaVino -[hidden]down-> frmSocios
+frmRegistrarEntradaStock -[hidden]down-> frmArmarCaja
+FrmMensaje -[hidden]right-> frmRegistrarAjusteInventario
+FrmMensaje -[hidden]down-> Program
+frmRegistrarAjusteInventario -[hidden]right-> frmAlertaStockMinimo
+frmRegistrarAjusteInventario -[hidden]down-> frmPickingCaja
+frmAlertaStockMinimo -[hidden]right-> frmSocios
+frmAlertaStockMinimo -[hidden]down-> frmDespacharCaja
+frmSocios -[hidden]right-> frmArmarCaja
+frmSocios -[hidden]down-> frmHistorialDespachos
+Program -[hidden]right-> frmPickingCaja
+Program -[hidden]down-> RemitoDespachoPdf
+frmPickingCaja -[hidden]right-> frmDespacharCaja
+frmDespacharCaja -[hidden]right-> frmHistorialDespachos
+' Grilla de BLL
+ResultadoIntegridad -[hidden]right-> UsuarioBLL
+ResultadoIntegridad -[hidden]down-> PerfilBLL
+UsuarioBLL -[hidden]right-> LoginBLL
+UsuarioBLL -[hidden]down-> VinoBLL
+LoginBLL -[hidden]down-> MovimientoStockBLL
+PerfilBLL -[hidden]right-> VinoBLL
+PerfilBLL -[hidden]down-> UsuarioPerfilBLL
+VinoBLL -[hidden]right-> MovimientoStockBLL
+VinoBLL -[hidden]down-> BitacoraBLL
+MovimientoStockBLL -[hidden]down-> IdiomaBLL
+UsuarioPerfilBLL -[hidden]right-> BitacoraBLL
+UsuarioPerfilBLL -[hidden]down-> UsuarioHistorialBLL
+BitacoraBLL -[hidden]right-> IdiomaBLL
+BitacoraBLL -[hidden]down-> SocioBLL
+IdiomaBLL -[hidden]down-> CajaMensualBLL
+UsuarioHistorialBLL -[hidden]right-> SocioBLL
+UsuarioHistorialBLL -[hidden]down-> IntegridadBLL
+SocioBLL -[hidden]right-> CajaMensualBLL
+' Grilla de DAL
+UsuarioDAL -[hidden]right-> PerfilDAL
+UsuarioDAL -[hidden]down-> BitacoraDAL
+PerfilDAL -[hidden]right-> UsuarioPerfilDAL
+PerfilDAL -[hidden]down-> IntegridadDAL
+UsuarioPerfilDAL -[hidden]down-> IdiomaDAL
+BitacoraDAL -[hidden]right-> IntegridadDAL
+BitacoraDAL -[hidden]down-> UsuarioHistorialDAL
+IntegridadDAL -[hidden]right-> IdiomaDAL
+IntegridadDAL -[hidden]down-> VinoDAL
+IdiomaDAL -[hidden]down-> SolicitudAutorizacionDAL
+UsuarioHistorialDAL -[hidden]right-> VinoDAL
+UsuarioHistorialDAL -[hidden]down-> BodegaDAL
+VinoDAL -[hidden]right-> SolicitudAutorizacionDAL
+VinoDAL -[hidden]down-> MovimientoStockDAL
+SolicitudAutorizacionDAL -[hidden]down-> SocioDAL
+BodegaDAL -[hidden]right-> MovimientoStockDAL
+BodegaDAL -[hidden]down-> CajaMensualDAL
+MovimientoStockDAL -[hidden]right-> SocioDAL
+MovimientoStockDAL -[hidden]down-> SustitucionDAL
+SocioDAL -[hidden]down-> Acceso
+CajaMensualDAL -[hidden]right-> SustitucionDAL
+SustitucionDAL -[hidden]right-> Acceso
+' Grilla de BE
+LoginResultado -[hidden]right-> USUARIO
+LoginResultado -[hidden]down-> CONTROL_IDIOMA
+USUARIO -[hidden]right-> BITACORA
+USUARIO -[hidden]down-> UsuarioHistorial
+BITACORA -[hidden]right-> IDIOMA
+BITACORA -[hidden]down-> PaginaResultado
+IDIOMA -[hidden]down-> SolicitudAutorizacion
+CONTROL_IDIOMA -[hidden]right-> UsuarioHistorial
+CONTROL_IDIOMA -[hidden]down-> MovimientoStock
+UsuarioHistorial -[hidden]right-> PaginaResultado
+UsuarioHistorial -[hidden]down-> Socio
+PaginaResultado -[hidden]right-> SolicitudAutorizacion
+PaginaResultado -[hidden]down-> TipoSolicitud
+SolicitudAutorizacion -[hidden]down-> EstadoSolicitud
+MovimientoStock -[hidden]right-> Socio
+MovimientoStock -[hidden]down-> TipoMovimiento
+Socio -[hidden]right-> TipoSolicitud
+Socio -[hidden]down-> Vino
+TipoSolicitud -[hidden]right-> EstadoSolicitud
+TipoSolicitud -[hidden]down-> CajaMensual
+EstadoSolicitud -[hidden]down-> EstadoVino
+TipoMovimiento -[hidden]right-> Vino
+TipoMovimiento -[hidden]down-> Bodega
+Vino -[hidden]right-> CajaMensual
+Vino -[hidden]down-> EstadoCaja
+CajaMensual -[hidden]right-> EstadoVino
+CajaMensual -[hidden]down-> CajaVino
+EstadoVino -[hidden]down-> VinoCandidato
+Bodega -[hidden]right-> EstadoCaja
+Bodega -[hidden]down-> AlertaStockMinimo
+EstadoCaja -[hidden]right-> CajaVino
+EstadoCaja -[hidden]down-> Sustitucion
+CajaVino -[hidden]right-> VinoCandidato
+CajaVino -[hidden]down-> NodoPermiso
+VinoCandidato -[hidden]down-> Rol
+AlertaStockMinimo -[hidden]right-> Sustitucion
+AlertaStockMinimo -[hidden]down-> Permiso
+Sustitucion -[hidden]right-> NodoPermiso
+NodoPermiso -[hidden]right-> Rol
 
 @enduml

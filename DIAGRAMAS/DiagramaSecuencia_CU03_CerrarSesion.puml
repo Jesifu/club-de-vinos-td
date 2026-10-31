@@ -17,6 +17,7 @@ participant ":frmMenu"        as FM #FEFECE
 participant ":LogIn"          as L  #FEFECE
 participant ":BitacoraBLL"    as BB #E8F4E8
 participant ":SessionManager" as SM #F4E8E8
+participant ":IdiomaManager"  as IDM #F4E8E8
 participant ":BitacoraDAL"    as BD #E8E8F4
 database    ":DB"             as DB #EEEEEE
 
@@ -27,11 +28,11 @@ end note
 
 == 1. Solicitud de cierre ==
 
-U -> FM : click "Cerrar sesión"
+U -> FM : menú Usuario > click "Cerrar Sesion"
 activate FM
 
 FM -> SM : getUsuario()
-SM --> FM : usuarioActual
+SM --> FM : BE.USUARIO (se usa .Usuario)
 
 == 2. Registro y cierre de sesión ==
 
@@ -44,15 +45,18 @@ deactivate BB
 
 FM -> SM : cerrarSesion()
 note right of SM
-  anula la instancia
-  para permitir
+  anula el usuario, los permisos
+  y la instancia para permitir
   re-autenticación
 end note
 
 == 3. Vuelta al login ==
 
 FM -> L : new LogIn().Show()
+note right of L : el LogIn original quedó oculto\n(this.Hide() de CU-01) y no se cierra;\nse muestra una instancia nueva
 FM -> FM : this.Close()
+FM -> IDM : Desregistrar(this)
+note right of IDM : por el evento FormClosed de frmMenu
 deactivate FM
 
 L --> U : formulario de login visible

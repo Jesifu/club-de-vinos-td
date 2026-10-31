@@ -1,0 +1,138 @@
+@startuml DiagramaSecuencia_CU04_CambiarContrasena
+
+title CU-04 — Cambiar Contraseña — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Usuario"             as U
+participant ":frmMenu"             as FM #FEFECE
+participant ":frmContraseña"       as FC #FEFECE
+participant ":UsuarioBLL"          as UB #E8F4E8
+participant ":BitacoraBLL"         as BB #E8F4E8
+participant ":IntegridadBLL"       as IB #E8F4E8
+participant ":CalculadorDVH"       as CD #F4E8E8
+participant ":UsuarioHistorialBLL" as UH #E8F4E8
+participant ":ValidadorContrasena" as VC #F4E8E8
+participant ":SessionManager"      as SM #F4E8E8
+participant ":Hasher"              as H  #F4E8E8
+participant ":UsuarioDAL"          as UD #E8E8F4
+participant ":BitacoraDAL"         as BD #E8E8F4
+participant ":UsuarioHistorialDAL" as UHD #E8E8F4
+participant ":UsuarioPerfilDAL"    as UPD #E8E8F4
+participant ":IntegridadDAL"       as IND #E8E8F4
+database    ":DB"                  as DB #EEEEEE
+
+note over FC
+  Precondición: sesión activa. El ítem de menú
+  Configuración > "Cambiar Contraseña" está siempre
+  visible: la UI no verifica el permiso "Cambiar contraseña".
+end note
+
+== 1. Ingreso de datos ==
+
+U -> FM : menú Configuración > "Cambiar Contraseña"
+FM -> FC : new frmContraseña().ShowDialog()
+activate FC
+U -> FC : ingresar contraseña actual,\nnueva contraseña y confirmación
+
+alt el usuario presiona "Continuar"
+
+  U -> FC : click "Continuar"
+  FC -> FC : Trim() de los tres campos
+
+  == 2. Validaciones locales ==
+
+  break 2a. algún campo vacío
+    FC --> U : "Completá todos los campos."\n(título "Atención")
+    note right of FC : el flujo aborta y\nvuelve al paso 1
+  end
+
+  break 2b. la nueva contraseña no coincide con la confirmación
+    FC --> U : "Las contraseñas no coinciden."\n(título "Error")
+    note right of FC : el flujo aborta y\nvuelve al paso 1
+  end
+
+  FC -> VC : ObtenerError(nuevaPass)
+  VC --> FC : mensaje de error / null
+
+  break 2c. la nueva contraseña no cumple las reglas de fortaleza
+    FC --> U : mensaje devuelto por ObtenerError\n("La contraseña debe tener al menos 6 caracteres." /\n"La contraseña debe contener al menos una letra mayúscula." /\n"La contraseña debe contener al menos un número.")\n(título "Contraseña inválida")
+    note right of FC : el flujo aborta y\nvuelve al paso 1
+  end
+
+  == 3. Verificación de la contraseña actual ==
+
+  FC -> SM : getUsuario()
+  SM --> FC : BE.USUARIO (se usa .Usuario)
+
+  FC -> UB : VerificarContrasena(usuario, passActual)
+  activate UB
+  UB -> H : Hashear(passActual)
+  H --> UB : hash SHA-256
+  UB -> UD : ObtenerPorCredenciales(usuario, hash)
+  UD -> DB : USUARIO_LOGIN(@usuario, @pass)
+  DB --> UD : fila de USUARIO / vacío
+  UD --> UB : BE.USUARIO / null
+  UB --> FC : true / false (u != null)
+  deactivate UB
+
+  break 2d. la contraseña actual es incorrecta
+    FC --> U : "La contraseña actual es incorrecta."\n(título "Error")
+    note right of FC : el flujo aborta y\nvuelve al paso 1
+  end
+
+  == 4. Actualización de la contraseña ==
+
+  FC -> UB : CambiarContrasena(usuario, nuevaPass)
+  activate UB
+
+  UB -> H : Hashear(nuevaPass)
+  H --> UB : hash SHA-256
+  UB -> UD : CambiarContrasena(usuario, nuevaPassHash)
+  UD -> DB : USUARIO_CAMBIAR_PASS(@usuario, @pass)
+  DB --> UD : filas afectadas
+  UD --> UB : bool (filas > 0)
+
+  alt 2e. error al persistir el cambio (resultado == false)
+    UB --> FC : false
+    FC --> U : "Error al cambiar la contraseña."\n(título "Error")
+    note right of FC : el formulario sigue abierto;\nvuelve al paso 1
+
+  else cambio aplicado correctamente
+    UB -> BB : RegistrarAccion(usuario, "CAMBIO_CONTRASENA")
+    BB -> BD : Registrar(usuario, "CAMBIO_CONTRASENA")
+    BD -> DB : BITACORA_INSERTAR(@usuario, @accion)
+
+    @IR UB
+
+    UB -> UD : ObtenerIdPorNombre(usuario)
+    UD -> DB : USUARIO_OBTENER_ID_POR_NOMBRE(@usuario)
+    DB --> UD : ID
+    UD --> UB : int?
+
+    opt id.HasValue
+      @RC UB | id.Value | CAMBIO_CLAVE | usuario
+    end
+
+    UB --> FC : true
+    FC --> U : "Contraseña cambiada exitosamente."\n(título "Éxito")
+    FC -> FC : this.Close()
+  end
+  deactivate UB
+
+else 1a. el usuario presiona "Cancelar" (button1_Click)
+
+  U -> FC : click "Cancelar"
+  FC -> FC : this.Close()
+end
+deactivate FC
+
+@enduml

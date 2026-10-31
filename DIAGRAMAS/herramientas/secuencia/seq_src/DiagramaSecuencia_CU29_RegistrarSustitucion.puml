@@ -1,0 +1,153 @@
+@startuml DiagramaSecuencia_CU29_RegistrarSustitucion
+
+title CU-29 — Registrar Sustitución por Falta de Stock — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.75
+
+actor       ":Usuario"           as U
+participant ":frmPickingCaja"    as FP #FEFECE
+participant ":CajaMensualBLL"    as CB #E8F4E8
+participant ":BitacoraBLL"       as BB #E8F4E8
+participant ":CajaMensualDAL"    as CD #E8E8F4
+participant ":VinoDAL"           as VD #E8E8F4
+participant ":SustitucionDAL"    as SD #E8E8F4
+participant ":BitacoraDAL"       as BD #E8E8F4
+database    ":DB"                as DB #EEEEEE
+
+note over FP
+  Precondición: permiso "Registrar picking y sustituciones";
+  la caja está en estado Armada; RN-10 — quien armó la caja
+  no puede registrar sus sustituciones.
+  _sesion = SessionManager.getInstance().getUsuario() (campo del formulario).
+end note
+
+U -> FP : menú Club de Socios > "Picking y Sustituciones"\n(new frmPickingCaja().ShowDialog())
+activate FP
+note right of FP
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarCajasArmadas() y agrega el selector de idiomas
+end note
+
+FP -> FP : CargarCajasArmadas()
+FP -> CB : ListarArmadas()
+CB -> CD : ListarPorEstado("Armada")
+CD -> DB : CAJA_LISTAR_POR_ESTADO(@estado)
+DB --> CD : filas
+CD --> CB : List<CajaMensual>
+CB --> FP : List<CajaMensual>
+FP -> FP : dgvCajasArmadas.DataSource = cajas
+
+note over FP, DB
+  Al enlazar la grilla queda seleccionada la primera fila y se dispara
+  dgvCajasArmadas_SelectionChanged, sin acción del usuario.
+end note
+@CC
+FP --> U : composición efectiva de la caja, candidatos de reemplazo\ny traza de sustituciones
+
+opt el usuario selecciona otra caja armada
+  U -> FP : seleccionar una caja armada en la grilla
+  @CC
+end
+
+U -> FP : seleccionar una línea de la composición (las de faltante\nde stock aparecen resaltadas), un vino de reemplazo\ny escribir un motivo + click "Registrar sustitución"
+
+break no hay caja seleccionada
+  FP -> FP : return
+end
+
+break 29d. no hay línea seleccionada en la composición
+  FP --> U : "Seleccioná una línea de la composición."\n(título "Atención")
+end
+
+break 29d. no hay vino de reemplazo seleccionado
+  FP --> U : "Seleccioná el vino de reemplazo."\n(título "Atención")
+end
+
+break 29d. motivo vacío o solo espacios
+  FP --> U : "Ingresá un motivo para la sustitución."\n(título "Atención")
+end
+
+FP -> CB : RegistrarSustitucion(caja.Id, linea.Id, reemplazo.Id,\ntxtMotivo.Text.Trim(), _sesion)
+CB -> CD : ObtenerPorId(cajaId)
+CD -> DB : CAJA_OBTENER_POR_ID(@id)
+DB --> CD : fila
+CD --> CB : CajaMensual (o null)
+
+break la caja no existe
+  CB --> FP : throw InvalidOperationException\n("La caja no existe.")
+end
+
+break 29a. quien armó la caja es el usuario (caja.ArmadoPor == sesion.Id; RN-10, capa BLL)
+  CB --> FP : throw InvalidOperationException\n("Quien armó la caja no puede registrar sustituciones sobre ella.")
+end
+
+break 29b. la caja no está en estado Armada (RN-08)
+  CB --> FP : throw InvalidOperationException\n("Solo se pueden registrar sustituciones sobre una caja Armada.")
+end
+
+CB -> CD : ListarComposicionEfectiva(cajaId)
+CD -> DB : CAJA_VINO_LISTAR_EFECTIVO(@caja_id)
+DB --> CD : composición efectiva
+CD --> CB : List<CajaVino>
+
+break 29e. la línea seleccionada no pertenece a la caja
+  CB --> FP : throw InvalidOperationException\n("La línea seleccionada no pertenece a esta caja.")
+end
+
+CB -> CB : ListarCandidatos(caja.SocioId)
+CB -> VD : ListarCandidatos(socioId)
+VD -> DB : VINO_LISTAR_CANDIDATOS(@socio_id)
+DB --> VD : filas
+VD --> CB : List<VinoCandidato>
+
+break 29c. el reemplazo no está entre los candidatos vigentes (RN-06)
+  CB --> FP : throw InvalidOperationException\n("El vino de reemplazo no está disponible para este socio.")
+end
+
+CB -> CB : totalConReemplazo = Σ (Cantidad × PrecioEfectivo) de las demás líneas\n+ linea.Cantidad × reemplazo.Precio
+
+break 29c. totalConReemplazo > caja.PresupuestoSnapshot (RN-05)
+  CB --> FP : throw InvalidOperationException\n("El reemplazo supera el presupuesto de la caja.")
+  note right of CB : se compara con el presupuesto congelado al armar,\nno con el presupuesto actual del socio
+end
+
+CB -> CB : armar Sustitucion { CajaVinoId, VinoOriginalId = linea.VinoEfectivoId,\nVinoReemplazoId, NombreSnapshot, PrecioSnapshot del reemplazo,\nMotivo, ResponsableId = sesion.Id }
+CB -> SD : Insertar(sustitucion)
+SD -> DB : SUSTITUCION_INSERTAR(@caja_vino_id,@vino_original_id,@vino_reemplazo_id,\n@nombre_snapshot,@motivo,@responsable_id,@precio_snapshot)
+note right of DB
+  RN-07 — la sustitución es una fila append-only.
+  Backstop del SP: solo inserta si la caja sigue
+  Armada y ARMADO_POR <> @responsable_id (RN-08 / RN-10).
+end note
+DB --> SD : filas afectadas
+SD --> CB : int filas
+
+break 29e. 0 filas (la caja pudo haber cambiado de estado)
+  CB --> FP : throw InvalidOperationException\n("No se pudo registrar la sustitución (la caja pudo haber cambiado de estado).")
+end
+
+CB -> BB : RegistrarAccion(sesion.Usuario, "SUSTITUCION_CAJA:" + cajaId)
+BB -> BD : Registrar(usuario, accion)
+BD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+DB --> BD : filas afectadas
+BD --> BB : void
+BB --> CB : void
+CB --> FP : void
+
+FP --> U : "Sustitución registrada correctamente."\n(título "Éxito")
+FP -> FP : txtMotivo.Clear()
+@CC directo
+FP --> U : composición efectiva con el vino de reemplazo\ny traza de sustituciones actualizadas
+
+opt la BLL lanzó InvalidOperationException (catch de btnRegistrarSustitucion_Click)
+  FP --> U : ex.Message\n(título "Atención")
+  note right of FP : return: no se limpia el motivo ni se recarga la composición
+end
+deactivate FP
+
+@enduml

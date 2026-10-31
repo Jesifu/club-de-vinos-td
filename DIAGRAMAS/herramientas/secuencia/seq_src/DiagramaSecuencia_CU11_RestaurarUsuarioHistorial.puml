@@ -1,0 +1,118 @@
+@startuml DiagramaSecuencia_CU11_RestaurarUsuarioHistorial
+
+title CU-11 — Restaurar Usuario desde Historial (Rollback) — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.75
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador"         as A
+participant ":frmHistorialUsuario"   as FH #FEFECE
+participant ":UsuarioHistorialBLL"   as UH #E8F4E8
+participant ":IntegridadBLL"         as IB #E8F4E8
+participant ":CalculadorDVH"         as CD #F4E8E8
+participant ":SessionManager"        as SM #F4E8E8
+participant ":UsuarioHistorialDAL"   as UHD #E8E8F4
+participant ":UsuarioDAL"            as UD #E8E8F4
+participant ":UsuarioPerfilDAL"      as UPD #E8E8F4
+participant ":IntegridadDAL"         as IND #E8E8F4
+database    ":DB"                    as DB #EEEEEE
+
+note over FH
+  Precondición: dentro de CU-10, con una entrada del
+  historial seleccionada. El botón "Restaurar versión"
+  se habilita en dgvHistorial_SelectionChanged solo si
+  TipoCambio != "BAJA" (empieza deshabilitado).
+  Al abrirse, el formulario se registra en IdiomaManager,
+  traduce sus controles y agrega el selector de idiomas.
+end note
+
+== 1. Solicitud ==
+
+alt 1a. la entrada seleccionada es de tipo BAJA
+  note over FH : el botón "Restaurar versión" permanece deshabilitado:\nno hay evento de click y el caso de uso no puede iniciarse
+else entrada con botón habilitado
+  A -> FH : click "Restaurar versión"
+  note right of FH : si no hay fila seleccionada (sel == null) el handler\nhace return; inalcanzable con el botón deshabilitado
+
+  break 1b. la entrada seleccionada es de tipo ROLLBACK
+    FH --> A : "No se puede restaurar una versión que ya es un rollback."\n(título "Operación no permitida")
+    note right of FH
+      RT-04: las entradas ROLLBACK no son
+      restaurables (evita cadenas de rollbacks
+      recursivos). Validación en UI, antes de
+      pedir confirmación.
+    end note
+    note right of FH : el caso de uso termina
+  end
+
+  == 2. Confirmación ==
+
+  FH --> A : solicitar confirmación\n("¿Restaurar el estado del usuario 'X' a la versión del dd/MM/yyyy HH:mm?\nTipo de cambio registrado: <tipo>\nNota: la contraseña NO se restaurará (se mantendrá la actual).")\n(título "Confirmar rollback")
+
+  alt 3a. el administrador cancela
+    A --> FH : No
+    note right of FH : el caso de uso termina\n(no se aplica ningún cambio)
+
+  else el administrador confirma
+    A --> FH : Sí
+
+    == 3. Restauración ==
+
+    FH -> SM : getUsuario()
+    SM --> FH : BE.USUARIO (se usa .Usuario como admin)
+    note right of FH : esta llamada y el Rollback están dentro de un try\nque solo captura InvalidOperationException
+
+    FH -> UH : Rollback(sel.Id, admin)
+    activate UH
+
+    UH -> UHD : ObtenerPorId(historialId)
+    UHD -> DB : USUARIO_HISTORIAL_OBTENER(@id)
+    DB --> UHD : fila de USUARIO_HISTORIAL / vacío
+    UHD --> UH : UsuarioHistorial / null
+
+    alt 4a. snapshot no encontrado (snapshot == null)
+      UH --> FH : throw InvalidOperationException\n("Versión histórica no encontrada.")
+      FH --> A : ex.Message en un MessageBox de error\n(título "Error")
+      note right of FH : no se recarga la grilla
+
+    else snapshot encontrado
+
+      alt 4a. snapshot.TipoCambio == "ROLLBACK"\n(defensa en profundidad)
+        UH --> FH : throw InvalidOperationException\n("No se puede restaurar una versión que ya es un rollback.")
+        FH --> A : ex.Message en un MessageBox de error\n(título "Error")
+        note right of UH
+          RT-04: validación de respaldo
+          en la capa de negocio, por si
+          se invoca Rollback() sin pasar
+          por la UI.
+        end note
+
+      else snapshot restaurable
+        @RB notas
+
+        UH --> FH : (rollback aplicado)
+        deactivate UH
+
+        FH --> A : "Estado restaurado correctamente."\n(título "Éxito")
+        FH -> FH : CargarHistorial()
+        FH -> UH : ObtenerHistorialPaginado(_usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
+        UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
+        UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
+        DB --> UHD : filas + TOTAL_FILAS
+        UHD --> UH : PaginaResultado<UsuarioHistorial>
+        UH --> FH : PaginaResultado<UsuarioHistorial>
+        FH -> FH : DataSource = resultado.Items, ocultar columnas,\nActualizarEncabezados(), btnRollback.Enabled = false\ny ActualizarControlesPaginacion()
+        note right of FH : el formulario sigue abierto; otras excepciones\n(por ejemplo de base de datos) no se capturan
+      end
+    end
+  end
+end
+
+@enduml

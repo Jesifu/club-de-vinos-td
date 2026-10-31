@@ -37,6 +37,13 @@ note right of FB
   TAMANIO_PAGINA = 30
 end note
 
+note right of FB
+  Load, en este orden: se registra en IdiomaManager y
+  traduce sus controles (ActualizarIdioma), PoblarFiltros(),
+  Refrescar() y, al final, agrega el selector de idiomas
+  (IdiomaUIHelper.AgregarSelector)
+end note
+
 == 2. Poblado de filtros y carga inicial ==
 
 FB -> FB : PoblarFiltros()
@@ -46,7 +53,7 @@ BD -> DB : BITACORA_LISTAR_USUARIOS_DISTINCT
 DB --> BD : valores distintos
 BD --> BB : List<string>
 BB --> FB : List<string>
-FB -> FB : cmbUsuario.Items = "(Todos)" + valores
+FB -> FB : cmbUsuario.Items = "(Todos)" + valores;\nSelectedIndex = 0
 
 FB -> BB : ListarAccionesDistinct()
 BB -> BD : ListarAccionesDistinct()
@@ -54,22 +61,22 @@ BD -> DB : BITACORA_LISTAR_ACCIONES_DISTINCT
 DB --> BD : valores distintos
 BD --> BB : List<string>
 BB --> FB : List<string>
-FB -> FB : cmbAccion.Items = "(Todos)" + valores
+FB -> FB : cmbAccion.Items = "(Todos)" + valores;\nSelectedIndex = 0
 note right of FB
   Los combos se cargan con
   consultas propias a la BD
   (SPs dedicados), no se
   derivan de una lista completa
   de bitácora en memoria.
-  dtpDesde/dtpHasta quedan
-  sin marcar.
+  dtpDesde / dtpHasta quedan
+  sin marcar (Checked = false).
 end note
 
 FB -> FB : Refrescar()\n(sin filtros activos)
 
 == 3. Consulta paginada al servidor (Refrescar) ==
 
-FB -> FB : armar parámetros:\nusuario, accion, desde, hasta\n(null si no hay filtro activo)
+FB -> FB : armar parámetros: usuario / accion = null si "(Todos)";\ndesde = dtpDesde.Value.Date (si está marcado);\nhasta = dtpHasta.Value.Date + 1 día (si está marcado)
 FB -> BB : ListarPaginado(usuario, accion,\ndesde, hasta, _paginaActual,\nTAMANIO_PAGINA)
 activate BB
 BB -> BD : ListarPaginado(usuario, accion,\ndesde, hasta, pagina, tamanio)
@@ -79,22 +86,21 @@ note right of DB
   se resuelven en el SP con
   parámetros — no hay filtrado
   en memoria del lado de la UI.
-  RN-03: filtros de Usuario y
+  RT-03: filtros de Usuario y
   Acción por valor exacto (no
   por subcadena).
-  RN-02: rango de fechas
-  inclusivo en "Desde" y
-  exclusivo a partir del día
-  siguiente a "Hasta"
-  (Fecha < Hasta + 1 día).
+  RT-02: el SP filtra FECHA >= @fecha_desde y
+  FECHA < @fecha_hasta; el día adicional
+  lo suma la UI al armar "hasta".
 end note
 DB --> BD : filas de la página\n+ TOTAL_FILAS
 BD --> BB : PaginaResultado<BITACORA>
 BB --> FB : PaginaResultado<BITACORA>\n(Items, TotalPaginas)
 deactivate BB
 
-FB -> FB : _totalPaginas = resultado.TotalPaginas\ndataGridView1.DataSource = resultado.Items
-FB -> FB : ActualizarControlesPaginacion()\nlblPagina.Text = "Página {0} de {1}"
+FB -> FB : _totalPaginas = TotalPaginas (1 si es 0);\nsi _paginaActual > _totalPaginas, la ajusta\n(sin volver a consultar)
+FB -> FB : dataGridView1.DataSource = resultado.Items;\nancho de columnas y ActualizarEncabezados()
+FB -> FB : ActualizarControlesPaginacion()\nlblPagina.Text = "Página {0} de {1}";\nhabilita Anterior / Siguiente
 FB --> A : grilla con la página\nactual de entradas
 
 == 4. Aplicar filtros ==
@@ -109,29 +115,30 @@ FB --> A : grilla filtrada\n(primera página)
 
 == 5. Navegación entre páginas ==
 
-opt click "Página siguiente" (si _paginaActual < _totalPaginas)
-  A -> FB : click "Página siguiente"
+opt click "Siguiente >" (si _paginaActual < _totalPaginas)
+  A -> FB : click "Siguiente >"
   FB -> FB : btnPaginaSiguiente_Click:\n_paginaActual++
   FB -> FB : Refrescar()
+  note right of FB : usa los valores vigentes de los combos y fechas,\nno los del último "Filtrar"
   FB --> A : grilla con la\npágina siguiente
 end
 
-opt click "Página anterior" (si _paginaActual > 1)
-  A -> FB : click "Página anterior"
+opt click "< Anterior" (si _paginaActual > 1)
+  A -> FB : click "< Anterior"
   FB -> FB : btnPaginaAnterior_Click:\n_paginaActual--
   FB -> FB : Refrescar()
   FB --> A : grilla con la\npágina anterior
 end
 
-opt 6a. el administrador presiona "Limpiar filtros"
-  A -> FB : click "Limpiar filtros"
+opt 3a. el administrador presiona "Limpiar"
+  A -> FB : click "Limpiar"
   FB -> FB : btnLimpiar_Click:\ncmbUsuario / cmbAccion → "(Todos)"\ndtpDesde.Checked = dtpHasta.Checked = false\n_paginaActual = 1
   FB -> FB : Refrescar()
   FB --> A : grilla con todas\nlas entradas (primera página)
 end
 
 note over BB, DB
-  RN-01: la bitácora es de solo
+  RT-01: la bitácora es de solo
   lectura desde la UI — no se
   pueden editar ni eliminar
   entradas.

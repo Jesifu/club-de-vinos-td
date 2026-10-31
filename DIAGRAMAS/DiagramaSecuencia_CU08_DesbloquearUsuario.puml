@@ -17,6 +17,7 @@ participant ":frmAdminUsuarios"    as FA #FEFECE
 participant ":UsuarioBLL"          as UB #E8F4E8
 participant ":BitacoraBLL"         as BB #E8F4E8
 participant ":IntegridadBLL"       as IB #E8F4E8
+participant ":CalculadorDVH" as CD #F4E8E8
 participant ":UsuarioHistorialBLL" as UH #E8F4E8
 participant ":SessionManager"      as SM #F4E8E8
 participant ":UsuarioDAL"          as UD #E8E8F4
@@ -28,49 +29,45 @@ database    ":DB"                  as DB #EEEEEE
 
 note over FA
   Precondición: sesión activa,
-  permiso "Administrar usuarios".
+  permiso "Administrar usuarios";
+  frmAdminUsuarios abierto desde frmMenu
+  (Administración > Gestión de usuarios).
 end note
 
-== 1. Selección y solicitud ==
+== 1. Selección y validaciones ==
 
 A -> FA : seleccionar usuario en la grilla\n+ click "Desbloquear seleccionado"
 
-opt 1a. ningún usuario seleccionado
-  FA --> A : "Seleccioná un usuario."
+break 1a. ningún usuario seleccionado
+  FA --> A : "Seleccioná un usuario."\n(título "Atención")
   note right of FA : el caso de uso termina
 end
 
-== 2. Validación y confirmación ==
-
-alt 3a. el usuario no está bloqueado
-  FA --> A : "El usuario no está bloqueado."
+alt 2a. el usuario no está bloqueado\n(!seleccionado.Bloqueado, dato de la grilla)
+  FA --> A : "El usuario no está bloqueado."\n(título "Atención")
   note right of FA : el caso de uso termina
 
-else el usuario está bloqueado (RN-01)
-  FA --> A : solicitar confirmación\n("¿Desbloquear al usuario 'X'?")
+else el usuario está bloqueado
+  FA --> A : solicitar confirmación\n("¿Desbloquear al usuario 'X'?")\n(título "Confirmar")
 
-  alt 5a. el administrador cancela
+  alt 3a. el administrador cancela
     A --> FA : No
-    note right of FA : el caso de uso termina\n(no se realiza el desbloqueo)
+    note right of FA : el caso de uso termina\n(no se desbloquea ni se recarga la grilla)
 
   else el administrador confirma
     A --> FA : Sí
 
-    == 3. Desbloqueo ==
+    == 2. Desbloqueo ==
 
-    FA -> UB : Desbloquear(usuario)
+    FA -> UB : Desbloquear(seleccionado.Usuario)
     activate UB
 
     UB -> UD : Desbloquear(usuario)
     UD -> DB : USUARIO_DESBLOQUEAR(@usuario)
-    note right of DB
-      BLOQUEADO = 0,
-      INTENTOS_FALLIDOS = 0
-      (RN-02)
-    end note
+    note right of DB : pone BLOQUEADO = 0 e INTENTOS_FALLIDOS = 0
 
     UB -> SM : getUsuario()
-    SM --> UB : administrador actual
+    SM --> UB : BE.USUARIO (se usa .Usuario como admin)
 
     UB -> BB : RegistrarAccion(admin,\n"DESBLOQUEO_USUARIO:" + usuario)
     BB -> BD : Registrar(admin, accion)
@@ -82,15 +79,22 @@ else el usuario está bloqueado (RN-01)
     IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
     DB --> IND : filas de USUARIO
     IND --> IB : DataTable
-    IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
-    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-    DB --> UPD : PERFIL_ID
-    UPD --> IB : List<int>
-    IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
-    IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
-    IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
-    IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
-    IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    loop por cada usuario
+      IB -> UPD : ListarPerfilesPorUsuario(id)
+      UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+      DB --> UPD : PERFIL_ID
+      UPD --> IB : List<int>
+      IB -> CD : Calcular(atributos)
+      CD --> IB : int dvh
+      IB -> IND : ActualizarDVHUsuario(id, dvh)
+      IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+    end
+    loop por cada una de las 7 columnas (c = índice)
+      IB -> CD : CalcularVertical(todasFilas, c)
+      CD --> IB : int dvv
+      IB -> IND : ActualizarDVV("USUARIO", columnas[c], dvv)
+      IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    end
     IB --> UB : (DVH / DVV recalculados)
     deactivate IB
 
@@ -99,29 +103,40 @@ else el usuario está bloqueado (RN-01)
     DB --> UD : ID
     UD --> UB : int?
 
-    UB -> UH : RegistrarCambio(usuarioId, "DESBLOQUEO", admin)
-    UH -> UD : ObtenerPorId(usuarioId)
-    UD -> DB : USUARIO_OBTENER_POR_ID(@id)
-    DB --> UD : fila de USUARIO
-    UD --> UH : BE.USUARIO
-    UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
-    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-    DB --> UPD : PERFIL_ID
-    UPD --> UH : List<int> perfiles
-    UH -> UHD : Insertar(UsuarioHistorial)
-    UHD -> DB : USUARIO_HISTORIAL_INSERTAR(snapshot,\n@tipo_cambio, @realizado_por)
-    note right of UH : RN-03: queda registrado\nel admin que ejecutó la acción
+    opt id.HasValue
+      UB -> UH : RegistrarCambio(id.Value, "DESBLOQUEO", admin)
+      activate UH
+      UH -> UD : ObtenerPorId(usuarioId)
+      UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+      DB --> UD : fila de USUARIO
+      UD --> UH : BE.USUARIO / null
+      alt el usuario no existe (u == null)
+        UH --> UB : return (no inserta nada)
+      else el usuario existe
+        UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
+        UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+        DB --> UPD : PERFIL_ID
+        UPD --> UH : List<int> perfiles
+        UH -> UH : ordenar los ids y unirlos en CSV (Perfiles)
+        UH -> UHD : Insertar(UsuarioHistorial)
+        UHD -> DB : USUARIO_HISTORIAL_INSERTAR(@usuario_id, @usuario_login, @rol,\n@bloqueado, @intentos_fallidos, @perfiles, @nombre, @apellido,\n@telefono, @email, @realizado_por, @tipo_cambio = "DESBLOQUEO",\n@version_origen = null, @rol_id)
+        UH --> UB : (cambio registrado)
+      end
+      deactivate UH
+    end
+
     UB --> FA : (usuario desbloqueado)
     deactivate UB
 
-    FA --> A : "Usuario desbloqueado."
+    FA --> A : "Usuario desbloqueado."\n(título "Éxito")
+    FA -> FA : CargarUsuarios()
     FA -> UB : ListarPaginado(_busquedaActual,\n_paginaActual, TAMANIO_PAGINA)
     UB -> UD : ListarPaginado(busqueda, pagina, tamanio)
     UD -> DB : USUARIO_LISTAR_PAGINADO(@busqueda,\n@pagina, @tamanio)
     DB --> UD : filas + TOTAL_FILAS
     UD --> UB : PaginaResultado<USUARIO>
     UB --> FA : PaginaResultado<USUARIO>
-    FA -> FA : refrescar grilla
+    FA -> FA : dgvUsuarios.DataSource = resultado.Items;\nocultar columnas, ActualizarEncabezados() y\nActualizarControlesPaginacion()
   end
 end
 

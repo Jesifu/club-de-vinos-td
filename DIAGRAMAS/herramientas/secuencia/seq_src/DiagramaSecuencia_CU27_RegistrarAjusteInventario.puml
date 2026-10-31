@@ -1,0 +1,158 @@
+@startuml DiagramaSecuencia_CU27_RegistrarAjusteInventario
+
+title CU-27 — Registrar Ajuste de Inventario — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.65
+
+actor       ":Usuario"                       as U
+participant ":frmRegistrarAjusteInventario"  as FJ #FEFECE
+participant ":VinoBLL"                       as VB #E8F4E8
+participant ":MovimientoStockBLL"            as MB #E8F4E8
+participant ":BitacoraBLL"                   as BB #E8F4E8
+participant ":VinoDAL"                       as VD #E8E8F4
+participant ":MovimientoStockDAL"            as MD #E8E8F4
+participant ":BitacoraDAL"                   as TD #E8E8F4
+database    ":DB"                            as DB #EEEEEE
+
+note over FJ
+  Precondición: sesión activa; permiso "Gestionar catálogo de vinos";
+  existe al menos un vino autorizado y activo.
+  sesion = SessionManager.getInstance().getUsuario().
+end note
+
+U -> FJ : menú Catálogo > "Registrar ajuste de inventario"\n(new frmRegistrarAjusteInventario().ShowDialog())
+activate FJ
+note right of FJ
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarVinos() y agrega el selector de idiomas.
+  CargarVinos() termina llamando a ActualizarVinoSeleccionado(),
+  que también invoca el handler cboVino_SelectedIndexChanged.
+end note
+
+FJ -> FJ : CargarVinos()
+activate FJ
+FJ -> VB : ListarAutorizados()
+VB -> VD : ListarAutorizados()
+VD -> DB : VINO_LISTAR_AUTORIZADOS
+DB --> VD : filas
+VD --> VB : List<Vino>
+VB --> FJ : List<Vino>
+FJ -> FJ : cboVino.DataSource = vinos; DisplayMember = Nombre;\nValueMember = Id; SelectedIndex = 0 solo si hay vinos
+
+@AV FJ
+deactivate FJ
+FJ --> U : stock actual y movimientos del vino seleccionado
+
+U -> FJ : seleccionar vino, sentido ("Aumenta el stock" por defecto /\n"Disminuye el stock"), cantidad y motivo\n+ click "Registrar ajuste"
+
+break 27d. no hay vino seleccionado
+  FJ --> U : "Seleccioná un vino."\n(título "Atención")
+  note right of FJ : return: no llama a la BLL ni refresca
+end
+
+FJ -> FJ : armar MovimientoStock { VinoId, Cantidad = (int)numCantidad.Value,\nMotivo = null si está vacío o solo espacios, si no Trim() }
+
+alt 3a. sentido negativo (rdoAjusteNegativo.Checked: "Disminuye el stock")
+  FJ -> MB : RegistrarSalida(movimiento, sesion)
+
+  alt 27a. cantidad <= 0
+    MB --> FJ : throw InvalidOperationException\n("La cantidad debe ser mayor a cero.")
+  else cantidad válida
+    alt 27a. motivo vacío
+      MB --> FJ : throw InvalidOperationException\n("El motivo es obligatorio.")
+    else motivo válido
+      MB -> VD : ObtenerPorId(movimiento.VinoId)
+      VD -> DB : VINO_OBTENER_POR_ID(@id)
+      DB --> VD : filas
+      VD --> MB : Vino (o null)
+
+      alt 27b. el vino no existe o no está Activo
+        MB --> FJ : throw InvalidOperationException\n("El vino debe estar autorizado para registrar movimientos de stock.")
+      else vino activo
+        MB -> MD : ObtenerStockActual(vinoId)
+        MD -> DB : STOCK_ACTUAL_OBTENER(@vino_id)
+        DB --> MD : STOCK
+        MD --> MB : int
+
+        alt 27c. stock actual < cantidad (RN-03, capa BLL)
+          MB --> FJ : throw InvalidOperationException\n("Stock insuficiente: el ajuste dejaría el stock por debajo de cero\n(stock actual: N).")
+        else stock suficiente
+          MB -> MB : Tipo = Salida; Fecha = ahora; Responsable = sesion.Usuario;\nReferenciaTipo = "AJUSTE"; ReferenciaId = null
+          MB -> MD : InsertarSalida(movimiento)
+          MD -> DB : MOVIMIENTO_STOCK_REGISTRAR_SALIDA(@vino_id,@cantidad,@motivo,\n@responsable,@referencia_tipo,@referencia_id)
+          note right of DB : inserta solo si el stock alcanza (atómico);\n0 filas = rechazado (RN-03, backstop del SP)
+          DB --> MD : filas afectadas
+          MD --> MB : int filas
+
+          alt 27c. 0 filas (el stock cambió entre la lectura y la escritura)
+            MB --> FJ : throw InvalidOperationException\n("Stock insuficiente: el ajuste dejaría el stock por debajo de cero.")
+          else 1 fila
+            MB -> BB : RegistrarAccion(sesion.Usuario,\n"AJUSTE_STOCK:" + v.Codigo + ":-" + m.Cantidad)
+            BB -> TD : Registrar(usuario, accion)
+            TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+            DB --> TD : filas afectadas
+            TD --> BB : void
+            BB --> MB : void
+            MB --> FJ : void
+            FJ --> U : "Ajuste de inventario registrado correctamente."\n(título "Éxito")
+            FJ -> FJ : numCantidad.Value = 0; txtMotivo.Clear()
+            @AV FJ
+            FJ --> U : stock actual y movimientos actualizados
+          end
+        end
+      end
+    end
+  end
+
+else sentido positivo (rdoAjustePositivo.Checked: "Aumenta el stock")
+  FJ -> FJ : movimiento.ReferenciaTipo = MovimientoStockBLL.ReferenciaAjuste ("AJUSTE")
+  FJ -> MB : RegistrarEntrada(movimiento, sesion)
+
+  alt 27a. cantidad <= 0
+    MB --> FJ : throw InvalidOperationException\n("La cantidad debe ser mayor a cero.")
+  else cantidad válida
+    alt 27a. motivo vacío
+      MB --> FJ : throw InvalidOperationException\n("El motivo es obligatorio.")
+    else motivo válido
+      MB -> VD : ObtenerPorId(movimiento.VinoId)
+      VD -> DB : VINO_OBTENER_POR_ID(@id)
+      DB --> VD : filas
+      VD --> MB : Vino (o null)
+
+      alt 27b. el vino no existe o no está Activo
+        MB --> FJ : throw InvalidOperationException\n("El vino debe estar autorizado para registrar movimientos de stock.")
+      else vino activo
+        MB -> MB : Tipo = Entrada; Fecha = ahora; Responsable = sesion.Usuario
+        MB -> MD : Insertar(movimiento)
+        MD -> DB : MOVIMIENTO_STOCK_INSERTAR(@vino_id,@tipo,@cantidad,\n@motivo,@responsable,@referencia_tipo,@referencia_id)
+        DB --> MD : filas afectadas
+        MD --> MB : void
+        note right of MB : como ReferenciaTipo == "AJUSTE" se registra "AJUSTE_STOCK"\n(en CU-23, sin esa marca, la misma llamada registra "ENTRADA_STOCK")
+        MB -> BB : RegistrarAccion(sesion.Usuario,\n"AJUSTE_STOCK:" + v.Codigo + ":+" + m.Cantidad)
+        BB -> TD : Registrar(usuario, accion)
+        TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+        DB --> TD : filas afectadas
+        TD --> BB : void
+        BB --> MB : void
+        MB --> FJ : void
+        FJ --> U : "Ajuste de inventario registrado correctamente."\n(título "Éxito")
+        FJ -> FJ : numCantidad.Value = 0; txtMotivo.Clear()
+        @AV FJ
+        FJ --> U : stock actual y movimientos actualizados
+      end
+    end
+  end
+end
+
+opt la BLL lanzó InvalidOperationException (catch de btnRegistrarAjuste_Click)
+  FJ --> U : ex.Message\n(título "Atención")
+  note right of FJ : return: no se limpia ni se refresca la pantalla
+end
+deactivate FJ
+
+@enduml

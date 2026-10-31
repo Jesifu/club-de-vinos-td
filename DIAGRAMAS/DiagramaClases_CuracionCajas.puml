@@ -31,6 +31,7 @@ package "BE" #FEFECE {
     + CreadoPor : int
     + CreadoPorLogin : string
     + VarietalesPreferidos : List<string>
+    + ToString() : string
   }
 
   class CajaMensual {
@@ -91,11 +92,12 @@ package "BE" #FEFECE {
     + Precio : decimal
     + Stock : int
     + Preferido : bool
+    + ToString() : string
   }
 
-  Socio        "1" o-- "0..*" CajaMensual : SocioId >
-  CajaMensual  "1" o-- "0..*" CajaVino    : CajaId >
-  CajaVino     "1" o-- "0..*" Sustitucion : CajaVinoId >
+  CajaMensual  "0..*" --> "1" Socio : SocioId >
+  CajaMensual  "1" o-- "0..*" CajaVino    : Lineas
+  Sustitucion  "0..*" --> "1" CajaVino : CajaVinoId >
   CajaMensual  --> EstadoCaja
 }
 
@@ -110,8 +112,8 @@ package "DAL" #E8E8F4 {
     + IniciarTx() : void
     + ConfirmarTX() : void
     + DeshacerTX() : void
-    + Leer(sql : string, parametros : List<SqlParameter>) : DataTable
-    + Escribir(sql : string, parametros : List<SqlParameter>) : int
+    + Leer(sql : string, parametros : List<SqlParameter> = null) : DataTable
+    + Escribir(sql : string, parametros : List<SqlParameter> = null) : int
   }
 
   class SocioDAL {
@@ -203,9 +205,23 @@ package "BLL" #E8F4E8 {
 }
 
 ' ─────────────────────────────────────────
+' CAPA SeguridadYServicios
+' ─────────────────────────────────────────
+package "SeguridadYServicios" #D5E8D4 {
+
+  interface IObservadorIdioma <<existente>> {
+    + ActualizarIdioma() : void
+  }
+}
+
+' ─────────────────────────────────────────
 ' CAPA CAPAS (presentación)
 ' ─────────────────────────────────────────
 package "CAPAS" #F4E8E8 {
+
+  class FormBase <<existente>> {
+  }
+  note right of FormBase : Hereda de ReaLTaiizor.Forms.MaterialForm
 
   class frmSocios {
     + ActualizarIdioma() : void
@@ -223,18 +239,30 @@ package "CAPAS" #F4E8E8 {
     + ActualizarIdioma() : void
   }
   class RemitoDespachoPdf <<static>> {
-    ~ Generar(caja : CajaMensual) : string
-    ~ Abrir(rutaPdf : string) : void
+    ~ {static} Generar(caja : CajaMensual) : string
+    ~ {static} Abrir(rutaPdf : string) : void
   }
+
+  FormBase <|-- frmSocios
+  FormBase <|-- frmArmarCaja
+  FormBase <|-- frmPickingCaja
+  FormBase <|-- frmDespacharCaja
+  FormBase <|-- frmHistorialDespachos
+
+  IObservadorIdioma <|.. frmSocios
+  IObservadorIdioma <|.. frmArmarCaja
+  IObservadorIdioma <|.. frmPickingCaja
+  IObservadorIdioma <|.. frmDespacharCaja
+  IObservadorIdioma <|.. frmHistorialDespachos
 
   frmSocios             --> SocioBLL
   frmArmarCaja          --> CajaMensualBLL
   frmArmarCaja          --> SocioBLL
   frmPickingCaja        --> CajaMensualBLL
   frmDespacharCaja      --> CajaMensualBLL
-  frmDespacharCaja      --> RemitoDespachoPdf
+  frmDespacharCaja      ..> RemitoDespachoPdf
   frmHistorialDespachos --> CajaMensualBLL
-  frmHistorialDespachos --> RemitoDespachoPdf
+  frmHistorialDespachos ..> RemitoDespachoPdf
 }
 
 @enduml

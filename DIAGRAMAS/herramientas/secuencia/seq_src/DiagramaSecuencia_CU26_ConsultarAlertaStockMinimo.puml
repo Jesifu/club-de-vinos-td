@@ -1,0 +1,47 @@
+@startuml DiagramaSecuencia_CU26_ConsultarAlertaStockMinimo
+
+title CU-26 — Consultar Alerta de Stock Mínimo — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+actor       ":Usuario"                 as U
+participant ":frmAlertaStockMinimo"    as FA #FEFECE
+participant ":VinoBLL"                 as VB #E8F4E8
+participant ":VinoDAL"                 as VD #E8E8F4
+database    ":DB"                      as DB #EEEEEE
+
+note over FA
+  Precondición: sesión activa; permiso "Gestionar catálogo de vinos".
+  Consulta pasiva: no hay aviso automático al iniciar sesión ni registro en Bitácora.
+end note
+
+U -> FA : menú Catálogo > "Consultar alerta de stock mínimo"\n(new frmAlertaStockMinimo().ShowDialog())
+activate FA
+note right of FA
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarAlertas() y agrega el selector de idiomas
+end note
+
+FA -> FA : CargarAlertas()
+FA -> VB : ListarAlertaStockMinimo()
+VB -> VD : ListarBajoStockMinimo()
+VD -> DB : VINO_LISTAR_STOCK_BAJO
+DB --> VD : filas (vinos Activos con stock derivado < STOCK_MINIMO,\nordenados por faltante descendente y nombre)
+VD --> VB : List<AlertaStockMinimo>
+VB --> FA : List<AlertaStockMinimo>
+FA -> FA : dgvAlertas.DataSource = alertas;\nocultar VinoId y ActualizarEncabezados()
+FA -> FA : lblSinAlertas.Visible = (alertas.Count == 0)
+
+alt 3a. la lista está vacía
+  FA --> U : grilla vacía + mensaje "No hay vinos por debajo del stock mínimo."
+else hay vinos bajo el mínimo
+  FA --> U : grilla con SKU, nombre, bodega, stock mínimo,\nstock actual y faltante
+end
+deactivate FA
+
+@enduml

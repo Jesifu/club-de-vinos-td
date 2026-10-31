@@ -21,158 +21,187 @@ database    ":DB"                  as DB #EEEEEE
 
 note over FC
   Precondición: sesión activa; permiso "Gestionar catálogo de vinos".
+  sesion = SessionManager.getInstance().getUsuario().
 end note
 
-U -> FC : abrir "Catálogo de vinos"
+U -> FC : menú Catálogo > "Gestionar catálogo de vinos"\n(new frmCatalogoVinos().ShowDialog())
 activate FC
+note right of FC
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarBodegas(), CargarVinos() y agrega el selector de idiomas
+end note
+
+FC -> FC : CargarBodegas()
 FC -> VB : ListarBodegas()
-activate VB
 VB -> BD : ListarHabilitadas()
-activate BD
 BD -> DB : BODEGA_LISTAR_HABILITADAS
 DB --> BD : filas
 BD --> VB : List<Bodega>
-deactivate BD
 VB --> FC : List<Bodega>
-deactivate VB
-FC -> FC : cboBodega.DataSource = bodegas
+FC -> FC : cboBodega.DataSource = bodegas;\nDisplayMember = Nombre; ValueMember = Id;\nSelectedIndex = 0 solo si hay bodegas
 
+FC -> FC : CargarVinos()
 FC -> VB : ListarCatalogo(sesion)
-activate VB
 VB -> VD : ListarCatalogo(sesion.Id)
-activate VD
 VD -> DB : VINO_LISTAR_CATALOGO(@usuario_id)
-DB --> VD : filas (vinos Activos + Pendientes/Rechazados\ncon su última solicitud)
+DB --> VD : filas de VINO con su última solicitud
 VD --> VB : List<Vino>
-deactivate VD
 VB --> FC : List<Vino>
-deactivate VB
-FC -> FC : mostrar grilla con estado y última solicitud\n(tipo, estado, motivo de rechazo)
+FC -> FC : dgvVinos.DataSource = vinos; ocultar columnas;\nActualizarEncabezados() y ActualizarEstadoBajaBoton()
+note right of DB
+  VINO_LISTAR_CATALOGO devuelve los vinos Activos y Rechazados de todos,
+  más los Pendientes cuya última solicitud emitió @usuario_id (los
+  Descontinuados quedan ocultos), con tipo, estado y motivo de la
+  última solicitud
+end note
+FC --> U : grilla con estado y última solicitud\n(btnReproponer solo con vino Rechazado; btnSolicitarBaja\nsolo con vino Activo sin baja pendiente)
 
 alt el usuario propone un vino nuevo
-  U -> FC : completar SKU, nombre, bodega, varietal, añada,\nprecio, stock mínimo (maridaje y puntaje opcionales)\n+ click "Guardar"
+  U -> FC : completar SKU, nombre, bodega, varietal, añada,\nprecio, stock mínimo (maridaje y puntaje opcionales)\n+ click "Proponer alta"
   FC -> VB : ProponerAlta(vino, sesion)
-  activate VB
   VB -> VB : ValidarDatos(vino, exigirCodigo = true)
 
-  alt 3a. algún dato no cumple las validaciones de negocio
-    VB --> FC : InvalidOperationException
-    FC --> U : mensaje de la excepción
-    note right of FC : el flujo vuelve a la carga de datos
+  alt 21a. algún dato no cumple las validaciones de negocio
+    VB --> FC : throw InvalidOperationException\n("El SKU es obligatorio." / "El nombre es obligatorio." /\n"Debe seleccionar una bodega válida." / "El varietal es obligatorio." /\n"El año de añada no es válido." / "El precio debe ser mayor a cero." /\n"El stock mínimo no puede ser negativo." /\n"El puntaje debe estar entre 0 y 100.")
   else datos válidos
     VB -> VD : ObtenerPorCodigo(vino.Codigo)
-    activate VD
     VD -> DB : VINO_OBTENER_POR_CODIGO(@codigo)
     DB --> VD : filas
     VD --> VB : Vino (o null)
-    deactivate VD
 
-    alt 3b. ya existe un vino con el SKU indicado
-      VB --> FC : InvalidOperationException
-      FC --> U : mensaje de la excepción\n(si el vino está Rechazado, indica usar "Corregir y reproponer")
+    alt 21c. el SKU corresponde a un vino rechazado (existente.Estado == Rechazado)
+      VB --> FC : throw InvalidOperationException\n("El SKU indicado corresponde a un vino rechazado. Seleccione ese vino\nen el catálogo y use 'Corregir y reproponer'.")
+    else 21b. ya existe un vino con el SKU indicado (otro estado)
+      VB --> FC : throw InvalidOperationException\n("Ya existe un vino con el SKU indicado.")
     else SKU disponible
-      note right of VB : creadoPor = sesion.Id; Estado = Pendiente
+      VB -> VB : vino.CreadoPor = sesion.Id; vino.Estado = Pendiente
       VB -> VD : Insertar(vino)
-      activate VD
       VD -> DB : VINO_INSERTAR(@codigo,@nombre,@bodega_id,@varietal,\n@aniada,@stock_minimo,@creado_por,@precio,@maridaje,@puntaje)
       note right of DB : en una sola transacción: INSERT VINO (Pendiente)\n+ INSERT SOLICITUD_AUTORIZACION (ALTA, Pendiente)
 
-      alt 3c. la bodega no existe (SqlException 547) o el SKU se duplicó\nen una carrera (SqlException 2601/2627)
+      alt 21f. la bodega no existe (SqlException 547)
         DB --> VD : SqlException
         VD --> VB : SqlException
-        deactivate VD
-        VB --> FC : InvalidOperationException
-        FC --> U : mensaje de la excepción
+        VB --> FC : throw InvalidOperationException\n("Debe seleccionar una bodega válida.")
+      else 21f. el SKU se duplicó en una carrera (SqlException 2601 / 2627)
+        DB --> VD : SqlException
+        VD --> VB : SqlException
+        VB --> FC : throw InvalidOperationException\n("Ya existe un vino con el SKU indicado.")
       else inserción correcta
-        DB --> VD : ID del vino
+        DB --> VD : ID del vino creado (SELECT @id AS ID;\nla DAL lo descarta: Escribir usa ExecuteNonQuery)
         VD --> VB : void
-        deactivate VD
         VB -> BB : RegistrarAccion(sesion.Usuario, "ALTA_VINO:" + vino.Codigo)
-        activate BB
         BB -> TD : Registrar(usuario, accion)
-        activate TD
         TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
         DB --> TD : filas afectadas
         TD --> BB : void
-        deactivate TD
         BB --> VB : void
-        deactivate BB
         VB --> FC : void
-        FC --> U : "Vino propuesto correctamente. Queda pendiente de autorización."
+        FC --> U : "Vino propuesto correctamente. Queda pendiente de autorización."\n(título "Éxito")
+        FC -> FC : LimpiarFormulario()
+        FC -> FC : CargarVinos()
+        FC -> VB : ListarCatalogo(sesion)
+        VB -> VD : ListarCatalogo(sesion.Id)
+        VD -> DB : VINO_LISTAR_CATALOGO(@usuario_id)
+        DB --> VD : filas de VINO con su última solicitud
+        VD --> VB : List<Vino>
+        VB --> FC : List<Vino>
+        FC -> FC : dgvVinos.DataSource = vinos; ocultar columnas;\nActualizarEncabezados() y ActualizarEstadoBajaBoton()
       end
     end
   end
-  deactivate VB
-else el usuario corrige un vino rechazado
-  U -> FC : seleccionar un vino Rechazado + click "Corregir y reproponer"
-  FC -> FC : cargar el vino en el formulario (SKU de solo lectura)
-  U -> FC : corregir los datos + click "Guardar"
+
+else 21d. el usuario corrige un vino rechazado
+  U -> FC : seleccionar un vino + click "Corregir y reproponer"
+
+  break 21g. el vino no está seleccionado o no está Rechazado
+    FC --> U : "Seleccione un vino rechazado."\n(título "Atención")
+    note right of FC : return: no carga nada ni recarga la grilla
+  end
+
+  FC -> FC : LimpiarFormulario(); cargar el vino en el formulario\n(SKU de solo lectura, _vinoReproponerId = vino.Id)
+  U -> FC : corregir los datos + click "Proponer alta"
+  FC -> FC : v.Id = _vinoReproponerId
   FC -> VB : Reproponer(vino, sesion)
-  activate VB
   VB -> VB : ValidarDatos(vino, exigirCodigo = false)
-  VB -> VD : ObtenerPorId(vino.Id)
-  activate VD
-  VD -> DB : VINO_OBTENER_POR_ID(@id)
-  DB --> VD : filas
-  VD --> VB : Vino (o null)
-  deactivate VD
 
-  alt 4a. datos inválidos, el vino no existe o ya no está Rechazado
-    VB --> FC : InvalidOperationException
-    FC --> U : mensaje de la excepción
-  else vino Rechazado
-    VB -> SD : ObtenerPendiente(vino.Id, TipoSolicitud.Alta)
-    activate SD
-    SD -> DB : SOLICITUD_OBTENER_PENDIENTE(@vino_id,@tipo)
-    DB --> SD : filas
-    SD --> VB : SolicitudAutorizacion (o null)
-    deactivate SD
+  alt 21e. algún dato no cumple las validaciones de negocio
+    VB --> FC : throw InvalidOperationException\n(mensaje de la validación)
+  else datos válidos
+    VB -> VD : ObtenerPorId(vino.Id)
+    VD -> DB : VINO_OBTENER_POR_ID(@id)
+    DB --> VD : filas
+    VD --> VB : Vino (o null)
 
-    alt 4b. ya existe una solicitud de alta pendiente
-      VB --> FC : InvalidOperationException
-      FC --> U : mensaje de la excepción
-    else sin solicitud pendiente
-      VB -> VD : Reproponer(vino, sesion.Id)
-      activate VD
-      VD -> DB : VINO_REPROPONER(@id,@nombre,@bodega_id,@varietal,@aniada,\n@stock_minimo,@emisor_id,@precio,@maridaje,@puntaje)
-      note right of DB : en una sola transacción: UPDATE VINO a Pendiente\nWHERE ESTADO = 'Rechazado' + INSERT SOLICITUD_AUTORIZACION\n(ALTA, Pendiente, emisor = quien repropone)
-      DB --> VD : FILAS
-      VD --> VB : int
-      deactivate VD
+    alt 21e. el vino no existe o ya no está Rechazado
+      VB --> FC : throw InvalidOperationException\n("El vino indicado no existe." /\n"Solo se puede reproponer un vino rechazado.")
+    else vino Rechazado
+      VB -> SD : ObtenerPendiente(actual.Id, TipoSolicitud.Alta)
+      SD -> DB : SOLICITUD_OBTENER_PENDIENTE(@vino_id,@tipo)
+      DB --> SD : filas
+      SD --> VB : SolicitudAutorizacion (o null)
 
-      alt 4c. 0 filas (el vino ya no está rechazado) o SqlException 547/2601/2627
-        VB --> FC : InvalidOperationException
-        FC --> U : mensaje de la excepción
-      else 1 fila
-        VB -> BB : RegistrarAccion(sesion.Usuario,\n"REPROPUESTA_ALTA_VINO:" + vino.Codigo)
-        activate BB
-        BB -> TD : Registrar(usuario, accion)
-        activate TD
-        TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
-        DB --> TD : filas afectadas
-        TD --> BB : void
-        deactivate TD
-        BB --> VB : void
-        deactivate BB
-        VB --> FC : void
-        FC --> U : "Vino repropuesto correctamente. Se emitió una nueva solicitud de alta,\npendiente de autorización."
+      alt 21e. ya existe una solicitud de alta pendiente
+        VB --> FC : throw InvalidOperationException\n("El vino ya tiene una solicitud de alta pendiente de autorización.")
+      else sin solicitud pendiente
+        VB -> VD : Reproponer(vino, sesion.Id)
+        VD -> DB : VINO_REPROPONER(@id,@nombre,@bodega_id,@varietal,@aniada,\n@stock_minimo,@emisor_id,@precio,@maridaje,@puntaje)
+        note right of DB : en una sola transacción: UPDATE VINO a Pendiente\nWHERE ESTADO = 'Rechazado' + INSERT SOLICITUD_AUTORIZACION\n(ALTA, Pendiente, emisor = quien repropone)
+
+        alt 21e. la bodega no existe (SqlException 547)
+          DB --> VD : SqlException
+          VD --> VB : SqlException
+          VB --> FC : throw InvalidOperationException\n("Debe seleccionar una bodega válida.")
+        else 21e. otra re-propuesta se adelantó (SqlException 2601 / 2627)
+          DB --> VD : SqlException
+          VD --> VB : SqlException
+          VB --> FC : throw InvalidOperationException\n("El vino ya tiene una solicitud de alta pendiente de autorización.")
+        else el SP responde
+          DB --> VD : FILAS
+          VD --> VB : int filas
+
+          alt 21e. 0 filas (el vino ya no está rechazado)
+            VB --> FC : throw InvalidOperationException\n("No se pudo reproponer: el vino ya no está rechazado.\nActualice e intente nuevamente.")
+          else 1 fila
+            VB -> BB : RegistrarAccion(sesion.Usuario,\n"REPROPUESTA_ALTA_VINO:" + actual.Codigo)
+            BB -> TD : Registrar(usuario, accion)
+            TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+            DB --> TD : filas afectadas
+            TD --> BB : void
+            BB --> VB : void
+            VB --> FC : void
+            FC --> U : "Vino repropuesto correctamente. Se emitió una nueva solicitud de alta,\npendiente de autorización." (título "Éxito")
+            FC -> FC : LimpiarFormulario()
+            FC -> FC : CargarVinos()
+            FC -> VB : ListarCatalogo(sesion)
+            VB -> VD : ListarCatalogo(sesion.Id)
+            VD -> DB : VINO_LISTAR_CATALOGO(@usuario_id)
+            DB --> VD : filas de VINO con su última solicitud
+            VD --> VB : List<Vino>
+            VB --> FC : List<Vino>
+            FC -> FC : dgvVinos.DataSource = vinos; ocultar columnas;\nActualizarEncabezados() y ActualizarEstadoBajaBoton()
+          end
+        end
       end
     end
   end
-  deactivate VB
 end
 
-FC -> VB : ListarCatalogo(sesion)
-activate VB
-VB -> VD : ListarCatalogo(sesion.Id)
-activate VD
-VD -> DB : VINO_LISTAR_CATALOGO(@usuario_id)
-DB --> VD : filas
-VD --> VB : List<Vino>
-deactivate VD
-VB --> FC : List<Vino>
-deactivate VB
-FC -> FC : refrescar grilla (tras una operación exitosa o un fallo de la\nre-propuesta) y, si tuvo éxito, limpiar el formulario
+opt la BLL lanzó InvalidOperationException (catch de btnGuardarVino_Click)
+  FC --> U : ex.Message\n(título "Atención")
+  opt es una re-propuesta (esReproposicion)
+    FC -> FC : CargarVinos()
+    FC -> VB : ListarCatalogo(sesion)
+    VB -> VD : ListarCatalogo(sesion.Id)
+    VD -> DB : VINO_LISTAR_CATALOGO(@usuario_id)
+    DB --> VD : filas de VINO con su última solicitud
+    VD --> VB : List<Vino>
+    VB --> FC : List<Vino>
+    FC -> FC : dgvVinos.DataSource = vinos; ocultar columnas;\nActualizarEncabezados() y ActualizarEstadoBajaBoton()
+    note right of FC : el vino puede haber cambiado de estado; el formulario\nqueda en modo re-propuesta (no se limpia)
+  end
+  note right of FC : en el alta nueva no se recarga la grilla (return)
+end
 deactivate FC
 
 @enduml

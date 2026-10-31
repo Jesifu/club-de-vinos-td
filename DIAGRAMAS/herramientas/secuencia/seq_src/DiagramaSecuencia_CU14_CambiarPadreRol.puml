@@ -1,0 +1,118 @@
+@startuml DiagramaSecuencia_CU14_CambiarPadreRol
+
+title CU-14 — Cambiar Padre de Rol — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador" as A
+participant ":frmPerfiles"   as FP #FEFECE
+participant ":PerfilBLL"     as PB #E8F4E8
+participant ":PerfilDAL"     as PD #E8E8F4
+database    ":DB"            as DB #EEEEEE
+
+note over FP
+  Precondición: sesión activa,
+  permiso "Gestión de roles",
+  el rol a mover existe.
+  Al abrirse, frmPerfiles se registra en IdiomaManager,
+  carga el catálogo de permisos (ObtenerPermisosDisponibles),
+  traduce sus controles, carga el árbol (CargarArbol, que se
+  ejecuta dos veces: vía ActualizarIdioma y directo)
+  y agrega el selector de idiomas.
+end note
+
+== 1. Selección y preparación del combo ==
+
+A -> FP : seleccionar un rol en el árbol
+FP -> FP : treePermisos_AfterSelect
+FP -> FP : PopularCheckPermisos(rol)
+FP -> FP : PopularComboPadre(rol, nodoActual)
+note right of FP
+  RT-01: el combo excluye al propio rol y a todos
+  sus descendientes (recorrido del TreeView en
+  memoria, sin consultar la base de datos) y agrega
+  la opción "(ninguno)". Los ancestros por encima
+  del padre actual (RT-04) se muestran en gris pero
+  no son seleccionables.
+end note
+FP -> FP : cboPadre.SelectedIndex =\npadre actual del rol\n(0 = "(ninguno)" si no tiene)
+FP --> A : panelPadre visible con\nel combo de padres
+
+== 2. Selección de nuevo padre ==
+
+A -> FP : elegir un padre en el combo\n(o "(ninguno)")
+
+opt elige un ancestro por encima del padre actual (deshabilitado)
+  FP -> FP : cboPadre_SelectedIndexChanged:\nvuelve a _cboPadreIndiceAnterior
+  note right of FP : sin mensaje: el combo revierte\nsilenciosamente a la selección anterior
+end
+
+A -> FP : click "Asignar padre"
+note right of FP : si no hay un Rol seleccionado en el árbol o el combo\nno tiene un ItemRol seleccionado, el handler hace return
+
+== 3. Validación y actualización ==
+
+FP -> PB : CambiarPadre(rol.Id, seleccionado.Id)
+note right of PB : seleccionado.Id es int?\n(null = "(ninguno)")
+activate PB
+
+opt nuevoPadreId tiene valor
+  PB -> PD : ListarRoles()
+  PD -> DB : ROL_LISTAR_TODOS
+  DB --> PD : filas de ROL
+  PD --> PB : todos los roles
+
+  PB -> PB : GenerariaCiclo(rol.Id, nuevoPadreId, todos)
+  note right of PB
+    RT-02: validación en memoria,
+    recorre la cadena de padres
+    hacia arriba desde
+    nuevoPadreId.
+  end note
+  break 4a. GenerariaCiclo → true
+    PB --> FP : throw InvalidOperationException\n("No se puede asignar ese padre:\ngeneraría una referencia circular.")
+    FP --> A : ex.Message en un MessageBox de error\n(título "Error")
+    note right of FP : el caso de uso termina\nsin modificar la jerarquía ni recargar el árbol
+  end
+
+  PB -> PB : padreActual = todos.FirstOrDefault(id == rolId)?.PadreId
+  PB -> PB : EsAncestroDelPadreActual(padreActual,\nnuevoPadreId, todos)
+  note right of PB
+    RT-04: validación en memoria,
+    recorre la cadena de padres
+    hacia arriba desde el padre
+    del padre actual del rol.
+  end note
+  break 4b. EsAncestroDelPadreActual → true\n(el nuevo padre es un ancestro superior\nal padre actual del rol)
+    PB --> FP : throw InvalidOperationException\n("No se puede asignar como padre\na un ancestro del padre actual del rol.")
+    FP --> A : ex.Message en un MessageBox de error\n(título "Error")
+    note right of FP : el caso de uso termina\nsin modificar la jerarquía ni recargar el árbol
+  end
+end
+
+PB -> PD : CambiarPadre(rolId, nuevoPadreId)
+PD -> DB : ROL_CAMBIAR_PADRE(@id, @padre_id)\n(UPDATE ROL SET PADRE_ID)
+note right of DB
+  RT-03: asignar "(ninguno)"
+  (nuevoPadreId = null) hace
+  al rol raíz del árbol.
+end note
+PB --> FP : (padre actualizado)
+deactivate PB
+
+== 4. Actualización del árbol ==
+
+@CA
+FP -> FP : por cada nodo raíz tn: BuscarNodo(tn, rol.Id) y\ntreePermisos.SelectedNode = encontrado\n→ mantener selección sobre el rol movido
+FP -> FP : treePermisos_AfterSelect\n(PopularCheckPermisos + PopularComboPadre\ncon la nueva jerarquía)
+FP --> A : árbol refrescado con\nla nueva jerarquía
+
+@enduml

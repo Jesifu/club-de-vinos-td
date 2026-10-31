@@ -20,137 +20,191 @@ database    ":DB"                      as DB #EEEEEE
 note over FA
   Precondición: sesión activa; permiso "Autorizar alta de vinos";
   existe al menos una solicitud de alta Pendiente.
+  sesion = SessionManager.getInstance().getUsuario().
 end note
 
-A -> FA : abrir "Autorizar alta de vino"
+A -> FA : menú Catálogo > "Autorizar alta de vinos"\n(new frmAutorizarAltaVino().ShowDialog())
 activate FA
+note right of FA
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarPendientes() y agrega el selector de idiomas.
+  DataBindingComplete de la grilla y Shown del formulario
+  también reevalúan ActualizarSeleccion().
+end note
+FA -> FA : CargarPendientes()
 FA -> VB : ListarSolicitudesPendientes(TipoSolicitud.Alta)
-activate VB
 VB -> SD : ListarPendientes(TipoSolicitud.Alta)
-activate SD
 SD -> DB : SOLICITUD_LISTAR_PENDIENTES(@tipo)
-DB --> SD : filas (solicitud + emisor + datos del vino)
+DB --> SD : filas (solicitud + emisor + datos del vino + stock actual)
 SD --> VB : List<SolicitudAutorizacion>
-deactivate SD
 VB --> FA : List<SolicitudAutorizacion>
-deactivate VB
-FA -> FA : mostrar grilla de solicitudes
+FA -> FA : dgvPendientes.DataSource = solicitudes; ocultar columnas;\nActualizarEncabezados(); ActualizarSeleccion()\n(MostrarDetalle + ActualizarEstadoBotones)
+FA --> A : grilla de solicitudes pendientes
 
 A -> FA : seleccionar una solicitud
-FA -> FA : MostrarDetalle(): cargar en el panel de detalle los datos\nde la solicitud y del vino (SKU, nombre, bodega, varietal, añada,\nprecio, stock mínimo, maridaje, puntaje)
-FA -> FA : habilitar "Autorizar" y "Rechazar alta" solo si\nsolicitud.EmisorId <> sesion.Id (RN-01, capa UI)
+FA -> FA : dgvPendientes_SelectionChanged → ActualizarSeleccion()
+FA -> FA : MostrarDetalle(): cargar en el panel de detalle el tipo, el emisor y la\nfecha de emisión de la solicitud y los datos del vino (SKU, nombre,\nbodega, varietal, añada, precio, stock mínimo, maridaje, puntaje)
+FA -> FA : ActualizarEstadoBotones(): habilitar "Autorizar" y "Rechazar alta"\nsolo si solicitud.EmisorId <> sesion.Id (RN-01, capa UI)
+
+opt 22a. la solicitud la emitió el propio administrador (EmisorId == sesion.Id)
+  FA -> FA : btnAutorizar y btnRechazarAlta quedan deshabilitados
+  note right of FA : RN-01: BLL y SP también rechazan la resolución\nde una solicitud propia
+end
 
 alt el administrador autoriza el alta ("Autorizar")
   A -> FA : click "Autorizar"
+
+  break 22e. no hay solicitud seleccionada
+    FA --> A : "Seleccione una solicitud de alta pendiente."\n(título "Atención")
+    note right of FA : return: no recarga la grilla
+  end
+
   FA -> VB : AutorizarAlta(solicitud.Id, sesion)
-  activate VB
   VB -> VB : ObtenerSolicitudPendiente(solicitudId, TipoSolicitud.Alta)
   VB -> SD : ObtenerPorId(solicitudId)
-  activate SD
   SD -> DB : SOLICITUD_OBTENER_POR_ID(@id)
   DB --> SD : filas
   SD --> VB : SolicitudAutorizacion (o null)
-  deactivate SD
 
-  alt 3a. la solicitud no existe, ya fue resuelta o no es de alta
-    VB --> FA : InvalidOperationException
-    FA --> A : mensaje de la excepción
-  else 3b. el administrador es quien emitió la solicitud (RN-01, capa BLL)
-    VB --> FA : InvalidOperationException
-    FA --> A : mensaje de la excepción
-  else solicitud pendiente y separación de funciones OK
-    VB -> SD : AprobarAlta(solicitudId, sesion.Id)
-    activate SD
-    SD -> DB : SOLICITUD_APROBAR_ALTA(@solicitud_id,@resolutor_id)
-    note right of DB : en una sola transacción, bloqueando primero VINO:\nsolicitud Aprobada + VINO de Pendiente a Activo
-    DB --> SD : FILAS
-    SD --> VB : int
-    deactivate SD
+  alt 22d. la solicitud no existe, ya fue resuelta o no es de alta
+    VB --> FA : throw InvalidOperationException\n("La solicitud indicada no existe." / "La solicitud ya fue resuelta." /\n"La solicitud no corresponde a este trámite.")
+  else solicitud pendiente de alta
+    VB -> VB : ValidarSeparacionDeFunciones(s, sesion, "autorizar")
 
-    alt 3c. 0 filas (RN-01, backstop de la SP, o la solicitud cambió de estado)
-      VB --> FA : InvalidOperationException
-      FA --> A : mensaje de la excepción
-    else 1 fila
-      VB -> BB : RegistrarAccion(sesion.Usuario,\n"AUTORIZACION_VINO:" + solicitud.VinoCodigo)
-      activate BB
-      BB -> TD : Registrar(usuario, accion)
-      activate TD
-      TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
-      DB --> TD : filas afectadas
-      TD --> BB : void
-      deactivate TD
-      BB --> VB : void
-      deactivate BB
-      VB --> FA : void
-      FA --> A : "Vino autorizado correctamente."
-    end
-  end
-  deactivate VB
-else el administrador rechaza el alta ("Rechazar alta")
-  A -> FA : escribir el motivo de rechazo + click "Rechazar alta" + confirmar
-
-  alt 4a. el motivo está vacío (capa UI)
-    FA --> A : "Debe indicar el motivo del rechazo."
-  else motivo informado
-    FA -> VB : RechazarAlta(solicitud.Id, motivo, sesion)
-    activate VB
-    VB -> VB : ValidarMotivo(motivo)\n(recorta; 1 a 200 caracteres)
-    VB -> VB : ObtenerSolicitudPendiente(solicitudId, TipoSolicitud.Alta)
-    VB -> SD : ObtenerPorId(solicitudId)
-    activate SD
-    SD -> DB : SOLICITUD_OBTENER_POR_ID(@id)
-    DB --> SD : filas
-    SD --> VB : SolicitudAutorizacion (o null)
-    deactivate SD
-
-    alt 4b. motivo inválido, solicitud inexistente o ya resuelta
-      VB --> FA : InvalidOperationException
-      FA --> A : mensaje de la excepción
-    else 4c. el administrador es quien emitió la solicitud (RN-01, capa BLL)
-      VB --> FA : InvalidOperationException
-      FA --> A : mensaje de la excepción
-    else solicitud pendiente y separación de funciones OK
-      VB -> SD : RechazarAlta(solicitudId, sesion.Id, motivo)
-      activate SD
-      SD -> DB : SOLICITUD_RECHAZAR_ALTA(@solicitud_id,@resolutor_id,@motivo)
-      note right of DB : en una sola transacción, bloqueando primero VINO:\nsolicitud Rechazada (con motivo) + VINO de Pendiente a Rechazado
+    alt 22a. el administrador es quien emitió la solicitud (RN-01, capa BLL)
+      VB --> FA : throw InvalidOperationException\n("No puede autorizar una solicitud que usted mismo emitió.")
+    else el administrador no es el emisor
+      VB -> SD : AprobarAlta(s.Id, sesion.Id)
+      SD -> DB : SOLICITUD_APROBAR_ALTA(@solicitud_id,@resolutor_id)
+      note right of DB : en una transacción que bloquea primero VINO: solicitud\nAprobada (WHERE EMISOR_ID <> @resolutor_id) +\nVINO Pendiente → Activo
       DB --> SD : FILAS
-      SD --> VB : int
-      deactivate SD
+      SD --> VB : int filas
 
-      alt 4d. 0 filas (RN-01, backstop de la SP, o la solicitud cambió de estado)
-        VB --> FA : InvalidOperationException
-        FA --> A : mensaje de la excepción
+      alt 22d. 0 filas (la solicitud cambió de estado o la emitió el administrador; RN-01, backstop SP)
+        VB --> FA : throw InvalidOperationException\n("No se pudo autorizar el alta: la solicitud cambió de estado o usted\nla emitió. Actualice e intente nuevamente.")
       else 1 fila
-        VB -> BB : RegistrarAccion(sesion.Usuario,\n"RECHAZO_ALTA_VINO:" + solicitud.VinoCodigo)
-        activate BB
+        VB -> BB : RegistrarAccion(sesion.Usuario,\n"AUTORIZACION_VINO:" + s.VinoCodigo)
         BB -> TD : Registrar(usuario, accion)
-        activate TD
         TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
         DB --> TD : filas afectadas
         TD --> BB : void
-        deactivate TD
         BB --> VB : void
-        deactivate BB
         VB --> FA : void
-        FA --> A : "Alta rechazada. El vino quedó rechazado."
+        FA --> A : "Vino autorizado correctamente."\n(título "Éxito")
+        FA -> FA : txtMotivoRechazo.Clear()
+        FA -> FA : CargarPendientes()
+        FA -> VB : ListarSolicitudesPendientes(TipoSolicitud.Alta)
+        VB -> SD : ListarPendientes(TipoSolicitud.Alta)
+        SD -> DB : SOLICITUD_LISTAR_PENDIENTES(@tipo)
+        DB --> SD : filas (solicitud + emisor + datos del vino + stock actual)
+        SD --> VB : List<SolicitudAutorizacion>
+        VB --> FA : List<SolicitudAutorizacion>
+        FA -> FA : dgvPendientes.DataSource = solicitudes; ocultar columnas;\nActualizarEncabezados(); ActualizarSeleccion()\n(MostrarDetalle + ActualizarEstadoBotones)
       end
     end
-    deactivate VB
+  end
+
+  opt la BLL lanzó InvalidOperationException (catch de btnAutorizar_Click)
+    FA --> A : ex.Message\n(título "Atención")
+    FA -> FA : CargarPendientes()
+    FA -> VB : ListarSolicitudesPendientes(TipoSolicitud.Alta)
+    VB -> SD : ListarPendientes(TipoSolicitud.Alta)
+    SD -> DB : SOLICITUD_LISTAR_PENDIENTES(@tipo)
+    DB --> SD : filas (solicitud + emisor + datos del vino + stock actual)
+    SD --> VB : List<SolicitudAutorizacion>
+    VB --> FA : List<SolicitudAutorizacion>
+    FA -> FA : dgvPendientes.DataSource = solicitudes; ocultar columnas;\nActualizarEncabezados(); ActualizarSeleccion()\n(MostrarDetalle + ActualizarEstadoBotones)
+    note right of FA : return
+  end
+
+else 22b. el administrador rechaza el alta con motivo ("Rechazar alta")
+  A -> FA : escribir el motivo + click "Rechazar alta"
+
+  break 22e. no hay solicitud seleccionada
+    FA --> A : "Seleccione una solicitud de alta pendiente."\n(título "Atención")
+    note right of FA : return: no recarga la grilla
+  end
+
+  FA -> FA : motivo = txtMotivoRechazo.Text.Trim()
+
+  break 22c. motivo vacío (UI)
+    FA --> A : "Debe indicar el motivo del rechazo."\n(título "Atención")
+    FA -> FA : txtMotivoRechazo.Focus()
+    note right of FA : return: no recarga la grilla
+  end
+
+  FA --> A : solicitar confirmación\n("¿Rechazar el alta del vino 'X'? Quedará rechazado y Compras\npodrá corregirlo y reproponerlo.") (título "Confirmar")
+
+  break 22b. el administrador responde "No"
+    A --> FA : No
+    note right of FA : return: no llama a la BLL ni recarga la grilla
+  end
+
+  A --> FA : Sí
+  FA -> VB : RechazarAlta(solicitud.Id, motivo, sesion)
+  VB -> VB : ValidarMotivo(motivo)\n(recorta; 1 a 200 caracteres)
+
+  alt 22c. motivo inválido (vacío o de más de 200 caracteres)
+    VB --> FA : throw InvalidOperationException\n("Debe indicar el motivo del rechazo." /\n"El motivo del rechazo no puede superar los 200 caracteres.")
+  else motivo válido (motivoLimpio)
+    VB -> VB : ObtenerSolicitudPendiente(solicitudId, TipoSolicitud.Alta)
+    VB -> SD : ObtenerPorId(solicitudId)
+    SD -> DB : SOLICITUD_OBTENER_POR_ID(@id)
+    DB --> SD : filas
+    SD --> VB : SolicitudAutorizacion (o null)
+
+    alt 22d. la solicitud no existe, ya fue resuelta o no es de alta
+      VB --> FA : throw InvalidOperationException\n("La solicitud indicada no existe." / "La solicitud ya fue resuelta." /\n"La solicitud no corresponde a este trámite.")
+    else solicitud pendiente de alta
+      VB -> VB : ValidarSeparacionDeFunciones(s, sesion, "rechazar")
+
+      alt 22a. el administrador es quien emitió la solicitud (RN-01, capa BLL)
+        VB --> FA : throw InvalidOperationException\n("No puede rechazar una solicitud que usted mismo emitió.")
+      else el administrador no es el emisor
+        VB -> SD : RechazarAlta(s.Id, sesion.Id, motivoLimpio)
+        SD -> DB : SOLICITUD_RECHAZAR_ALTA(@solicitud_id,@resolutor_id,@motivo)
+        note right of DB : en una transacción que bloquea primero VINO: solicitud\nRechazada con el motivo (WHERE EMISOR_ID <> @resolutor_id) +\nVINO Pendiente → Rechazado
+        DB --> SD : FILAS
+        SD --> VB : int filas
+
+        alt 22d. 0 filas (la solicitud cambió de estado o la emitió el administrador)
+          VB --> FA : throw InvalidOperationException\n("No se pudo rechazar el alta: la solicitud cambió de estado o usted\nla emitió. Actualice e intente nuevamente.")
+        else 1 fila
+          VB -> BB : RegistrarAccion(sesion.Usuario,\n"RECHAZO_ALTA_VINO:" + s.VinoCodigo)
+          BB -> TD : Registrar(usuario, accion)
+          TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+          DB --> TD : filas afectadas
+          TD --> BB : void
+          BB --> VB : void
+          VB --> FA : void
+          FA --> A : "Alta rechazada. El vino quedó rechazado."\n(título "Éxito")
+          FA -> FA : txtMotivoRechazo.Clear()
+          FA -> FA : CargarPendientes()
+          FA -> VB : ListarSolicitudesPendientes(TipoSolicitud.Alta)
+          VB -> SD : ListarPendientes(TipoSolicitud.Alta)
+          SD -> DB : SOLICITUD_LISTAR_PENDIENTES(@tipo)
+          DB --> SD : filas (solicitud + emisor + datos del vino + stock actual)
+          SD --> VB : List<SolicitudAutorizacion>
+          VB --> FA : List<SolicitudAutorizacion>
+          FA -> FA : dgvPendientes.DataSource = solicitudes; ocultar columnas;\nActualizarEncabezados(); ActualizarSeleccion()\n(MostrarDetalle + ActualizarEstadoBotones)
+        end
+      end
+    end
+  end
+
+  opt la BLL lanzó InvalidOperationException (catch de btnRechazarAlta_Click)
+    FA --> A : ex.Message\n(título "Atención")
+    FA -> FA : CargarPendientes()
+    FA -> VB : ListarSolicitudesPendientes(TipoSolicitud.Alta)
+    VB -> SD : ListarPendientes(TipoSolicitud.Alta)
+    SD -> DB : SOLICITUD_LISTAR_PENDIENTES(@tipo)
+    DB --> SD : filas (solicitud + emisor + datos del vino + stock actual)
+    SD --> VB : List<SolicitudAutorizacion>
+    VB --> FA : List<SolicitudAutorizacion>
+    FA -> FA : dgvPendientes.DataSource = solicitudes; ocultar columnas;\nActualizarEncabezados(); ActualizarSeleccion()\n(MostrarDetalle + ActualizarEstadoBotones)
+    note right of FA : return
   end
 end
-
-FA -> VB : ListarSolicitudesPendientes(TipoSolicitud.Alta)
-activate VB
-VB -> SD : ListarPendientes(TipoSolicitud.Alta)
-activate SD
-SD -> DB : SOLICITUD_LISTAR_PENDIENTES(@tipo)
-DB --> SD : filas
-SD --> VB : List<SolicitudAutorizacion>
-deactivate SD
-VB --> FA : List<SolicitudAutorizacion>
-deactivate VB
-FA -> FA : refrescar grilla y detalle (tras un resultado exitoso o un fallo\nde la BLL; el motivo vacío no recarga)
 deactivate FA
 
 @enduml

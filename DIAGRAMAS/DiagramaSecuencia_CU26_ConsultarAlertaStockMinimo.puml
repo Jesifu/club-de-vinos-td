@@ -20,21 +20,25 @@ note over FA
   Consulta pasiva: no hay aviso automático al iniciar sesión ni registro en Bitácora.
 end note
 
-U -> FA : abrir "Alerta de stock mínimo"
+U -> FA : menú Catálogo > "Consultar alerta de stock mínimo"\n(new frmAlertaStockMinimo().ShowDialog())
 activate FA
-FA -> VB : ListarAlertaStockMinimo()
-activate VB
-VB -> VD : ListarBajoStockMinimo()
-activate VD
-VD -> DB : VINO_LISTAR_STOCK_BAJO
-DB --> VD : filas (vinos activos y autorizados con stock derivado < STOCK_MINIMO)
-VD --> VB : List<AlertaStockMinimo>
-deactivate VD
-VB --> FA : List<AlertaStockMinimo>
-deactivate VB
+note right of FA
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarAlertas() y agrega el selector de idiomas
+end note
 
-alt 2a. la lista está vacía
-  FA --> U : grilla vacía + mensaje "sin alertas"
+FA -> FA : CargarAlertas()
+FA -> VB : ListarAlertaStockMinimo()
+VB -> VD : ListarBajoStockMinimo()
+VD -> DB : VINO_LISTAR_STOCK_BAJO
+DB --> VD : filas (vinos Activos con stock derivado < STOCK_MINIMO,\nordenados por faltante descendente y nombre)
+VD --> VB : List<AlertaStockMinimo>
+VB --> FA : List<AlertaStockMinimo>
+FA -> FA : dgvAlertas.DataSource = alertas;\nocultar VinoId y ActualizarEncabezados()
+FA -> FA : lblSinAlertas.Visible = (alertas.Count == 0)
+
+alt 3a. la lista está vacía
+  FA --> U : grilla vacía + mensaje "No hay vinos por debajo del stock mínimo."
 else hay vinos bajo el mínimo
   FA --> U : grilla con SKU, nombre, bodega, stock mínimo,\nstock actual y faltante
 end

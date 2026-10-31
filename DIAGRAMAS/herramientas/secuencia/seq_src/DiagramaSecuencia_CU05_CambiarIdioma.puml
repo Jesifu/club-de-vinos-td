@@ -1,0 +1,127 @@
+@startuml DiagramaSecuencia_CU05_CambiarIdioma
+
+title CU-05 — Cambiar Idioma — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Usuario"                 as U
+participant ":FormularioActual"        as F  #FEFECE
+participant ":OtroFormulario\nAbierto" as F2 #FEFECE
+participant ":IdiomaBLL"               as IB #E8F4E8
+participant ":UsuarioBLL"              as UB #E8F4E8
+participant ":IdiomaManager"           as IM #F4E8E8
+participant ":SessionManager"          as SM #F4E8E8
+participant ":IdiomaDAL"               as IDD #E8E8F4
+participant ":UsuarioDAL"              as UD #E8E8F4
+database    ":DB"                      as DB #EEEEEE
+
+note over F
+  Precondición: el formulario tiene un combo de idiomas con los idiomas
+  habilitados (RT-01). En la mayoría de los formularios lo agrega
+  IdiomaUIHelper.AgregarSelector(form) al cargar (preselecciona el
+  idioma activo); en frmMenu es el combo propio cboIdiomaStatus,
+  cargado por CargarIdiomas() con SelectedIndex = -1.
+end note
+
+== 1. Selección de idioma ==
+
+U -> F : desplegar combo de idiomas\n+ seleccionar un idioma
+
+break 1a. el idioma seleccionado es el mismo que el activo\n(selector de AgregarSelector)
+  note right of F
+    No es un if del código: es comportamiento del
+    ComboBox, que no dispara SelectedIndexChanged
+    (no hay cambio de índice). El caso de uso
+    termina aquí. En el combo de frmMenu, que
+    arranca sin selección (-1), elegir el idioma ya
+    activo por primera vez sí dispara el evento y
+    corre todo el flujo.
+  end note
+end
+
+break 2b. guardas del handler: no hay idioma que aplicar
+  note right of F
+    if (_cargandoIdiomas) return;  (solo frmMenu,
+    mientras CargarIdiomas() rellena el combo)
+    if (!(SelectedItem is IDIOMA idioma)) return;
+    (frmMenu y IdiomaUIHelper.AgregarSelector)
+  end note
+end
+
+== 2. Carga de traducciones ==
+
+opt el selector es el de frmMenu (cboIdiomaStatus_SelectedIndexChanged)
+  loop por cada ítem de menú registrado en _menuDefaults
+    F -> IB : RegistrarControl(clave, "[" + textoDefault + "]")
+    IB -> IDD : RegistrarControl(clave, textoDefault)
+    IDD -> DB : CONTROL_REGISTRAR(@clave, @texto_default)
+  end
+end
+
+F -> IB : CargarTraducciones(idioma.Id)
+activate IB
+IB -> IDD : CargarTraducciones(idiomaId)
+IDD -> IDD : ListarControlesConTraduccion(idiomaId)
+IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)
+DB --> IDD : filas (ID, CLAVE, TEXTO_DEFAULT, TEXTO_TRADUCCION)
+IDD --> IB : Dictionary<clave, texto>
+IB --> F : Dictionary<clave, texto>
+deactivate IB
+
+== 3. Actualización del idioma activo ==
+
+F -> IM : CambiarIdioma(idioma, traducciones)
+activate IM
+IM -> IM : _idiomaActivo = idioma\n_traducciones = traducciones
+
+== 4. Notificación a los formularios registrados ==
+
+IM -> IM : Notificar()
+loop por cada formulario registrado (RT-02; incluye F)
+  IM -> F2 : ActualizarIdioma()
+  activate F2
+
+  loop por cada control en _controles\n(en frmMenu, por cada ítem en _menuItems)
+    F2 -> IM : Traducir(clave)
+    IM --> F2 : texto / null
+    F2 -> F2 : control.Text = texto\n?? _defaults[clave]\n(RT-03)
+  end
+
+  opt el formulario tiene DataGridView
+    F2 -> F2 : ActualizarEncabezados()
+  end
+
+  F2 --> IM : (formulario actualizado)
+  deactivate F2
+end
+IM --> F : (observadores notificados)
+deactivate IM
+
+== 5. Persistencia de la preferencia del usuario ==
+
+F -> SM : getUsuario()
+SM --> F : usuario / null
+
+opt hay un usuario logueado (usuario != null)
+  F -> UB : ActualizarIdioma(usuario.Id, idioma.Id)
+  activate UB
+  UB -> UD : ActualizarIdioma(id, idiomaId)
+  UD -> DB : USUARIO_ACTUALIZAR_IDIOMA(@id, @idioma_id)
+  deactivate UB
+end
+
+note right of F
+  El selector del formulario de login (antes de autenticar)
+  no persiste la preferencia: todavía no hay sesión activa
+  y getUsuario() devuelve null.
+end note
+
+@enduml

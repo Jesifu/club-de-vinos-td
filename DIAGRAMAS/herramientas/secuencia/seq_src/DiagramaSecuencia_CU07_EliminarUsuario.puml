@@ -1,0 +1,99 @@
+@startuml DiagramaSecuencia_CU07_EliminarUsuario
+
+title CU-07 — Eliminar Usuario — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.75
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador"       as A
+participant ":frmAdminUsuarios"    as FA #FEFECE
+participant ":UsuarioBLL"          as UB #E8F4E8
+participant ":UsuarioHistorialBLL" as UH #E8F4E8
+participant ":IntegridadBLL"       as IB #E8F4E8
+participant ":CalculadorDVH" as CD #F4E8E8
+participant ":SessionManager"      as SM #F4E8E8
+participant ":UsuarioDAL"          as UD #E8E8F4
+participant ":UsuarioPerfilDAL"    as UPD #E8E8F4
+participant ":UsuarioHistorialDAL" as UHD #E8E8F4
+participant ":IntegridadDAL"       as IND #E8E8F4
+database    ":DB"                  as DB #EEEEEE
+
+note over FA
+  Precondición: sesión activa,
+  permiso "Administrar usuarios";
+  frmAdminUsuarios abierto desde frmMenu
+  (Administración > Gestión de usuarios).
+end note
+
+== 1. Selección y solicitud ==
+
+A -> FA : seleccionar usuario en la grilla\n+ click "Eliminar usuario"
+
+break 1a. ningún usuario seleccionado
+  FA --> A : "Seleccioná un usuario."\n(título "Atención")
+  note right of FA : el caso de uso termina
+end
+
+== 2. Validaciones ==
+
+FA -> SM : getUsuario()
+SM --> FA : BE.USUARIO (se usa .Usuario)
+
+alt 2a. el usuario seleccionado es el propio administrador\n(seleccionado.Usuario == usuarioActual)
+  FA --> A : "No podés eliminar tu propio usuario."\n(título "Atención")
+  note right of FA : el caso de uso termina
+
+else el usuario seleccionado es distinto al propio
+  FA --> A : solicitar confirmación\n("¿Eliminar al usuario 'X'? Esta acción no se puede deshacer.")\n(título "Confirmar")
+
+  alt 3a. el administrador cancela
+    A --> FA : No
+    note right of FA : el caso de uso termina\n(no se elimina al usuario ni se recarga la grilla)
+
+  else el administrador confirma
+    A --> FA : Sí
+
+    == 3. Eliminación ==
+
+    FA -> UB : Eliminar(seleccionado.Id)
+    activate UB
+
+    UB -> SM : getUsuario()
+    SM --> UB : BE.USUARIO (se usa .Usuario como admin)
+
+    @RC UB | id | BAJA | admin
+    note right of UH
+      Snapshot del último
+      estado conocido (RT-02),
+      registrado antes de
+      eliminar el registro.
+    end note
+
+    UB -> UD : Eliminar(id)
+    UD -> DB : USUARIO_ELIMINAR(@id)
+    note right of DB
+      Cascada del SP: borra
+      también las filas del
+      usuario en USUARIO_PERFIL
+      (RT-04). USUARIO_HISTORIAL
+      no tiene FK (RT-03).
+    end note
+
+    @IR UB
+    UB --> FA : (usuario eliminado)
+    deactivate UB
+
+    @LU
+  end
+end
+
+note over FA : la baja no registra nada en la bitácora\ny no muestra mensaje de éxito
+
+@enduml

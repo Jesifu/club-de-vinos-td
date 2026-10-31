@@ -13,9 +13,10 @@ scale 0.75
 ' Participantes en orden de aparición
 ' ─────────────────────────────────────────
 actor       ":Administrador"         as A
-participant ":frmHistorial\nUsuario" as FH #FEFECE
+participant ":frmHistorialUsuario"   as FH #FEFECE
 participant ":UsuarioHistorialBLL"   as UH #E8F4E8
 participant ":IntegridadBLL"         as IB #E8F4E8
+participant ":CalculadorDVH"         as CD #F4E8E8
 participant ":SessionManager"        as SM #F4E8E8
 participant ":UsuarioHistorialDAL"   as UHD #E8E8F4
 participant ":UsuarioDAL"            as UD #E8E8F4
@@ -24,176 +25,163 @@ participant ":IntegridadDAL"         as IND #E8E8F4
 database    ":DB"                    as DB #EEEEEE
 
 note over FH
-  Precondición: dentro de CU-10,
-  con una entrada del historial
-  seleccionada cuyo TipoCambio
-  no es BAJA (botón Rollback
-  habilitado por CU-10).
+  Precondición: dentro de CU-10, con una entrada del
+  historial seleccionada. El botón "Restaurar versión"
+  se habilita en dgvHistorial_SelectionChanged solo si
+  TipoCambio != "BAJA" (empieza deshabilitado).
+  Al abrirse, el formulario se registra en IdiomaManager,
+  traduce sus controles y agrega el selector de idiomas.
 end note
 
 == 1. Solicitud ==
 
-A -> FH : click "Rollback"
+alt 1a. la entrada seleccionada es de tipo BAJA
+  note over FH : el botón "Restaurar versión" permanece deshabilitado:\nno hay evento de click y el caso de uso no puede iniciarse
+else entrada con botón habilitado
+  A -> FH : click "Restaurar versión"
+  note right of FH : si no hay fila seleccionada (sel == null) el handler\nhace return; inalcanzable con el botón deshabilitado
 
-opt 2a. la entrada seleccionada es de tipo ROLLBACK
-  FH --> A : "No se puede restaurar una versión\nque ya es un rollback."\n("Operación no permitida")
-  note right of FH
-    RN-04: las entradas ROLLBACK
-    no son restaurables (evita
-    cadenas de rollbacks
-    recursivos). Validación en UI,
-    antes de pedir confirmación.
-  end note
-  note right of FH : el caso de uso termina
-end
+  break 1b. la entrada seleccionada es de tipo ROLLBACK
+    FH --> A : "No se puede restaurar una versión que ya es un rollback."\n(título "Operación no permitida")
+    note right of FH
+      RT-04: las entradas ROLLBACK no son
+      restaurables (evita cadenas de rollbacks
+      recursivos). Validación en UI, antes de
+      pedir confirmación.
+    end note
+    note right of FH : el caso de uso termina
+  end
 
-== 2. Confirmación ==
+  == 2. Confirmación ==
 
-FH --> A : solicitar confirmación\n("¿Restaurar el estado del usuario 'X'\na la versión del dd/MM/yyyy HH:mm?\nTipo de cambio registrado: ...\nNota: la contraseña NO se restaurará.")
+  FH --> A : solicitar confirmación\n("¿Restaurar el estado del usuario 'X' a la versión del dd/MM/yyyy HH:mm?\nTipo de cambio registrado: <tipo>\nNota: la contraseña NO se restaurará (se mantendrá la actual).")\n(título "Confirmar rollback")
 
-alt 4a. el administrador cancela
-  A --> FH : No
-  note right of FH : el caso de uso termina\n(no se aplica ningún cambio)
+  alt 3a. el administrador cancela
+    A --> FH : No
+    note right of FH : el caso de uso termina\n(no se aplica ningún cambio)
 
-else el administrador confirma
-  A --> FH : Sí
+  else el administrador confirma
+    A --> FH : Sí
 
-  == 3. Restauración ==
+    == 3. Restauración ==
 
-  FH -> SM : getUsuario()
-  SM --> FH : administrador actual
+    FH -> SM : getUsuario()
+    SM --> FH : BE.USUARIO (se usa .Usuario como admin)
+    note right of FH : esta llamada y el Rollback están dentro de un try\nque solo captura InvalidOperationException
 
-  FH -> UH : Rollback(historialId, admin)
-  activate UH
+    FH -> UH : Rollback(sel.Id, admin)
+    activate UH
 
-  UH -> UHD : ObtenerPorId(historialId)
-  UHD -> DB : USUARIO_HISTORIAL_OBTENER(@id)
-  DB --> UHD : fila de USUARIO_HISTORIAL / vacío
-  UHD --> UH : UsuarioHistorial / null
+    UH -> UHD : ObtenerPorId(historialId)
+    UHD -> DB : USUARIO_HISTORIAL_OBTENER(@id)
+    DB --> UHD : fila de USUARIO_HISTORIAL / vacío
+    UHD --> UH : UsuarioHistorial / null
 
-  alt EX-01. snapshot no encontrado
-    UH --> FH : throw InvalidOperationException\n("Versión histórica no encontrada.")
-    FH --> A : MessageBox de error
+    alt 4a. snapshot no encontrado (snapshot == null)
+      UH --> FH : throw InvalidOperationException\n("Versión histórica no encontrada.")
+      FH --> A : ex.Message en un MessageBox de error\n(título "Error")
+      note right of FH : no se recarga la grilla
 
-  else snapshot encontrado
+    else snapshot encontrado
 
-    alt EX-02. snapshot.TipoCambio == "ROLLBACK"\n(defensa en profundidad)
-      UH --> FH : throw InvalidOperationException\n("No se puede restaurar una versión\nque ya es un rollback.")
-      FH --> A : MessageBox de error
-      note right of UH
-        RN-04: validación de respaldo
-        en la capa de negocio, por si
-        se invoca Rollback() sin pasar
-        por la UI.
-      end note
+      alt 4a. snapshot.TipoCambio == "ROLLBACK"\n(defensa en profundidad)
+        UH --> FH : throw InvalidOperationException\n("No se puede restaurar una versión que ya es un rollback.")
+        FH --> A : ex.Message en un MessageBox de error\n(título "Error")
+        note right of UH
+          RT-04: validación de respaldo
+          en la capa de negocio, por si
+          se invoca Rollback() sin pasar
+          por la UI.
+        end note
 
-    else snapshot restaurable
-      UH -> UD : AplicarEstado(usuarioId, snapshot.Rol,\nsnapshot.Bloqueado, snapshot.IntentosFallidos,\nsnapshot.RolId)
-      UD -> DB : USUARIO_APLICAR_ESTADO(@id, @rol, @bloqueado,\n@intentos_fallidos, @rol_id)
-      note right of DB
-        RN-02: la contraseña (PASS)
-        nunca se restaura — no se
-        almacena en el historial.
-      end note
-
-      UH -> UPD : BorrarTodos(usuarioId)
-      UPD -> DB : USUARIO_PERFIL_BORRAR_TODOS(@usuario_id)
-      loop por cada perfil del snapshot
-        UH -> UPD : Asignar(usuarioId, perfilId)
-        UPD -> DB : USUARIO_PERFIL_ASIGNAR(@usuario_id, @perfil_id)
-      end
-
-      UH -> UD : ActualizarDatos(usuarioId, snapshot.Nombre,\nsnapshot.Apellido, snapshot.Telefono,\nsnapshot.Email)
-      UD -> DB : USUARIO_ACTUALIZAR_DATOS(@id, @nombre, @apellido,\n@telefono, @email)
-      note right of DB
-        RN-05: los campos personales
-        (Nombre, Apellido, Teléfono,
-        Email) también se restauran
-        desde el snapshot histórico.
-      end note
-
-      UH -> UH : RegistrarCambio(usuarioId,\n"ROLLBACK", admin, historialId)
-      UH -> UD : ObtenerPorId(usuarioId)
-      UD -> DB : USUARIO_OBTENER_POR_ID(@id)
-      DB --> UD : fila de USUARIO
-      UD --> UH : BE.USUARIO
-      UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
-      UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-      DB --> UPD : PERFIL_ID
-      UPD --> UH : List<int> perfiles
-      UH -> UHD : Insertar(UsuarioHistorial)
-      UHD -> DB : USUARIO_HISTORIAL_INSERTAR(snapshot,\n@tipo_cambio = "ROLLBACK",\n@version_origen = historialId)
-      note right of DB
-        RN-03: cada rollback genera
-        una entrada nueva; los
-        snapshots anteriores nunca
-        se borran.
-      end note
-
-      UH -> IB : RecalcularIntegridadUsuarios()
-      activate IB
-      IB -> IND : ListarUsuariosParaIntegridad()
-      IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
-      DB --> IND : filas de USUARIO
-      IND --> IB : DataTable
-      IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
-      UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-      DB --> UPD : PERFIL_ID
-      UPD --> IB : List<int>
-      IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
-      IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
-      IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
-      IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
-      IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
-      IB --> UH : (DVH / DVV recalculados)
-      deactivate IB
-
-      UH -> SM : getUsuario()
-      SM --> UH : usuarioSesion
-
-      opt usuarioSesion != null\nAND usuarioSesion.Id == snapshot.UsuarioId
+      else snapshot restaurable
+        UH -> UD : AplicarEstado(usuarioId, rol, bloqueado,\nintentosFallidos, rolId)
+        UD -> DB : USUARIO_APLICAR_ESTADO(@id, @rol, @bloqueado,\n@intentos_fallidos, @rol_id)
+        note right of DB : RT-02: la contraseña (PASS) nunca se restaura —\nno se almacena en el historial. Si el snapshot tiene\nRolId NULL se conserva el ROL_ID actual (ISNULL en el SP)
+        UH -> UPD : BorrarTodos(usuarioId)
+        UPD -> DB : USUARIO_PERFIL_BORRAR_TODOS(@usuario_id)
+        UH -> UH : ParsearPerfiles(snapshot.Perfiles)
+        loop por cada perfil del snapshot
+          UH -> UPD : Asignar(usuarioId, perfilId)
+          UPD -> DB : USUARIO_PERFIL_ASIGNAR(@usuario_id, @perfil_id)
+        end
+        UH -> UD : ActualizarDatos(usuarioId, nombre, apellido,\ntelefono, email)
+        UD -> DB : USUARIO_ACTUALIZAR_DATOS(@id, @nombre, @apellido,\n@telefono, @email)
+        note right of DB : RT-05: los datos personales (Nombre, Apellido,\nTeléfono, Email) también se restauran del snapshot
+        UH -> UH : RegistrarCambio(usuarioId, "ROLLBACK", realizadoPor, historialId)
+        activate UH
         UH -> UD : ObtenerPorId(usuarioId)
         UD -> DB : USUARIO_OBTENER_POR_ID(@id)
         DB --> UD : fila de USUARIO
-        UD --> UH : usuarioActualizado
-        UH -> SM : setUsuario(usuarioActualizado)
+        UD --> UH : BE.USUARIO / null
+        alt el usuario no existe (u == null)
+          note right of UH : return (no inserta nada)
+        else el usuario existe
+          UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
+          UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+          DB --> UPD : PERFIL_ID
+          UPD --> UH : List<int> perfiles
+          UH -> UH : ordenar los ids y unirlos en CSV (Perfiles)
+          UH -> UHD : Insertar(UsuarioHistorial)
+          UHD -> DB : USUARIO_HISTORIAL_INSERTAR(@usuario_id, @usuario_login, @rol,\n@bloqueado, @intentos_fallidos, @perfiles, @nombre, @apellido,\n@telefono, @email, @realizado_por, @tipo_cambio = "ROLLBACK",\n@version_origen = historialId, @rol_id)
+        end
+        deactivate UH
+        UH -> IB : RecalcularIntegridadUsuarios()
+        activate IB
+        IB -> IND : ListarUsuariosParaIntegridad()
+        IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
+        DB --> IND : filas de USUARIO
+        IND --> IB : DataTable
+        loop por cada usuario
+          IB -> UPD : ListarPerfilesPorUsuario(id)
+          UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+          DB --> UPD : PERFIL_ID
+          UPD --> IB : List<int>
+          IB -> CD : Calcular(atributos)
+          CD --> IB : int dvh
+          IB -> IND : ActualizarDVHUsuario(id, dvh)
+          IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+        end
+        loop por cada una de las 7 columnas (c = índice)
+          IB -> CD : CalcularVertical(todasFilas, c)
+          CD --> IB : int dvv
+          IB -> IND : ActualizarDVV("USUARIO", columnas[c], dvv)
+          IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+        end
+        IB --> UH : (DVH / DVV recalculados)
+        deactivate IB
+        UH -> SM : getUsuario()
+        SM --> UH : usuarioSesion
+        opt usuarioSesion != null y\nusuarioSesion.Id == snapshot.UsuarioId
+          UH -> UD : ObtenerPorId(usuarioId)
+          UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+          DB --> UD : fila de USUARIO
+          UD --> UH : usuarioActualizado
+          UH -> SM : setUsuario(usuarioActualizado)
+          UH -> UPD : ListarPermisosDeUsuario(usuarioId)
+          UPD -> DB : USUARIO_PERMISOS_LISTAR(@usuario_id)
+          DB --> UPD : NOMBRE de cada permiso
+          UPD --> UH : permisosActualizados
+          UH -> SM : setPermisos(permisosActualizados)
+          note right of SM : RT-06: refresco en caliente: no hace falta\ndesloguearse y volver a entrar
+        end
 
-        UH -> UPD : ListarPermisosDeUsuario(usuarioId)
-        UPD -> DB : USUARIO_PERMISOS_LISTAR(@usuario_id)
-        DB --> UPD : NOMBRE de cada permiso
-        UPD --> UH : permisosActualizados
-        UH -> SM : setPermisos(permisosActualizados)
+        UH --> FH : (rollback aplicado)
+        deactivate UH
 
-        note right of SM
-          RN-06: si el rollback afecta al
-          propio administrador logueado,
-          su SessionManager se refresca
-          en caliente (usuario y permisos)
-          para que no haga falta
-          desloguearse y volver a entrar.
-        end note
+        FH --> A : "Estado restaurado correctamente."\n(título "Éxito")
+        FH -> FH : CargarHistorial()
+        FH -> UH : ObtenerHistorialPaginado(_usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
+        UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
+        UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
+        DB --> UHD : filas + TOTAL_FILAS
+        UHD --> UH : PaginaResultado<UsuarioHistorial>
+        UH --> FH : PaginaResultado<UsuarioHistorial>
+        FH -> FH : DataSource = resultado.Items, ocultar columnas,\nActualizarEncabezados(), btnRollback.Enabled = false\ny ActualizarControlesPaginacion()
+        note right of FH : el formulario sigue abierto; otras excepciones\n(por ejemplo de base de datos) no se capturan
       end
-
-      UH --> FH : (rollback aplicado)
-      deactivate UH
-
-      FH --> A : "Estado restaurado correctamente."
-      FH -> FH : CargarHistorial()\n(refresca la grilla)
-      FH -> UH : ObtenerHistorialPaginado(usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
-      UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
-      UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
-      DB --> UHD : filas + TOTAL_FILAS
-      UHD --> UH : PaginaResultado<UsuarioHistorial>
-      UH --> FH : PaginaResultado<UsuarioHistorial>
     end
   end
 end
-
-note over UH, DB
-  Relación «include» en CU-02 — Restaurar
-  Integridad: se invoca este flujo para cada
-  usuario afectado al elegir "Restaurar
-  desde historial".
-end note
 
 @enduml

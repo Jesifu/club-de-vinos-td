@@ -1,0 +1,140 @@
+@startuml DiagramaSecuencia_CU13_EliminarRol
+
+title CU-13 — Eliminar Rol — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador" as A
+participant ":frmPerfiles"   as FP #FEFECE
+participant ":PerfilBLL"     as PB #E8F4E8
+participant ":PerfilDAL"     as PD #E8E8F4
+database    ":DB"            as DB #EEEEEE
+
+note over FP
+  Precondición: sesión activa,
+  permiso "Gestión de roles".
+  Al abrirse, frmPerfiles se registra en IdiomaManager,
+  carga el catálogo de permisos (ObtenerPermisosDisponibles),
+  traduce sus controles, carga el árbol (CargarArbol, que se
+  ejecuta dos veces: vía ActualizarIdioma y directo)
+  y agrega el selector de idiomas.
+end note
+
+== 1. Selección y solicitud ==
+
+opt 1b. click "Eliminar" sin ningún nodo seleccionado\n(el botón empieza habilitado)
+  A -> FP : click "Eliminar"
+  FP -> FP : return (no hace nada)
+  note right of FP : el caso de uso termina
+end
+
+A -> FP : seleccionar un nodo en el árbol
+FP -> FP : treePermisos_AfterSelect
+
+alt 4a. el nodo es un rol protegido (PROTEGIDO = 1)
+  FP -> FP : lblSeleccionado = "Rol: X"; btnEliminar.Enabled = false;\npanelPermisos y panelPadre visibles;\nPopularCheckPermisos(rol); PopularComboPadre(rol, nodo)
+  note right of FP
+    El botón Eliminar queda
+    deshabilitado — el caso de
+    uso no puede ejecutarse
+    sobre roles del sistema
+    (ej. "Administrador").
+  end note
+
+else el nodo es un rol no protegido
+  FP -> FP : lblSeleccionado = "Rol: X"; btnEliminar.Enabled = true;\npanelPermisos y panelPadre visibles;\nPopularCheckPermisos(rol); PopularComboPadre(rol, nodo)
+
+  A -> FP : click "Eliminar"
+
+  FP --> A : solicitar confirmación\n("¿Eliminar el rol 'X' y todos sus sub-roles?")\n(título "Confirmar")
+
+  alt 3a. el administrador cancela
+    A --> FP : No
+    note right of FP : el caso de uso termina\n(no se elimina el rol)
+
+  else el administrador confirma
+    A --> FP : Sí
+
+    == 2. Eliminación ==
+
+    FP -> PB : Eliminar(nodo.Id)
+    activate PB
+
+    PB -> PD : ListarRoles()
+    PD -> DB : ROL_LISTAR_TODOS
+    DB --> PD : filas de ROL
+    PD --> PB : List<NodoPermiso>
+    PB -> PB : nodo = todos.FirstOrDefault(id)
+
+    alt 4a (respaldo de la BLL). nodo es Rol y Protegido == true
+      PB --> FP : throw InvalidOperationException\n("Este rol es del sistema\ny no puede eliminarse.")
+      FP --> A : ex.Message en un MessageBox de error\n(título "Error")
+      note right of FP : return: no se recarga el árbol
+
+    else nodo no protegido
+      PB -> PD : TieneUsuariosAsignados(id)
+      PD -> DB : ROL_TIENE_USUARIOS(@rol_id)\n(CTE recursiva sobre el subárbol)
+      note right of DB
+        TOTAL = filas de USUARIO_PERFIL con PERFIL_ID
+        en el subárbol + usuarios con USUARIO.ROL_ID
+        en el subárbol (RT-02)
+      end note
+      DB --> PD : TOTAL
+      PD --> PB : bool (TOTAL > 0)
+
+      alt 4b. hay usuarios asignados en el subárbol
+        PB --> FP : throw InvalidOperationException\n("No se puede eliminar un rol que tiene\nusuarios asignados. Reasignálos primero.")
+        FP --> A : ex.Message en un MessageBox de error\n(título "Error")
+        note right of FP : return: no se recarga el árbol
+
+      else sin usuarios asignados
+        PB -> PD : Eliminar(id)
+        PD -> DB : ROL_ELIMINAR(@id)
+        note right of DB
+          RT-03: CTE recursiva — borra el subárbol
+          completo y limpia sus vínculos en
+          USUARIO_PERFIL, ROL_PERMISO y ROL (en ese
+          orden). El SP también rechaza (RAISERROR)
+          los roles con PROTEGIDO = 1.
+        end note
+        PB --> FP : (rol eliminado)
+        deactivate PB
+
+        FP -> FP : panelPermisos.Visible = false
+
+        == 3. Actualización del árbol ==
+
+        @CA
+        FP --> A : árbol refrescado
+      end
+    end
+  end
+
+else el nodo es un permiso del catálogo (hoja)
+  FP -> FP : lblSeleccionado = "Permiso: X"; btnEliminar.Enabled = false;\npanelPermisos y panelPadre ocultos
+  opt 1a (defensiva). se invoca btnEliminar_Click sobre un permiso
+    note over FP : inalcanzable desde la UI con un permiso seleccionado:\ntreePermisos_AfterSelect deshabilita el botón
+    FP --> A : "Los permisos del catálogo no se pueden eliminar.\nDesasignalo usando los checkboxes."\n(título "Aviso")
+    note right of FP : el caso de uso termina
+  end
+end
+
+note over PB
+  RT-01: solo "Administrador"
+  tiene PROTEGIDO = 1 por defecto.
+  RT-02: el chequeo de usuarios
+  asignados es recursivo sobre
+  todo el subárbol del rol.
+  Los errores de base de datos (SqlException)
+  no se capturan en la UI.
+end note
+
+@enduml

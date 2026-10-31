@@ -1,0 +1,134 @@
+@startuml DiagramaSecuencia_CU30_ActualizarPerfilSocio
+
+title CU-30 — Actualizar Perfil de Socio — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.75
+
+actor       ":Usuario"           as U
+participant ":frmSocios"         as FS #FEFECE
+participant ":SocioBLL"          as SB #E8F4E8
+participant ":BitacoraBLL"       as BB #E8F4E8
+participant ":SocioDAL"          as SD #E8E8F4
+participant ":BitacoraDAL"       as BD #E8E8F4
+database    ":DB"                as DB #EEEEEE
+
+note over FS
+  Precondición: sesión activa; permiso "Gestionar socios".
+  Alta y edición comparten el mismo formulario: _socioIdActual == 0 indica un alta.
+  sesion = SessionManager.getInstance().getUsuario() (se obtiene al presionar "Guardar").
+end note
+
+U -> FS : menú Club de Socios > "Gestionar Socios"\n(new frmSocios().ShowDialog())
+activate FS
+note right of FS
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarVarietalesDisponibles(), CargarSocios() y agrega el selector de idiomas
+end note
+
+FS -> FS : CargarVarietalesDisponibles()
+FS -> SB : ListarVarietalesDeCatalogo()
+SB -> SD : ListarVarietalesDeCatalogo()
+SD -> DB : VARIETAL_LISTAR_CATALOGO
+DB --> SD : filas (VARIETAL de los vinos Activos)
+SD --> SB : List<string>
+SB --> FS : List<string>
+loop por cada varietal
+  FS -> FS : chkVarietales.Items.Add(varietal)
+end
+
+@LS
+FS --> U : grilla de socios activos y formulario con los datos del primer socio
+
+opt el usuario selecciona otro socio en la grilla
+  U -> FS : seleccionar un socio de dgvSocios
+  @CS
+end
+
+opt el usuario quiere dar de alta un socio nuevo
+  U -> FS : click "Nuevo"
+  FS -> FS : LimpiarFormulario(): _socioIdActual = 0; vacía los campos de texto;\nnumPresupuesto.Value = 0; chkActivo.Checked = true;\ndestilda los varietales; dgvSocios.ClearSelection(); txtApellido.Focus()
+end
+
+U -> FS : completar nombre, apellido, email, teléfono, domicilio, presupuesto mensual,\n"Activo" y varietales preferidos + click "Guardar"
+FS -> FS : sesion = SessionManager.getInstance().getUsuario();\ns = new Socio { Id = _socioIdActual, Nombre y Apellido con Trim(),\nEmail, Telefono y Domicilio = null si están vacíos o solo espacios (si no, Trim()),\nPresupuestoMensual = numPresupuesto.Value, Activo = chkActivo.Checked }
+FS -> FS : s.VarietalesPreferidos.Add(item.ToString())\npor cada ítem de chkVarietales.CheckedItems
+
+alt _socioIdActual == 0 (alta)
+  FS -> SB : Registrar(s, sesion)
+  @VS
+  SB -> SB : s.CreadoPor = sesion.Id; s.Activo = true;\ns.VarietalesPreferidos = s.VarietalesPreferidos.Distinct().ToList()
+  note right of SB : en el alta se ignora chkActivo: el socio siempre nace activo
+  SB -> SD : Insertar(s)
+  SD -> DB : (inicia la transacción)
+  SD -> DB : SOCIO_INSERTAR(@nombre,@apellido,@creado_por,@presupuesto_mensual,\n@email,@telefono,@domicilio)
+  DB --> SD : ID del socio (SCOPE_IDENTITY)
+  loop por cada varietal preferido
+    SD -> DB : SOCIO_VARIETAL_INSERTAR(@socio_id,@varietal)
+  end
+
+  break alguna llamada de la transacción lanza una excepción (catch del DAL)
+    SD -> DB : ROLLBACK (DeshacerTX)
+    SD --> SB : relanza la excepción (throw;)
+    SB --> FS : la excepción se propaga
+    note right of FS : la UI solo captura InvalidOperationException;\nno hay catch para otras excepciones (p. ej. SqlException)
+  end
+
+  SD -> DB : COMMIT (ConfirmarTX)
+  SD --> SB : socioId (la BLL lo descarta)
+  SB -> BB : RegistrarAccion(sesion.Usuario, "ALTA_SOCIO:" + s.Apellido)
+  BB -> BD : Registrar(usuario, accion)
+  BD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+  DB --> BD : filas afectadas
+  BD --> BB : void
+  BB --> SB : void
+  SB --> FS : void
+else _socioIdActual != 0 (edición)
+  FS -> SB : Actualizar(s, sesion)
+  @VS
+  SB -> SB : s.VarietalesPreferidos = s.VarietalesPreferidos.Distinct().ToList()
+  note right of SB : en la edición no se modifica CreadoPor;\nActivo llega desde chkActivo
+  SB -> SD : Actualizar(s)
+  SD -> DB : (inicia la transacción)
+  SD -> DB : SOCIO_ACTUALIZAR(@nombre,@apellido,@creado_por,@presupuesto_mensual,\n@email,@telefono,@domicilio,@id,@activo)
+  note right of DB : @creado_por llega con el valor 0 del formulario;\nel SP no actualiza CREADO_POR
+  SD -> DB : SOCIO_VARIETAL_LIMPIAR(@socio_id)
+  loop por cada varietal preferido
+    SD -> DB : SOCIO_VARIETAL_INSERTAR(@socio_id,@varietal)
+  end
+
+  break alguna llamada de la transacción lanza una excepción (catch del DAL)
+    SD -> DB : ROLLBACK (DeshacerTX)
+    SD --> SB : relanza la excepción (throw;)
+    SB --> FS : la excepción se propaga
+    note right of FS : la UI solo captura InvalidOperationException;\nno hay catch para otras excepciones (p. ej. SqlException)
+  end
+
+  SD -> DB : COMMIT (ConfirmarTX)
+  SD --> SB : void
+  SB -> BB : RegistrarAccion(sesion.Usuario, "EDICION_SOCIO:" + s.Id)
+  BB -> BD : Registrar(usuario, accion)
+  BD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+  DB --> BD : filas afectadas
+  BD --> BB : void
+  BB --> SB : void
+  SB --> FS : void
+end
+
+FS --> U : "Socio guardado correctamente."\n(título "Éxito")
+FS -> FS : LimpiarFormulario()
+@LS
+note right of FS : un socio con "Activo" desmarcado ya no aparece en la grilla,\nporque SOCIO_LISTAR_ACTIVOS filtra ACTIVO = 1
+FS --> U : grilla de socios activos actualizada
+
+opt la BLL lanzó InvalidOperationException (catch de btnGuardarSocio_Click)
+  FS --> U : ex.Message\n(título "Atención")
+  note right of FS : return: no se limpia el formulario ni se recarga la grilla
+end
+deactivate FS
+
+@enduml

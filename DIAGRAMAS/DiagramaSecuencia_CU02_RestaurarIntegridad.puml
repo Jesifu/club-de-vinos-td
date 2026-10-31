@@ -20,6 +20,7 @@ participant ":frmHistorial\nUsuario"    as FH  #FEFECE
 participant ":UsuarioBLL"               as UB  #E8F4E8
 participant ":UsuarioHistorialBLL"      as UH  #E8F4E8
 participant ":IntegridadBLL"            as IB  #E8F4E8
+participant ":CalculadorDVH"            as CD #F4E8E8
 participant ":SessionManager"           as SM  #F4E8E8
 participant ":UsuarioDAL"               as UD  #E8E8F4
 participant ":UsuarioHistorialDAL"      as UHD #E8E8F4
@@ -35,165 +36,247 @@ end note
 
 == 1. Apertura del formulario ==
 
-L -> FR : new frmRestaurarIntegridad(resultado)\n.ShowDialog()
+L -> FR : new frmRestaurarIntegridad(Program.ResultadoIntegridad)\n.ShowDialog()
 activate FR
 
-FR --> A : mostrar detalle de errores
-FR -> P : GuardarLogIntegridad(errores)
+FR --> A : mostrar detalle de errores\n(txtErrores = Errores unidos por salto de línea)
+FR -> P : GuardarLogIntegridad(_resultado.Errores)
 note right of P
-  escribe a
-  integridad_error.log
+  agrega los errores a integridad_error.log
+  (carpeta ClubDeVinos en %LocalAppData%);
+  si falla, el catch vacío ignora el error
 end note
 FR -> FR : btnRestaurar.Enabled =\nIdsUsuariosAfectados.Count > 0
 
 == 2. Decisión del administrador ==
 
 alt admin elige "Recalcular y continuar"
-  A -> FR : click Recalcular
+  A -> FR : click "Recalcular y continuar"
   FR -> IB : RecalcularIntegridadUsuarios()
   activate IB
   IB -> IND : ListarUsuariosParaIntegridad()
   IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
   DB --> IND : filas de USUARIO
   IND --> IB : DataTable
-  IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
-  UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-  DB --> UPD : PERFIL_ID
-  UPD --> IB : List<int>
-  IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
-  IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
-  IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
-  IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
-  IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+  loop por cada usuario
+    IB -> UPD : ListarPerfilesPorUsuario(id)
+    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+    DB --> UPD : PERFIL_ID
+    UPD --> IB : List<int>
+    IB -> CD : Calcular(atributos)
+    CD --> IB : int dvh
+    IB -> IND : ActualizarDVHUsuario(id, dvh)
+    IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+  end
+  loop por cada una de las 7 columnas (c = índice)
+    IB -> CD : CalcularVertical(todasFilas, c)
+    CD --> IB : int dvv
+    IB -> IND : ActualizarDVV("USUARIO", columnas[c], dvv)
+    IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+  end
   IB --> FR : (DVH / DVV recalculados)
   deactivate IB
+  FR -> FR : DialogResult = OK; Close()
   FR --> L : DialogResult.OK
 
-else 4a. admin elige "Restaurar desde historial"
-  A -> FR : click Restaurar
+else 2a. admin elige "Restaurar desde historial"
+  A -> FR : click "Restaurar desde historial"
   loop por cada id en IdsUsuariosAfectados
     FR -> UB : ObtenerPorId(id)
     UB -> UD : ObtenerPorId(id)
     UD -> DB : USUARIO_OBTENER_POR_ID(@id)
     DB --> UD : fila de USUARIO
-    UD --> UB : BE.USUARIO
+    UD --> UB : BE.USUARIO / null
     UB --> FR : usuario
 
-    FR -> UH : ObtenerHistorial(id)
-    UH -> UHD : ListarPorUsuario(usuarioId)
-    UHD -> DB : USUARIO_HISTORIAL_LISTAR(@usuario_id)
-    DB --> UHD : filas de USUARIO_HISTORIAL
-    UHD --> UH : List<UsuarioHistorial>
-    UH --> FR : List<UsuarioHistorial>
+    alt usuario == null
+      FR -> FR : continue (pasa al siguiente id)
+    else el usuario existe
+      FR -> UH : ObtenerHistorial(id)
+      UH -> UHD : ListarPorUsuario(usuarioId)
+      UHD -> DB : USUARIO_HISTORIAL_LISTAR(@usuario_id)
+      DB --> UHD : filas de USUARIO_HISTORIAL
+      UHD --> UH : List<UsuarioHistorial>
+      UH --> FR : List<UsuarioHistorial>
 
-    alt 4a.i. el usuario tiene historial
-      FR -> FH : new frmHistorialUsuario(usuario)\n.ShowDialog()
-      activate FH
-      FH -> UH : ObtenerHistorialPaginado(usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
-      UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
-      UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
-      DB --> UHD : filas + TOTAL_FILAS
-      UHD --> UH : PaginaResultado<UsuarioHistorial>
-      UH --> FH : PaginaResultado<UsuarioHistorial>
-      A -> FH : seleccionar versión\n+ click Rollback
-      note right of FH
-        las entradas de tipo BAJA no
-        tienen el botón Rollback habilitado
-        (sel.TipoCambio != "BAJA")
-      end note
+      alt 2a.i. el usuario afectado no tiene historial (Count == 0)
+        FR --> A : "El usuario 'X' no tiene historial de cambios registrado.\n\nNo es posible restaurarlo desde historial. Use 'Recalcular y continuar'."\n(título "Sin historial")
+        FR -> FR : continue (pasa al siguiente id)
 
-      alt 2a. entrada seleccionada es de tipo ROLLBACK
-        FH --> A : "No se puede restaurar una versión\nque ya es un rollback"\n(Operación no permitida)
-      else entrada restaurable
-        FH --> A : solicitar confirmación
-        A --> FH : confirmar
-        FH -> SM : getUsuario()
-        SM --> FH : administrador actual
-        FH -> UH : Rollback(historialId, admin)
-        activate UH
-        note right of UH : detalle completo en CU-11\n(Restaurar Usuario desde Historial)
-        UH -> UHD : ObtenerPorId(historialId)
-        UHD -> DB : USUARIO_HISTORIAL_OBTENER(@id)
-        DB --> UHD : snapshot
-        UHD --> UH : UsuarioHistorial
-        UH -> UD : AplicarEstado(usuarioId, rol, bloqueado,\nintentosFallidos, rolId)
-        UD -> DB : USUARIO_APLICAR_ESTADO(...)
-        UH -> UPD : BorrarTodos(usuarioId) + Asignar(usuarioId, perfilId)\n(por cada perfil del snapshot)
-        UPD -> DB : USUARIO_PERFIL_BORRAR_TODOS /\nUSUARIO_PERFIL_ASIGNAR
-        UH -> UD : ActualizarDatos(usuarioId, nombre,\napellido, telefono, email)
-        UD -> DB : USUARIO_ACTUALIZAR_DATOS(...)
-        UH -> UHD : Insertar(UsuarioHistorial "ROLLBACK",\nVersionOrigen = historialId)\n(vía RegistrarCambio)
-        UHD -> DB : USUARIO_HISTORIAL_INSERTAR(...)
-        UH -> IB : RecalcularIntegridadUsuarios()
-        activate IB
-        IB -> IND : ListarUsuariosParaIntegridad()
-        IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
-        DB --> IND : filas de USUARIO
-        IND --> IB : DataTable
-        IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
-        UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-        DB --> UPD : PERFIL_ID
-        UPD --> IB : List<int>
-        IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
-        IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
-        IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
-        IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
-        IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
-        IB --> UH : (DVH / DVV recalculados)
-        deactivate IB
-        opt usuario restaurado == admin logueado
-          UH -> SM : getUsuario()
-          SM --> UH : usuarioSesion
-          UH -> UD : ObtenerPorId(usuarioId)
-          UD -> DB : USUARIO_OBTENER_POR_ID(@id)
-          DB --> UD : fila de USUARIO
-          UD --> UH : usuarioActualizado
-          UH -> SM : setUsuario(usuarioActualizado)
-          UH -> UPD : ListarPermisosDeUsuario(usuarioId)
-          UPD -> DB : USUARIO_PERMISOS_LISTAR(@usuario_id)
-          DB --> UPD : NOMBRE de cada permiso
-          UPD --> UH : permisosActualizados
-          UH -> SM : setPermisos(permisosActualizados)
-          note right of SM
-            refresco en caliente: no hace
-            falta desloguearse y volver
-            a entrar
-          end note
+      else el usuario tiene historial
+        FR -> FR : alMenosUnoConHistorial = true
+        FR -> FH : new frmHistorialUsuario(usuario)\n.ShowDialog(this)
+        activate FH
+        FH -> FH : CargarHistorial()
+        FH -> UH : ObtenerHistorialPaginado(_usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
+        UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
+        UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
+        DB --> UHD : filas + TOTAL_FILAS
+        UHD --> UH : PaginaResultado<UsuarioHistorial>
+        UH --> FH : PaginaResultado<UsuarioHistorial>
+        FH --> A : grilla con el historial, "Restaurar versión"\ndeshabilitado y paginación actualizada\n(detalle en CU-10)
+
+        A -> FH : seleccionar una versión
+        note right of FH
+          dgvHistorial_SelectionChanged habilita el botón
+          solo si la fila existe y TipoCambio != "BAJA"
+        end note
+        A -> FH : click "Restaurar versión"
+
+        break sin fila actual (sel == null)
+          FH -> FH : return
+          note right of FH : defensivo: el botón queda deshabilitado\nsi no hay fila seleccionada
         end
-        UH --> FH : (rollback aplicado)
-        deactivate UH
-      end
-      FH --> FR : (form cerrado)
-      deactivate FH
 
-    else usuario sin historial
-      FR --> A : "Usuario X sin historial.\nUse Recalcular y continuar."
+        alt CU-11 1b. entrada seleccionada es de tipo ROLLBACK
+          FH --> A : "No se puede restaurar una versión que ya es un rollback."\n(título "Operación no permitida")
+        else entrada restaurable
+          FH --> A : solicitar confirmación (Sí/No)\n"¿Restaurar el estado del usuario 'X' a la versión del dd/MM/yyyy HH:mm?\n\nTipo de cambio registrado: <TipoCambio>\n\nNota: la contraseña NO se restaurará (se mantendrá la actual)."\n(título "Confirmar rollback")
+
+          alt el administrador responde "No"
+            A --> FH : No
+            FH -> FH : return (no restaura nada)
+          else el administrador responde "Sí"
+            A --> FH : Sí
+            FH -> SM : getUsuario()
+            SM --> FH : BE.USUARIO (se usa .Usuario como admin)
+            FH -> UH : Rollback(sel.Id, admin)
+            note right of UH : detalle completo en CU-11\n(Restaurar Usuario desde Historial)
+            UH -> UHD : ObtenerPorId(historialId)
+            UHD -> DB : USUARIO_HISTORIAL_OBTENER(@id)
+            DB --> UHD : snapshot / vacío
+            UHD --> UH : UsuarioHistorial / null
+
+            alt snapshot == null
+              UH --> FH : InvalidOperationException\n("Versión histórica no encontrada.")
+              FH --> A : ex.Message (título "Error")
+            else snapshot.TipoCambio == "ROLLBACK"
+              UH --> FH : InvalidOperationException\n("No se puede restaurar una versión que ya es un rollback.")
+              FH --> A : ex.Message (título "Error")
+            else snapshot válido
+              UH -> UD : AplicarEstado(usuarioId, rol, bloqueado,\nintentosFallidos, rolId)
+              UD -> DB : USUARIO_APLICAR_ESTADO(@id, @rol, @bloqueado,\n@intentos_fallidos, @rol_id)
+              UH -> UPD : BorrarTodos(usuarioId)
+              UPD -> DB : USUARIO_PERFIL_BORRAR_TODOS(@usuario_id)
+              UH -> UH : ParsearPerfiles(snapshot.Perfiles)
+              loop por cada perfil del snapshot
+                UH -> UPD : Asignar(usuarioId, perfilId)
+                UPD -> DB : USUARIO_PERFIL_ASIGNAR(@usuario_id, @perfil_id)
+              end
+              UH -> UD : ActualizarDatos(usuarioId, nombre, apellido,\ntelefono, email)
+              UD -> DB : USUARIO_ACTUALIZAR_DATOS(@id, @nombre, @apellido,\n@telefono, @email)
+              UH -> UH : RegistrarCambio(usuarioId, "ROLLBACK", realizadoPor, historialId)
+              activate UH
+              UH -> UD : ObtenerPorId(usuarioId)
+              UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+              DB --> UD : fila de USUARIO
+              UD --> UH : BE.USUARIO / null
+              alt el usuario no existe (u == null)
+                note right of UH : return (no inserta nada)
+              else el usuario existe
+                UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
+                UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+                DB --> UPD : PERFIL_ID
+                UPD --> UH : List<int> perfiles
+                UH -> UH : ordenar los ids y unirlos en CSV (Perfiles)
+                UH -> UHD : Insertar(UsuarioHistorial)
+                UHD -> DB : USUARIO_HISTORIAL_INSERTAR(@usuario_id, @usuario_login, @rol,\n@bloqueado, @intentos_fallidos, @perfiles, @nombre, @apellido,\n@telefono, @email, @realizado_por, @tipo_cambio = "ROLLBACK",\n@version_origen = historialId, @rol_id)
+              end
+              deactivate UH
+              UH -> IB : RecalcularIntegridadUsuarios()
+              activate IB
+              IB -> IND : ListarUsuariosParaIntegridad()
+              IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
+              DB --> IND : filas de USUARIO
+              IND --> IB : DataTable
+              loop por cada usuario
+                IB -> UPD : ListarPerfilesPorUsuario(id)
+                UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+                DB --> UPD : PERFIL_ID
+                UPD --> IB : List<int>
+                IB -> CD : Calcular(atributos)
+                CD --> IB : int dvh
+                IB -> IND : ActualizarDVHUsuario(id, dvh)
+                IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+              end
+              loop por cada una de las 7 columnas (c = índice)
+                IB -> CD : CalcularVertical(todasFilas, c)
+                CD --> IB : int dvv
+                IB -> IND : ActualizarDVV("USUARIO", columnas[c], dvv)
+                IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+              end
+              IB --> UH : (DVH / DVV recalculados)
+              deactivate IB
+              UH -> SM : getUsuario()
+              SM --> UH : usuarioSesion
+              opt usuarioSesion != null y\nusuarioSesion.Id == snapshot.UsuarioId
+                UH -> UD : ObtenerPorId(usuarioId)
+                UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+                DB --> UD : fila de USUARIO
+                UD --> UH : usuarioActualizado
+                UH -> SM : setUsuario(usuarioActualizado)
+                UH -> UPD : ListarPermisosDeUsuario(usuarioId)
+                UPD -> DB : USUARIO_PERMISOS_LISTAR(@usuario_id)
+                DB --> UPD : NOMBRE de cada permiso
+                UPD --> UH : permisosActualizados
+                UH -> SM : setPermisos(permisosActualizados)
+                note right of SM : refresco en caliente: no hace falta\ndesloguearse y volver a entrar
+              end
+              UH --> FH : (rollback aplicado)
+              FH --> A : "Estado restaurado correctamente."\n(título "Éxito")
+              FH -> FH : CargarHistorial()
+              FH -> UH : ObtenerHistorialPaginado(_usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
+              UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
+              UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
+              DB --> UHD : filas + TOTAL_FILAS
+              UHD --> UH : PaginaResultado<UsuarioHistorial>
+              UH --> FH : PaginaResultado<UsuarioHistorial>
+            end
+          end
+        end
+
+        note over FH : el formulario NO se cierra solo tras el rollback;\nel administrador puede seguir restaurando versiones
+        A -> FH : click "Cerrar"
+        FH --> FR : (form cerrado)
+        deactivate FH
+      end
     end
   end
 
-  opt al menos un usuario tenía historial
+  alt alMenosUnoConHistorial
     FR -> IB : RecalcularIntegridadUsuarios()
     activate IB
     IB -> IND : ListarUsuariosParaIntegridad()
     IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
     DB --> IND : filas de USUARIO
     IND --> IB : DataTable
-    IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
-    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-    DB --> UPD : PERFIL_ID
-    UPD --> IB : List<int>
-    IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
-    IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
-    IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
-    IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
-    IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    loop por cada usuario
+      IB -> UPD : ListarPerfilesPorUsuario(id)
+      UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+      DB --> UPD : PERFIL_ID
+      UPD --> IB : List<int>
+      IB -> CD : Calcular(atributos)
+      CD --> IB : int dvh
+      IB -> IND : ActualizarDVHUsuario(id, dvh)
+      IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+    end
+    loop por cada una de las 7 columnas (c = índice)
+      IB -> CD : CalcularVertical(todasFilas, c)
+      CD --> IB : int dvv
+      IB -> IND : ActualizarDVV("USUARIO", columnas[c], dvv)
+      IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    end
     IB --> FR : (DVH / DVV recalculados)
     deactivate IB
+    FR -> FR : DialogResult = OK; Close()
     FR --> L : DialogResult.OK
+  else 2a.ii. ningún afectado tenía historial
+    note over FR : return: el formulario queda abierto,\nsin DialogResult
   end
 
-else 4b. admin elige Cancelar
-  A -> FR : click Cancelar
+else 2b. admin elige Cancelar
+  A -> FR : click "Cancelar"
+  note right of FR : btnCancelar.DialogResult = Cancel\n(definido en el diseñador)
   FR --> L : DialogResult.Cancel
   L -> SM : cerrarSesion()
   L --> A : volver al login
@@ -203,7 +286,7 @@ deactivate FR
 == 3. Continuación ==
 
 opt DialogResult == OK
-  L -> L : continuar flujo de CU-01\n(mostrar "Bienvenido" y abrir frmMenu)
+  L -> L : continuar flujo de CU-01\n(mostrar "Bienvenido, <usuario>!" y abrir frmMenu)
 end
 
 @enduml

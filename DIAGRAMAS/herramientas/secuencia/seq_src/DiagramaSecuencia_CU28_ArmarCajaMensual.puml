@@ -1,0 +1,176 @@
+@startuml DiagramaSecuencia_CU28_ArmarCajaMensual
+
+title CU-28 — Armar Caja Mensual — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.75
+
+actor       ":Usuario"           as U
+participant ":frmArmarCaja"      as FA #FEFECE
+participant ":SocioBLL"          as SB #E8F4E8
+participant ":CajaMensualBLL"    as CB #E8F4E8
+participant ":BitacoraBLL"       as BB #E8F4E8
+participant ":SocioDAL"          as SD #E8E8F4
+participant ":VinoDAL"           as VD #E8E8F4
+participant ":CajaMensualDAL"    as CD #E8E8F4
+participant ":BitacoraDAL"       as BD #E8E8F4
+database    ":DB"                as DB #EEEEEE
+
+note over FA
+  Precondición: sesión activa; permiso "Armar cajas mensuales";
+  existe al menos un socio activo.
+  sesion = SessionManager.getInstance().getUsuario().
+end note
+
+U -> FA : menú Club de Socios > "Armar Caja Mensual"\n(new frmArmarCaja().ShowDialog())
+activate FA
+note right of FA
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarSocios(), agrega el selector de idiomas y
+  ActualizarTotales()
+end note
+
+FA -> FA : CargarSocios()
+FA -> SB : ListarActivos()
+SB -> SD : ListarActivos()
+SD -> DB : SOCIO_LISTAR_ACTIVOS
+DB --> SD : filas
+SD --> SB : List<Socio>
+SB --> FA : List<Socio>
+FA -> FA : cboSocio.DataSource = socios
+
+note over FA, DB
+  Al enlazar el combo, WinForms dispara cboSocio_SelectedIndexChanged
+  con el primer socio, sin acción del usuario: se cargan sus candidatos.
+end note
+@SS
+@AT load
+FA --> U : candidatos del primer socio, presupuesto del socio\ny total de la caja en $0
+
+opt el usuario cambia de socio
+  U -> FA : seleccionar otro socio en el combo
+  @SS
+end
+
+U -> FA : escribir el período (YYYY-MM) en txtPeriodo
+FA -> FA : txtPeriodo_TextChanged → ActualizarTotales()
+FA -> CB : CalcularTotal(_lineas)
+CB --> FA : decimal total
+FA -> FA : btnConfirmarArmado.Enabled = socio seleccionado y _lineas.Count > 0\ny total <= presupuesto y período con formato YYYY-MM
+note right of FA : escribir el período no consulta la base de datos
+
+loop mientras el curador agrega o quita líneas
+  alt el curador agrega un vino
+    U -> FA : seleccionar un vino de los candidatos + cantidad\n+ click "Agregar a la caja"
+
+    break 28d. no hay socio seleccionado
+      FA --> U : "Seleccioná un socio."\n(título "Atención")
+    end
+
+    break 28d. no hay vino seleccionado en la grilla de candidatos
+      FA --> U : "Seleccioná un vino de la lista."\n(título "Atención")
+    end
+
+    alt el vino ya está entre las líneas (UQ_CAJA_VINO)
+      FA -> FA : linea.Cantidad += cantidad
+    else vino nuevo en la caja
+      FA -> FA : _lineas.Add(new CajaVino { VinoId, NombreSnapshot,\nPrecioSnapshot, Cantidad }) — snapshot provisorio
+    end
+    @AT
+  else el curador quita una línea
+    U -> FA : doble clic sobre una línea de la caja
+    FA -> FA : _lineas.Remove(linea)
+    @AT
+  end
+end
+
+U -> FA : click "Confirmar armado"
+note right of FA : el botón solo está habilitado si hay socio, al menos una\nlínea, total <= presupuesto y período válido (YYYY-MM)
+break no hay socio seleccionado
+  FA -> FA : return (inalcanzable: el botón estaría deshabilitado)
+end
+FA -> FA : caja = new CajaMensual { SocioId, Periodo = txtPeriodo.Text.Trim(),\nLineas = _lineas.ToList() }
+FA -> CB : Armar(caja, sesion)
+
+break 28e. defensa: la caja no tiene líneas (el botón ya lo impide)
+  CB --> FA : throw InvalidOperationException\n("La caja debe tener al menos un vino.")
+end
+
+CB -> SD : ObtenerPorId(caja.SocioId)
+SD -> DB : SOCIO_OBTENER_POR_ID(@id)
+DB --> SD : filas
+opt el socio existe (hay filas)
+  SD -> DB : SOCIO_VARIETAL_LISTAR(@socio_id)
+  DB --> SD : filas
+end
+SD --> CB : Socio (o null)
+
+break 28e. el socio no existe
+  CB --> FA : throw InvalidOperationException\n("El socio no existe.")
+end
+
+CB -> CB : ListarCandidatos(caja.SocioId)
+CB -> VD : ListarCandidatos(socioId)
+VD -> DB : VINO_LISTAR_CANDIDATOS(@socio_id)
+DB --> VD : filas
+VD --> CB : List<VinoCandidato>
+note right of CB : RN-06 revalidada por línea contra los candidatos vigentes
+
+loop por cada línea de caja.Lineas
+  break 28c. la línea dejó de cumplir RN-06 (ya no es un candidato vigente)
+    CB --> FA : throw InvalidOperationException\n("Uno de los vinos seleccionados ya no está disponible para este socio.")
+  end
+  CB -> CB : linea.NombreSnapshot = candidato.Nombre;\nlinea.PrecioSnapshot = candidato.Precio (snapshot)
+end
+
+CB -> CB : CalcularTotal(caja.Lineas)
+
+break 28a. el total supera el presupuesto mensual (RN-05)
+  CB --> FA : throw InvalidOperationException\n("El total de la caja supera el presupuesto mensual del socio.")
+  note right of FA : el flujo vuelve a la selección de líneas
+end
+
+CB -> CB : caja.PresupuestoSnapshot = socio.PresupuestoMensual;\ncaja.Estado = Armada; caja.ArmadoPor = sesion.Id
+CB -> CD : Armar(caja)
+CD -> DB : (inicia la transacción)
+CD -> DB : CAJA_INSERTAR(@socio_id,@periodo,@armado_por,@presupuesto_snapshot)
+
+alt 28b. ya existe una caja no cancelada del socio para el período\n(índice único UQ_CAJA_SOCIO_PERIODO, en el INSERT de la cabecera)
+  DB --> CD : SqlException 2601 / 2627
+  CD -> DB : ROLLBACK (DeshacerTX)
+  CD --> CB : SqlException
+  CB --> FA : throw InvalidOperationException\n("El socio ya tiene una caja armada para ese período.")
+else sin conflicto
+  DB --> CD : ID de la caja
+  loop por cada línea
+    CD -> DB : CAJA_VINO_INSERTAR(@caja_id,@vino_id,@cantidad,\n@nombre_snapshot,@precio_snapshot)
+  end
+  CD -> DB : COMMIT (ConfirmarTX)
+  CD --> CB : cajaId
+  CB -> BB : RegistrarAccion(sesion.Usuario, "ARMADO_CAJA:" + caja.Periodo)
+  BB -> BD : Registrar(usuario, accion)
+  BD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+  DB --> BD : filas afectadas
+  BD --> BB : void
+  BB --> CB : void
+  CB --> FA : cajaId
+  FA --> U : "Caja armada correctamente."\n(título "Éxito")
+  FA -> FA : LimpiarFormulario(): _lineas.Clear(); txtPeriodo.Clear();\nnumCantidad.Value = 1
+  @AT
+  note right of FA
+    RN-09 — armar NO reserva stock; la salida de stock se
+    registra recién al despachar la caja (CU-31).
+  end note
+end
+
+opt la BLL lanzó InvalidOperationException (catch de btnConfirmarArmado_Click)
+  FA --> U : ex.Message\n(título "Atención")
+  note right of FA : return: no se limpia el formulario
+end
+deactivate FA
+
+@enduml

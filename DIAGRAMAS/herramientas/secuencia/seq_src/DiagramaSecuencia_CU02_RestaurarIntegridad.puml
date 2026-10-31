@@ -1,0 +1,179 @@
+@startuml DiagramaSecuencia_CU02_RestaurarIntegridad
+
+title CU-02 — Restaurar Integridad del Sistema — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.7
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador"            as A
+participant ":LogIn"                    as L   #FEFECE
+participant ":frmRestaurar\nIntegridad" as FR  #FEFECE
+participant ":Program"                  as P   #FEFECE
+participant ":frmHistorial\nUsuario"    as FH  #FEFECE
+participant ":UsuarioBLL"               as UB  #E8F4E8
+participant ":UsuarioHistorialBLL"      as UH  #E8F4E8
+participant ":IntegridadBLL"            as IB  #E8F4E8
+participant ":CalculadorDVH"            as CD #F4E8E8
+participant ":SessionManager"           as SM  #F4E8E8
+participant ":UsuarioDAL"               as UD  #E8E8F4
+participant ":UsuarioHistorialDAL"      as UHD #E8E8F4
+participant ":UsuarioPerfilDAL"         as UPD #E8E8F4
+participant ":IntegridadDAL"            as IND #E8E8F4
+database    ":DB"                       as DB  #EEEEEE
+
+note over L, FR
+  Precondición: login exitoso (CU-01),
+  integridad inválida y el administrador
+  no figura en IdsUsuariosAfectados.
+end note
+
+== 1. Apertura del formulario ==
+
+L -> FR : new frmRestaurarIntegridad(Program.ResultadoIntegridad)\n.ShowDialog()
+activate FR
+
+FR --> A : mostrar detalle de errores\n(txtErrores = Errores unidos por salto de línea)
+FR -> P : GuardarLogIntegridad(_resultado.Errores)
+note right of P
+  agrega los errores a integridad_error.log
+  (carpeta ClubDeVinos en %LocalAppData%);
+  si falla, el catch vacío ignora el error
+end note
+FR -> FR : btnRestaurar.Enabled =\nIdsUsuariosAfectados.Count > 0
+
+== 2. Decisión del administrador ==
+
+alt admin elige "Recalcular y continuar"
+  A -> FR : click "Recalcular y continuar"
+  @IR FR
+  FR -> FR : DialogResult = OK; Close()
+  FR --> L : DialogResult.OK
+
+else 2a. admin elige "Restaurar desde historial"
+  A -> FR : click "Restaurar desde historial"
+  loop por cada id en IdsUsuariosAfectados
+    FR -> UB : ObtenerPorId(id)
+    UB -> UD : ObtenerPorId(id)
+    UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+    DB --> UD : fila de USUARIO
+    UD --> UB : BE.USUARIO / null
+    UB --> FR : usuario
+
+    alt usuario == null
+      FR -> FR : continue (pasa al siguiente id)
+    else el usuario existe
+      FR -> UH : ObtenerHistorial(id)
+      UH -> UHD : ListarPorUsuario(usuarioId)
+      UHD -> DB : USUARIO_HISTORIAL_LISTAR(@usuario_id)
+      DB --> UHD : filas de USUARIO_HISTORIAL
+      UHD --> UH : List<UsuarioHistorial>
+      UH --> FR : List<UsuarioHistorial>
+
+      alt 2a.i. el usuario afectado no tiene historial (Count == 0)
+        FR --> A : "El usuario 'X' no tiene historial de cambios registrado.\n\nNo es posible restaurarlo desde historial. Use 'Recalcular y continuar'."\n(título "Sin historial")
+        FR -> FR : continue (pasa al siguiente id)
+
+      else el usuario tiene historial
+        FR -> FR : alMenosUnoConHistorial = true
+        FR -> FH : new frmHistorialUsuario(usuario)\n.ShowDialog(this)
+        activate FH
+        FH -> FH : CargarHistorial()
+        FH -> UH : ObtenerHistorialPaginado(_usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
+        UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
+        UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
+        DB --> UHD : filas + TOTAL_FILAS
+        UHD --> UH : PaginaResultado<UsuarioHistorial>
+        UH --> FH : PaginaResultado<UsuarioHistorial>
+        FH --> A : grilla con el historial, "Restaurar versión"\ndeshabilitado y paginación actualizada\n(detalle en CU-10)
+
+        A -> FH : seleccionar una versión
+        note right of FH
+          dgvHistorial_SelectionChanged habilita el botón
+          solo si la fila existe y TipoCambio != "BAJA"
+        end note
+        A -> FH : click "Restaurar versión"
+
+        break sin fila actual (sel == null)
+          FH -> FH : return
+          note right of FH : defensivo: el botón queda deshabilitado\nsi no hay fila seleccionada
+        end
+
+        alt CU-11 1b. entrada seleccionada es de tipo ROLLBACK
+          FH --> A : "No se puede restaurar una versión que ya es un rollback."\n(título "Operación no permitida")
+        else entrada restaurable
+          FH --> A : solicitar confirmación (Sí/No)\n"¿Restaurar el estado del usuario 'X' a la versión del dd/MM/yyyy HH:mm?\n\nTipo de cambio registrado: <TipoCambio>\n\nNota: la contraseña NO se restaurará (se mantendrá la actual)."\n(título "Confirmar rollback")
+
+          alt el administrador responde "No"
+            A --> FH : No
+            FH -> FH : return (no restaura nada)
+          else el administrador responde "Sí"
+            A --> FH : Sí
+            FH -> SM : getUsuario()
+            SM --> FH : BE.USUARIO (se usa .Usuario como admin)
+            FH -> UH : Rollback(sel.Id, admin)
+            note right of UH : detalle completo en CU-11\n(Restaurar Usuario desde Historial)
+            UH -> UHD : ObtenerPorId(historialId)
+            UHD -> DB : USUARIO_HISTORIAL_OBTENER(@id)
+            DB --> UHD : snapshot / vacío
+            UHD --> UH : UsuarioHistorial / null
+
+            alt snapshot == null
+              UH --> FH : InvalidOperationException\n("Versión histórica no encontrada.")
+              FH --> A : ex.Message (título "Error")
+            else snapshot.TipoCambio == "ROLLBACK"
+              UH --> FH : InvalidOperationException\n("No se puede restaurar una versión que ya es un rollback.")
+              FH --> A : ex.Message (título "Error")
+            else snapshot válido
+              @RB
+              UH --> FH : (rollback aplicado)
+              FH --> A : "Estado restaurado correctamente."\n(título "Éxito")
+              FH -> FH : CargarHistorial()
+              FH -> UH : ObtenerHistorialPaginado(_usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
+              UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
+              UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
+              DB --> UHD : filas + TOTAL_FILAS
+              UHD --> UH : PaginaResultado<UsuarioHistorial>
+              UH --> FH : PaginaResultado<UsuarioHistorial>
+            end
+          end
+        end
+
+        note over FH : el formulario NO se cierra solo tras el rollback;\nel administrador puede seguir restaurando versiones
+        A -> FH : click "Cerrar"
+        FH --> FR : (form cerrado)
+        deactivate FH
+      end
+    end
+  end
+
+  alt alMenosUnoConHistorial
+    @IR FR
+    FR -> FR : DialogResult = OK; Close()
+    FR --> L : DialogResult.OK
+  else 2a.ii. ningún afectado tenía historial
+    note over FR : return: el formulario queda abierto,\nsin DialogResult
+  end
+
+else 2b. admin elige Cancelar
+  A -> FR : click "Cancelar"
+  note right of FR : btnCancelar.DialogResult = Cancel\n(definido en el diseñador)
+  FR --> L : DialogResult.Cancel
+  L -> SM : cerrarSesion()
+  L --> A : volver al login
+end
+deactivate FR
+
+== 3. Continuación ==
+
+opt DialogResult == OK
+  L -> L : continuar flujo de CU-01\n(mostrar "Bienvenido, <usuario>!" y abrir frmMenu)
+end
+
+@enduml

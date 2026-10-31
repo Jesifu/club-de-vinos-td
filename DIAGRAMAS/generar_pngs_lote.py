@@ -14,7 +14,7 @@ import base64
 import urllib.request
 from pathlib import Path
 
-DIAGRAMAS_DIR = Path(__file__).parent / "DIAGRAMAS"
+DIAGRAMAS_DIR = Path(__file__).parent
 INTENTOS = 3
 ESPERA_ENTRE_INTENTOS = 5  # segundos
 

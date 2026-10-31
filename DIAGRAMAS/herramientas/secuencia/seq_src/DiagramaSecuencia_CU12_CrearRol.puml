@@ -1,0 +1,82 @@
+@startuml DiagramaSecuencia_CU12_CrearRol
+
+title CU-12 — Crear Rol — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador" as A
+participant ":frmPerfiles"   as FP #FEFECE
+participant ":PerfilBLL"     as PB #E8F4E8
+participant ":PerfilDAL"     as PD #E8E8F4
+database    ":DB"            as DB #EEEEEE
+
+note over FP
+  Precondición: sesión activa,
+  permiso "Gestión de roles".
+  Al abrirse, frmPerfiles se registra en IdiomaManager,
+  carga el catálogo de permisos (ObtenerPermisosDisponibles),
+  traduce sus controles, carga el árbol (CargarArbol, que se
+  ejecuta dos veces: vía ActualizarIdioma y directo)
+  y agrega el selector de idiomas.
+end note
+
+== 1. Solicitud ==
+
+A -> FP : click "Agregar Rol"
+FP --> A : InputBox "Nombre del rol:"\n(título "Agregar Rol")
+A --> FP : ingresar nombre + Aceptar
+
+break 3a. nombre vacío, solo espacios o cancelado
+  FP -> FP : return (no hace nada)
+  note right of FP : el caso de uso termina
+end
+
+FP -> FP : padreId = rol seleccionado en el árbol\n(treePermisos.SelectedNode?.Tag is Rol);\nnull si no hay selección o es un permiso
+
+== 2. Creación del rol ==
+
+FP -> PB : AgregarRol(nombre, padreId)
+activate PB
+
+PB -> PD : Insertar(nombre, padreId)
+PD -> DB : ROL_INSERTAR(@nombre, @padre_id)
+note right of DB
+  RT-02: el nuevo rol se crea
+  sin permisos asignados —
+  se asignan luego vía CU-15.
+  RT-03: PROTEGIDO = 0 por defecto.
+end note
+DB --> PD : ID del nuevo rol (SCOPE_IDENTITY)
+PD --> PB : int id
+
+break rama defensiva: InvalidOperationException
+  PB --> FP : InvalidOperationException
+  FP --> A : ex.Message (título "Error")
+  note right of FP : return sin refrescar el árbol. Hoy ni AgregarRol ni\nel DAL la lanzan; un error de base de datos\n(SqlException) no se captura
+end
+
+PB --> FP : NodoPermiso (new Rol { Id, Nombre, PadreId })
+deactivate PB
+note right of FP : frmPerfiles descarta el valor devuelto
+
+== 3. Actualización del árbol ==
+
+@CA
+FP --> A : árbol refrescado,\nmuestra el nuevo rol
+
+note over PB
+  RT-01: un rol no puede tener como padre
+  (directo o indirecto) a sí mismo. AgregarRol no
+  valida ciclos: un rol nuevo no puede formar uno;
+  GenerariaCiclo se aplica al reasignar el padre (CU-14).
+end note
+
+@enduml

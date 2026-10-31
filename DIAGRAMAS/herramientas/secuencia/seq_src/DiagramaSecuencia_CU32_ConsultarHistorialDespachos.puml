@@ -1,0 +1,78 @@
+@startuml DiagramaSecuencia_CU32_ConsultarHistorialDespachos
+
+title CU-32 — Consultar Historial de Despachos — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.75
+
+actor       ":Usuario"                 as U
+participant ":frmHistorialDespachos"   as FH #FEFECE
+participant ":RemitoDespachoPdf"       as RP #FEFECE
+participant ":CajaMensualBLL"          as CB #E8F4E8
+participant ":CajaMensualDAL"          as CD #E8E8F4
+database    ":DB"                      as DB #EEEEEE
+
+note over FH
+  Precondición: sesión activa; permiso "Despachar cajas"; existe al menos una caja Despachada.
+  Consulta de solo lectura sobre la base de datos: no registra en Bitácora.
+end note
+
+U -> FH : menú Club de Socios > "Historial de Despachos"\n(new frmHistorialDespachos().ShowDialog())
+activate FH
+note right of FH
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarCajasDespachadas() y agrega el selector de idiomas
+end note
+
+FH -> FH : CargarCajasDespachadas()
+FH -> CB : ListarDespachadas()
+CB -> CD : ListarPorEstado("Despachada")
+CD -> DB : CAJA_LISTAR_POR_ESTADO(@estado)
+DB --> CD : filas (ordenadas por FECHA_ARMADO DESC)
+CD --> CB : List<CajaMensual>
+CB -> CB : OrderByDescending(c => c.FechaDespacho).ToList()
+CB --> FH : List<CajaMensual>
+FH -> FH : dgvCajasDespachadas.DataSource = cajas; oculta columnas\ny ActualizarEncabezados()
+
+note over FH, DB
+  Al enlazar la grilla queda seleccionada la primera fila y se dispara
+  dgvCajasDespachadas_SelectionChanged, sin acción del usuario.
+end note
+FH -> FH : dgvCajasDespachadas_SelectionChanged:\nbtnRegenerar.Enabled = la fila actual es una CajaMensual
+FH --> U : cajas despachadas por fecha de despacho descendente\n(Socio, Período, Fecha de despacho, Despachada por)
+
+opt el usuario selecciona otra caja de la grilla
+  U -> FH : seleccionar una caja de dgvCajasDespachadas
+  FH -> FH : dgvCajasDespachadas_SelectionChanged:\nbtnRegenerar.Enabled = la fila actual es una CajaMensual
+end
+
+U -> FH : click "Regenerar remito"
+
+break no hay una caja actual (la fila actual no es una CajaMensual)
+  FH -> FH : return
+end
+
+alt sin excepciones al obtener la caja, generar y abrir el remito (try)
+  @OC FH | cajaFila.Id | conTry
+  FH -> RP : Generar(caja)
+  activate RP
+  RP -> RP : Directory.CreateDirectory(Documentos\ClubDeVinos\Remitos);\narmar el documento (MigraDoc): encabezado, datos de la caja y del socio,\ntabla de líneas (Σ Cantidad × PrecioEfectivo) y firma
+  RP -> RP : PdfDocument.Save(ruta):\nDocumentos\ClubDeVinos\Remitos\Remito_Caja{id}.pdf
+  note right of RP : RN-12 — sobrescribe el archivo existente en la misma ruta,\nsin sufijo de fecha ni de versión
+  RP --> FH : rutaRemito
+  deactivate RP
+  FH -> RP : Abrir(rutaRemito)
+  RP -> RP : Process.Start(rutaPdf)
+  note right of RP : Abrir traga su propia excepción (p. ej. lector de PDF ausente):\nen ese caso no se muestra ningún mensaje
+else 32a. catch (Exception): falla alguna de las tres llamadas anteriores (RN-11)
+  FH --> U : "No se pudo generar el remito de despacho; la caja fue despachada igualmente."\n(título "Atención")
+  note right of FH : el historial sigue navegable; no se abre ningún archivo
+end
+note right of FH : fin del caso de uso: sin mensaje de éxito, sin recarga de la grilla,\nsin Bitácora y sin escrituras en la base de datos
+deactivate FH
+
+@enduml

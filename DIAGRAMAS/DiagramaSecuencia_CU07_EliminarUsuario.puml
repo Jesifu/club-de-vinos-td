@@ -17,6 +17,7 @@ participant ":frmAdminUsuarios"    as FA #FEFECE
 participant ":UsuarioBLL"          as UB #E8F4E8
 participant ":UsuarioHistorialBLL" as UH #E8F4E8
 participant ":IntegridadBLL"       as IB #E8F4E8
+participant ":CalculadorDVH" as CD #F4E8E8
 participant ":SessionManager"      as SM #F4E8E8
 participant ":UsuarioDAL"          as UD #E8E8F4
 participant ":UsuarioPerfilDAL"    as UPD #E8E8F4
@@ -26,59 +27,69 @@ database    ":DB"                  as DB #EEEEEE
 
 note over FA
   Precondición: sesión activa,
-  permiso "Administrar usuarios".
+  permiso "Administrar usuarios";
+  frmAdminUsuarios abierto desde frmMenu
+  (Administración > Gestión de usuarios).
 end note
 
 == 1. Selección y solicitud ==
 
-A -> FA : seleccionar usuario en la grilla\n+ click "Eliminar"
+A -> FA : seleccionar usuario en la grilla\n+ click "Eliminar usuario"
 
-opt 1a. ningún usuario seleccionado
-  FA --> A : "Seleccioná un usuario."
+break 1a. ningún usuario seleccionado
+  FA --> A : "Seleccioná un usuario."\n(título "Atención")
   note right of FA : el caso de uso termina
 end
 
 == 2. Validaciones ==
 
 FA -> SM : getUsuario()
-SM --> FA : usuarioActual
+SM --> FA : BE.USUARIO (se usa .Usuario)
 
-alt 3a. el usuario seleccionado es el propio administrador
-  FA --> A : "No podés eliminar tu propio usuario."
+alt 2a. el usuario seleccionado es el propio administrador\n(seleccionado.Usuario == usuarioActual)
+  FA --> A : "No podés eliminar tu propio usuario."\n(título "Atención")
   note right of FA : el caso de uso termina
 
 else el usuario seleccionado es distinto al propio
-  FA --> A : solicitar confirmación\n("¿Eliminar al usuario 'X'?\nEsta acción no se puede deshacer.")
+  FA --> A : solicitar confirmación\n("¿Eliminar al usuario 'X'? Esta acción no se puede deshacer.")\n(título "Confirmar")
 
-  alt 5a. el administrador cancela
+  alt 3a. el administrador cancela
     A --> FA : No
-    note right of FA : el caso de uso termina\n(no se elimina al usuario)
+    note right of FA : el caso de uso termina\n(no se elimina al usuario ni se recarga la grilla)
 
   else el administrador confirma
     A --> FA : Sí
 
     == 3. Eliminación ==
 
-    FA -> UB : Eliminar(id)
+    FA -> UB : Eliminar(seleccionado.Id)
     activate UB
 
     UB -> SM : getUsuario()
-    SM --> UB : administrador actual
+    SM --> UB : BE.USUARIO (se usa .Usuario como admin)
 
     UB -> UH : RegistrarCambio(id, "BAJA", admin)
+    activate UH
     UH -> UD : ObtenerPorId(usuarioId)
     UD -> DB : USUARIO_OBTENER_POR_ID(@id)
     DB --> UD : fila de USUARIO
-    UD --> UH : BE.USUARIO
-    UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
-    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-    DB --> UPD : PERFIL_ID
-    UPD --> UH : List<int> perfiles
-    UH -> UHD : Insertar(UsuarioHistorial)
-    UHD -> DB : USUARIO_HISTORIAL_INSERTAR(snapshot,\n@tipo_cambio, @realizado_por)
+    UD --> UH : BE.USUARIO / null
+    alt el usuario no existe (u == null)
+      UH --> UB : return (no inserta nada)
+    else el usuario existe
+      UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
+      UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+      DB --> UPD : PERFIL_ID
+      UPD --> UH : List<int> perfiles
+      UH -> UH : ordenar los ids y unirlos en CSV (Perfiles)
+      UH -> UHD : Insertar(UsuarioHistorial)
+      UHD -> DB : USUARIO_HISTORIAL_INSERTAR(@usuario_id, @usuario_login, @rol,\n@bloqueado, @intentos_fallidos, @perfiles, @nombre, @apellido,\n@telefono, @email, @realizado_por, @tipo_cambio = "BAJA",\n@version_origen = null, @rol_id)
+      UH --> UB : (cambio registrado)
+    end
+    deactivate UH
     note right of UH
       Snapshot del último
-      estado conocido (RN-02),
+      estado conocido (RT-02),
       registrado antes de
       eliminar el registro.
     end note
@@ -89,8 +100,8 @@ else el usuario seleccionado es distinto al propio
       Cascada del SP: borra
       también las filas del
       usuario en USUARIO_PERFIL
-      (RN-04). USUARIO_HISTORIAL
-      no tiene FK (RN-03).
+      (RT-04). USUARIO_HISTORIAL
+      no tiene FK (RT-03).
     end note
 
     UB -> IB : RecalcularIntegridadUsuarios()
@@ -99,28 +110,38 @@ else el usuario seleccionado es distinto al propio
     IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
     DB --> IND : filas de USUARIO
     IND --> IB : DataTable
-    IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
-    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-    DB --> UPD : PERFIL_ID
-    UPD --> IB : List<int>
-    IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
-    IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
-    IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
-    IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
-    IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    loop por cada usuario
+      IB -> UPD : ListarPerfilesPorUsuario(id)
+      UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+      DB --> UPD : PERFIL_ID
+      UPD --> IB : List<int>
+      IB -> CD : Calcular(atributos)
+      CD --> IB : int dvh
+      IB -> IND : ActualizarDVHUsuario(id, dvh)
+      IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+    end
+    loop por cada una de las 7 columnas (c = índice)
+      IB -> CD : CalcularVertical(todasFilas, c)
+      CD --> IB : int dvv
+      IB -> IND : ActualizarDVV("USUARIO", columnas[c], dvv)
+      IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    end
     IB --> UB : (DVH / DVV recalculados)
     deactivate IB
     UB --> FA : (usuario eliminado)
     deactivate UB
 
+    FA -> FA : CargarUsuarios()
     FA -> UB : ListarPaginado(_busquedaActual,\n_paginaActual, TAMANIO_PAGINA)
     UB -> UD : ListarPaginado(busqueda, pagina, tamanio)
     UD -> DB : USUARIO_LISTAR_PAGINADO(@busqueda,\n@pagina, @tamanio)
     DB --> UD : filas + TOTAL_FILAS
     UD --> UB : PaginaResultado<USUARIO>
     UB --> FA : PaginaResultado<USUARIO>
-    FA -> FA : refrescar grilla
+    FA -> FA : dgvUsuarios.DataSource = resultado.Items;\nocultar columnas, ActualizarEncabezados() y\nActualizarControlesPaginacion()
   end
 end
+
+note over FA : la baja no registra nada en la bitácora\ny no muestra mensaje de éxito
 
 @enduml

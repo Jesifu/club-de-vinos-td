@@ -22,33 +22,49 @@ note over FI
   Precondición: sesión activa,
   permiso "Gestión de idiomas",
   existe al menos un idioma.
+  Al abrirse, frmIdiomas se registra en IdiomaManager, carga la
+  grilla de idiomas (CargarIdiomas), traduce sus controles y
+  agrega el selector de idiomas.
 end note
 
 == 1. Selección y solicitud ==
 
 A -> FI : seleccionar un idioma en la grilla
-FI -> FI : dgvIdiomas_SelectionChanged\n→ _idiomaSeleccionado
+FI -> FI : dgvIdiomas_SelectionChanged\n→ _idiomaSeleccionado = CurrentRow?.DataBoundItem as IDIOMA
 
-A -> FI : click "Eliminar"
+opt _idiomaSeleccionado != null
+  FI -> FI : CargarTraducciones()
+  FI -> IB : ListarControlesConTraduccion(idiomaId)
+  IB -> IDD : ListarControlesConTraduccion(idiomaId)
+  IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)
+  DB --> IDD : filas (ID, CLAVE, TEXTO_DEFAULT, TEXTO_TRADUCCION)
+  IDD --> IB : List<CONTROL_IDIOMA>
+  IB --> FI : List<CONTROL_IDIOMA>
+  FI -> FI : dgvTraducciones.DataSource = null;\ndgvTraducciones.DataSource = controles
+  note right of FI : la selección también carga la grilla de\ntraducciones del idioma (ver CU-19)
+end
 
-opt 1a. ningún idioma seleccionado
-  FI --> A : "Seleccioná un idioma." (Aviso)
+A -> FI : click "Eliminar idioma"
+
+break 1a. ningún idioma seleccionado
+  FI --> A : "Seleccioná un idioma."\n(título "Aviso")
   note right of FI : el caso de uso termina
 end
 
-== 1b. Validaciones de negocio ==
+== Validaciones de negocio ==
 
-opt 1b-1. el idioma es el predeterminado del sistema
-  FI --> A : "No se puede eliminar el idioma\npredeterminado del sistema." (Aviso)
+break 1b. el idioma es el predeterminado del sistema
+  FI --> A : "No se puede eliminar el idioma predeterminado del sistema."\n(título "Aviso")
   note right of FI
-    RN-03: el idioma marcado como
-    predeterminado (IDIOMA.PREDETERMINADO = 1)
-    nunca puede eliminarse.
+    RT-03: el idioma marcado como predeterminado
+    (IDIOMA.PREDETERMINADO = 1) nunca puede eliminarse.
+    Se evalúa sobre el objeto IDIOMA ya cargado en
+    memoria, sin consultar la base de datos.
   end note
   note right of FI : el caso de uso termina
 end
 
-FI -> IB : EstaEnUso(id)
+FI -> IB : EstaEnUso(_idiomaSeleccionado.Id)
 activate IB
 IB -> IDD : EstaEnUso(id)
 IDD -> DB : IDIOMA_ESTA_EN_USO(@id)
@@ -57,10 +73,10 @@ IDD --> IB : bool (TOTAL > 0)
 IB --> FI : bool
 deactivate IB
 
-opt 1b-2. el idioma está en uso por algún usuario
-  FI --> A : "No se puede eliminar un idioma\nque está en uso por algún usuario." (Aviso)
+break 1c. el idioma está en uso por algún usuario
+  FI --> A : "No se puede eliminar un idioma que está en uso por algún usuario."\n(título "Aviso")
   note right of FI
-    RN-04: no se puede eliminar un idioma
+    RT-04: no se puede eliminar un idioma
     asignado a algún usuario (USUARIO.IDIOMA_ID),
     sin importar si es el idioma activo
     de la sesión actual.
@@ -68,9 +84,9 @@ opt 1b-2. el idioma está en uso por algún usuario
   note right of FI : el caso de uso termina
 end
 
-FI --> A : solicitar confirmación\n("¿Eliminar el idioma 'X'?\nSe borrarán todas sus traducciones.")
+FI --> A : solicitar confirmación\n("¿Eliminar el idioma 'X'? Se borrarán todas sus traducciones.")\n(título "Confirmar eliminación")
 
-alt 4a. el administrador cancela
+alt 3a. el administrador cancela
   A --> FI : No
   note right of FI : el caso de uso termina\n(no se elimina el idioma)
 
@@ -79,15 +95,16 @@ else el administrador confirma
 
   == 2. Eliminación ==
 
-  FI -> IB : Eliminar(id)
+  FI -> IB : Eliminar(_idiomaSeleccionado.Id)
   activate IB
   IB -> IDD : Eliminar(id)
   IDD -> DB : IDIOMA_ELIMINAR(@id)
   note right of DB
-    RN-01: operación irreversible —
+    RT-01: operación irreversible —
     el SP borra las filas de
     TRADUCCION del idioma y luego
-    el propio IDIOMA.
+    el propio IDIOMA (dos DELETE,
+    sin transacción explícita).
   end note
   IB --> FI : (idioma eliminado)
   deactivate IB
@@ -104,8 +121,17 @@ else el administrador confirma
   DB --> IDD : filas de IDIOMA
   IDD --> IB : List<IDIOMA>
   IB --> FI : List<IDIOMA>
-  FI -> FI : dgvIdiomas.DataSource = idiomas
-  FI --> A : grilla de idiomas refrescada,\ngrilla de traducciones vacía
+  FI -> FI : dgvIdiomas.DataSource = null;\ndgvIdiomas.DataSource = idiomas
+  FI -> FI : dgvIdiomas_SelectionChanged\n(al re-enlazar la grilla queda seleccionada\nla primera fila: _idiomaSeleccionado)
+  FI -> FI : CargarTraducciones()
+  FI -> IB : ListarControlesConTraduccion(idiomaId)
+  IB -> IDD : ListarControlesConTraduccion(idiomaId)
+  IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)
+  DB --> IDD : filas (ID, CLAVE, TEXTO_DEFAULT, TEXTO_TRADUCCION)
+  IDD --> IB : List<CONTROL_IDIOMA>
+  IB --> FI : List<CONTROL_IDIOMA>
+  FI -> FI : dgvTraducciones.DataSource = null;\ndgvTraducciones.DataSource = controles
+  FI --> A : grilla de idiomas refrescada; al re-enlazarla queda\nseleccionada la primera fila y se recarga la grilla\nde traducciones con el idioma que queda seleccionado
 end
 
 @enduml

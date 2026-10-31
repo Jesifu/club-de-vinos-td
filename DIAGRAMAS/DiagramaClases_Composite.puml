@@ -67,8 +67,7 @@ note right of Rol
   Implementa ""Agregar""/""Quitar"" operando sobre
   esa lista.
   ""Protegido=true"" marca al rol "Administrador":
-  no puede eliminarse ni quedar sin permisos
-  críticos (ver ""PerfilBLL.Eliminar"").
+  no puede eliminarse (ver ""PerfilBLL.Eliminar"").
 end note
 
 note right of Permiso
@@ -86,28 +85,38 @@ end note
 ' Cliente del árbol
 ' ─────────────────────────────────────────
 
-class PerfilBLL <<BLL>>
-class frmPerfiles <<Form>>
+package "BLL" #FFE6CC {
+  class PerfilBLL <<BLL>>
+}
+
+package "CAPAS" #F8CECC {
+  class frmPerfiles <<Form>>
+}
 
 PerfilBLL ..> NodoPermiso : ObtenerArbol()\n: List<NodoPermiso>
-frmPerfiles ..> PerfilBLL : ObtenerArbol()
+frmPerfiles --> PerfilBLL : ObtenerArbol()
 
 note bottom of PerfilBLL
-  ""ObtenerArbol()"" arma el árbol en memoria:
-  primero crea todos los ""Rol"" (filas de la
-  tabla ""ROL"") y los enlaza por ""PadreId"";
-  luego, para cada fila de ""ROL_PERMISO"", crea
-  un ""Permiso"" y lo agrega (""Agregar()"") al
-  ""Rol"" correspondiente. El resultado es una
-  lista de raíces ""List<NodoPermiso>"".
+  ""ObtenerArbol()"" arma el árbol en memoria.
+  ""PerfilDAL"" crea los nodos: los ""Rol"" (""ListarRoles"",
+  tabla ""ROL"") y los ""Permiso"" (""ListarRolPermisos"",
+  tabla ""ROL_PERMISO""). La BLL solo los enlaza:
+  primero agrega cada ""Rol"" a su padre por ""PadreId""
+  (""Agregar()"") y luego cada ""Permiso"" a su ""Rol""
+  (en ""Permiso.PadreId"" viaja el ""ROL_ID"").
+  El resultado es una lista de raíces
+  ""List<NodoPermiso>"".
 end note
 
 note bottom of frmPerfiles
-  Recorre el árbol recursivamente sin
-  distinguir el tipo concreto: solo usa
+  Armar el TreeView es polimórfico: ""CargarArbol()""
+  recorre el árbol recursivamente y solo usa
   ""NodoPermiso.ObtenerHijos()"" y ""EsHoja()""
   para decidir cómo mostrar cada nodo
-  (TreeView con prefijos "[Rol]" / "[Permiso]").
+  (prefijos "[Rol]" / "[Permiso]").
+  El resto de la lógica sí distingue el tipo
+  concreto: ""Tag is Rol"", ""rol.Protegido"" y el
+  cast a ""Permiso"" para los checkboxes.
 end note
 
 @enduml

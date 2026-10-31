@@ -1,0 +1,131 @@
+@startuml DiagramaSecuencia_CU15_AsignarPermisosRol
+
+title CU-15 — Asignar Permisos a Rol — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador" as A
+participant ":frmPerfiles"   as FP #FEFECE
+participant ":PerfilBLL"     as PB #E8F4E8
+participant ":PerfilDAL"     as PD #E8E8F4
+database    ":DB"            as DB #EEEEEE
+
+note over FP
+  Precondición: sesión activa,
+  permiso "Gestión de roles",
+  el rol seleccionado existe.
+end note
+
+== 0. Carga del catálogo de permisos (al abrir frmPerfiles) ==
+
+FP -> PB : ObtenerPermisosDisponibles()
+PB -> PD : ListarPermisosDisponibles()
+PD -> DB : PERMISO_LISTAR_TODOS
+DB --> PD : filas de PERMISO
+PD --> PB : List<Permiso>
+PB --> FP : List<Permiso> (_permisosDisponibles)
+note right of FP
+  Load: antes se registra en IdiomaManager; después ejecuta
+  ActualizarIdioma() (que también llama CargarArbol()), CargarArbol()
+  y agrega el selector de idiomas, por lo que el árbol se carga
+  dos veces al abrir (detalle de CargarArbol en CU-12).
+end note
+
+== 1. Selección del rol ==
+
+A -> FP : seleccionar un nodo en el árbol
+FP -> FP : treePermisos_AfterSelect
+
+alt 1a. el nodo seleccionado es un permiso (no un rol)
+  FP -> FP : lblSeleccionado = "Permiso: X"; btnEliminar.Enabled = false;\npanelPermisos.Visible = false; panelPadre.Visible = false
+  note right of FP
+    El caso de uso no puede
+    ejecutarse sobre permisos
+    del catálogo.
+  end note
+
+else el nodo seleccionado es un rol
+  FP -> FP : lblSeleccionado = "Rol: X"; btnEliminar.Enabled = !rol.Protegido;\npanelPermisos.Visible = true; panelPadre.Visible = true
+  FP -> FP : PopularCheckPermisos(rol)
+  note right of FP
+    Recorre rol.ObtenerHijos() y
+    marca como asignados (check)
+    los hijos que son hojas
+    (permisos del catálogo).
+
+    Para cada permiso del catálogo:
+    marcado = asignados.Contains(p.Id)
+  end note
+  FP -> FP : PopularComboPadre(rol, nodoActual)
+  note right of FP : prepara el combo de padres (detalle en CU-14)
+  FP --> A : lista de permisos del\ncatálogo con checks
+
+  == 2. Edición y guardado ==
+
+  A -> FP : marcar / desmarcar permisos\n+ click "Guardar permisos"
+  note right of FP : si no hay un Rol seleccionado en el árbol,\nel handler hace return
+
+  FP -> FP : recolectar IDs de permisos\nmarcados (seleccionados)
+  FP -> PB : ActualizarPermisosDeRol(rol.Id, seleccionados)
+  activate PB
+  PB -> PD : GuardarPermisosDeRol(rol.Id, seleccionados)
+  PD -> DB : (inicia transacción)
+  PD -> DB : ROL_PERMISO_LIMPIAR(@rol_id)
+  loop por cada permiso seleccionado
+    PD -> DB : ROL_PERMISO_INSERTAR(@rol_id, @permiso_id)
+  end
+  note right of DB
+    RT-03: transacción —
+    LIMPIAR (DELETE ROL_PERMISO
+    WHERE ROL_ID = rol.Id)
+    + N × INSERTAR.
+    RT-02: reemplazo completo,
+    no incremental.
+  end note
+
+  alt error de base de datos durante la transacción
+    PD -> DB : (deshace la transacción: DeshacerTX)
+    PD --> PB : throw (se relanza la excepción)
+    PB --> FP : excepción
+    deactivate PB
+    note right of FP
+      btnGuardarPermisos_Click no tiene try/catch:
+      la excepción queda sin manejar en la UI y no
+      se recarga el árbol
+    end note
+  else transacción correcta
+    PD -> DB : (confirma la transacción: ConfirmarTX)
+    PB --> FP : (permisos actualizados)
+    deactivate PB
+    note right of FP : no se muestra mensaje de éxito
+
+    == 3. Actualización del árbol ==
+
+    @CA
+    FP -> FP : por cada nodo raíz tn: BuscarNodo(tn, rol.Id) y\ntreePermisos.SelectedNode = encontrado\n→ mantener selección sobre el rol
+    FP -> FP : treePermisos_AfterSelect\n(PopularCheckPermisos + PopularComboPadre)
+    FP --> A : árbol refrescado — los\npermisos asignados quedan\nvisibles como hijos del rol
+  end
+end
+
+note over PB
+  RT-01: el catálogo de permisos
+  es estático (se carga desde PERMISO) —
+  no se crea ni se elimina desde la UI.
+
+  Los permisos efectivos de un
+  usuario combinan los roles
+  asignados (USUARIO_PERFIL) con
+  los permisos de cada rol
+  (ROL_PERMISO).
+end note
+
+@enduml

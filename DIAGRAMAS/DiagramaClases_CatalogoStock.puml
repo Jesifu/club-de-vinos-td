@@ -110,15 +110,30 @@ package "BE" #FEFECE {
     + ReferenciaId : int?
   }
 
+  class VinoCandidato <<existente>> {
+    + Id : int
+    + Codigo : string
+    + Nombre : string
+    + BodegaNombre : string
+    + Varietal : string
+    + Aniada : int
+    + Precio : decimal
+    + Stock : int
+    + Preferido : bool
+    + ToString() : string
+  }
+
   class USUARIO <<existente>> {
     + Id : int
     + Usuario : string
   }
 
-  Bodega "1" o-- "0..*" Vino            : BodegaId >
-  Vino   "1" o-- "0..*" MovimientoStock : VinoId >
-  Vino   "1" o-- "0..*" SolicitudAutorizacion : VinoId >
+  Vino                 "0..*" --> "1" Bodega : BodegaId >
+  MovimientoStock      "0..*" --> "1" Vino : VinoId >
+  SolicitudAutorizacion "0..*" --> "1" Vino : Vino >
   Vino                 --> EstadoVino
+  Vino                 --> TipoSolicitud
+  Vino                 --> EstadoSolicitud
   SolicitudAutorizacion --> TipoSolicitud
   SolicitudAutorizacion --> EstadoSolicitud
   MovimientoStock      --> TipoMovimiento
@@ -132,8 +147,8 @@ package "DAL" #E8E8F4 {
   class Acceso <<existente>> {
     + Abrir() : void
     + Cerrar() : void
-    + Leer(sql : string, parametros : List<SqlParameter>) : DataTable
-    + Escribir(sql : string, parametros : List<SqlParameter>) : int
+    + Leer(sql : string, parametros : List<SqlParameter> = null) : DataTable
+    + Escribir(sql : string, parametros : List<SqlParameter> = null) : int
     + CrearParametro(nombre : string, valor : string) : SqlParameter
     + CrearParametro(nombre : string, valor : int) : SqlParameter
   }
@@ -144,10 +159,13 @@ package "DAL" #E8E8F4 {
     + Insertar(v : Vino) : void
     + Reproponer(v : Vino, emisorId : int) : int
     + ObtenerPorCodigo(codigo : string) : Vino
+    .. CU-21, CU-24, CU-23 y CU-27 ..
     + ObtenerPorId(id : int) : Vino
+    .. CU-21 y CU-24 ..
     + ListarCatalogo(usuarioId : int) : List<Vino>
+    .. CU-23 y CU-27 ..
     + ListarAutorizados() : List<Vino>
-    .. usado por CajaMensualBLL (CU-28) ..
+    .. usado por CajaMensualBLL (CU-28 y CU-29) ..
     + ListarCandidatos(socioId : int) : List<VinoCandidato>
     .. CU-24 ..
     + SolicitarBaja(vinoId : int, solicitanteId : int) : int
@@ -160,6 +178,7 @@ package "DAL" #E8E8F4 {
     + ListarPendientes(tipo : TipoSolicitud) : List<SolicitudAutorizacion>
     + ObtenerPorId(id : int) : SolicitudAutorizacion
     + ObtenerPendiente(vinoId : int, tipo : TipoSolicitud) : SolicitudAutorizacion
+    ~ {static} TipoDesdeDb(valor : string) : TipoSolicitud
     .. CU-22 ..
     + AprobarAlta(solicitudId : int, resolutorId : int) : int
     + RechazarAlta(solicitudId : int, resolutorId : int, motivo : string) : int
@@ -187,6 +206,8 @@ package "DAL" #E8E8F4 {
   }
 
   VinoDAL                  --> Acceso
+  VinoDAL                  ..> VinoCandidato
+  VinoDAL                  ..> SolicitudAutorizacionDAL : TipoDesdeDb >
   SolicitudAutorizacionDAL --> Acceso
   BodegaDAL          --> Acceso
   MovimientoStockDAL --> Acceso
@@ -213,7 +234,9 @@ package "BLL" #E8F4E8 {
     .. CU-21 ..
     + ProponerAlta(v : Vino, sesion : USUARIO) : void
     + Reproponer(v : Vino, sesion : USUARIO) : void
+    .. CU-21 y CU-24 ..
     + ListarCatalogo(sesion : USUARIO) : List<Vino>
+    .. CU-23 y CU-27 ..
     + ListarAutorizados() : List<Vino>
     .. CU-22 ..
     + ListarSolicitudesPendientes(tipo : TipoSolicitud) : List<SolicitudAutorizacion>
@@ -223,6 +246,7 @@ package "BLL" #E8F4E8 {
     + SolicitarBaja(vinoId : int, sesion : USUARIO) : void
     + AutorizarBaja(solicitudId : int, sesion : USUARIO) : void
     + RechazarBaja(solicitudId : int, motivo : string, sesion : USUARIO) : void
+    .. auxiliares privados ..
     - ValidarDatos(v : Vino, exigirCodigo : bool) : void
     - ObtenerSolicitudPendiente(solicitudId : int, tipo : TipoSolicitud) : SolicitudAutorizacion
     - ValidarSeparacionDeFunciones(s : SolicitudAutorizacion, sesion : USUARIO, accion : string) : void
@@ -256,49 +280,56 @@ package "BLL" #E8F4E8 {
 }
 
 ' ─────────────────────────────────────────
+' CAPA SeguridadYServicios
+' ─────────────────────────────────────────
+package "SeguridadYServicios" #D5E8D4 {
+
+  interface IObservadorIdioma <<existente>> {
+    + ActualizarIdioma() : void
+  }
+}
+
+' ─────────────────────────────────────────
 ' CAPA CAPAS (presentación)
 ' ─────────────────────────────────────────
 package "CAPAS" #F4E8E8 {
 
   class FormBase <<existente>> {
   }
-
-  interface IObservadorIdioma <<existente>> {
-    + ActualizarIdioma() : void
-  }
+  note right of FormBase : Hereda de ReaLTaiizor.Forms.MaterialForm
 
   class frmCatalogoVinos {
     - _bll : VinoBLL
     + ActualizarIdioma() : void
-    - btnGuardarVino_Click() : void
+    - btnGuardarVino_Click(sender : object, e : EventArgs) : void
     - CargarVinos() : void
-    - dgvVinos_SelectionChanged() : void
+    - dgvVinos_SelectionChanged(sender : object, e : EventArgs) : void
     - ActualizarEstadoBajaBoton() : void
-    - btnReproponer_Click() : void
-    - btnSolicitarBaja_Click() : void
+    - btnReproponer_Click(sender : object, e : EventArgs) : void
+    - btnSolicitarBaja_Click(sender : object, e : EventArgs) : void
   }
 
   class frmAutorizarAltaVino {
     - _bll : VinoBLL
     + ActualizarIdioma() : void
     - MostrarDetalle() : void
-    - btnAutorizar_Click() : void
-    - btnRechazarAlta_Click() : void
+    - btnAutorizar_Click(sender : object, e : EventArgs) : void
+    - btnRechazarAlta_Click(sender : object, e : EventArgs) : void
   }
 
   class frmRegistrarEntradaStock {
     - _bll : MovimientoStockBLL
     - _vinoBll : VinoBLL
     + ActualizarIdioma() : void
-    - btnRegistrarEntrada_Click() : void
+    - btnRegistrarEntrada_Click(sender : object, e : EventArgs) : void
   }
 
   class frmAutorizarBajaVino {
     - _bll : VinoBLL
     + ActualizarIdioma() : void
     - MostrarDetalle() : void
-    - btnAutorizarBaja_Click() : void
-    - btnRechazarBaja_Click() : void
+    - btnAutorizarBaja_Click(sender : object, e : EventArgs) : void
+    - btnRechazarBaja_Click(sender : object, e : EventArgs) : void
   }
 
   class frmAlertaStockMinimo {
@@ -310,7 +341,7 @@ package "CAPAS" #F4E8E8 {
     - _bll : MovimientoStockBLL
     - _vinoBll : VinoBLL
     + ActualizarIdioma() : void
-    - btnRegistrarAjuste_Click() : void
+    - btnRegistrarAjuste_Click(sender : object, e : EventArgs) : void
   }
 
   FormBase <|-- frmCatalogoVinos

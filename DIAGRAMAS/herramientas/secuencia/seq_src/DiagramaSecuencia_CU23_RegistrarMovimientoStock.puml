@@ -1,0 +1,102 @@
+@startuml DiagramaSecuencia_CU23_RegistrarMovimientoStock
+
+title CU-23 — Registrar Entrada de Stock — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.7
+
+actor       ":Usuario"                    as U
+participant ":frmRegistrarEntradaStock"   as FE #FEFECE
+participant ":VinoBLL"                    as VB #E8F4E8
+participant ":MovimientoStockBLL"         as MB #E8F4E8
+participant ":BitacoraBLL"                as BB #E8F4E8
+participant ":VinoDAL"                    as VD #E8E8F4
+participant ":MovimientoStockDAL"         as MD #E8E8F4
+participant ":BitacoraDAL"                as TD #E8E8F4
+database    ":DB"                         as DB #EEEEEE
+
+note over FE
+  Precondición: sesión activa; permiso "Gestionar catálogo de vinos";
+  existe al menos un vino autorizado y activo.
+  sesion = SessionManager.getInstance().getUsuario().
+end note
+
+U -> FE : menú Catálogo > "Registrar entrada de stock"\n(new frmRegistrarEntradaStock().ShowDialog())
+activate FE
+note right of FE
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarVinos() y agrega el selector de idiomas.
+  CargarVinos() termina llamando a ActualizarVinoSeleccionado(),
+  que también invoca el handler cboVino_SelectedIndexChanged.
+end note
+
+FE -> FE : CargarVinos()
+activate FE
+FE -> VB : ListarAutorizados()
+VB -> VD : ListarAutorizados()
+VD -> DB : VINO_LISTAR_AUTORIZADOS
+DB --> VD : filas
+VD --> VB : List<Vino>
+VB --> FE : List<Vino>
+FE -> FE : cboVino.DataSource = vinos; DisplayMember = Nombre;\nValueMember = Id; SelectedIndex = 0 solo si hay vinos
+
+@AV FE
+deactivate FE
+FE --> U : stock actual y grilla de movimientos del vino seleccionado
+
+U -> FE : seleccionar vino, ingresar cantidad y motivo\n+ click "Registrar entrada"
+
+break 23d. no hay vino seleccionado
+  FE --> U : "Seleccioná un vino."\n(título "Atención")
+  note right of FE : return: no llama a la BLL ni refresca
+end
+
+FE -> FE : armar MovimientoStock { VinoId, Cantidad = (int)numCantidad.Value,\nMotivo = null si está vacío o solo espacios, si no Trim() }
+FE -> MB : RegistrarEntrada(movimiento, sesion)
+
+alt 23b. cantidad <= 0
+  MB --> FE : throw InvalidOperationException\n("La cantidad debe ser mayor a cero.")
+else cantidad válida
+  alt 23c. motivo vacío
+    MB --> FE : throw InvalidOperationException\n("El motivo es obligatorio.")
+  else motivo válido
+    MB -> VD : ObtenerPorId(movimiento.VinoId)
+    VD -> DB : VINO_OBTENER_POR_ID(@id)
+    DB --> VD : filas
+    VD --> MB : Vino (o null)
+
+    alt 23a. el vino no existe o no está Activo
+      MB --> FE : throw InvalidOperationException\n("El vino debe estar autorizado para registrar movimientos de stock.")
+    else vino activo
+      MB -> MB : Tipo = Entrada; Fecha = ahora;\nResponsable = sesion.Usuario
+      MB -> MD : Insertar(movimiento)
+      MD -> DB : MOVIMIENTO_STOCK_INSERTAR(@vino_id,@tipo,@cantidad,\n@motivo,@responsable,@referencia_tipo,@referencia_id)
+      DB --> MD : filas afectadas
+      MD --> MB : void
+      note right of MB : ReferenciaTipo es null en este caso de uso,\npor eso se registra "ENTRADA_STOCK"\n(con "AJUSTE" se registraría "AJUSTE_STOCK": ver CU-27)
+      MB -> BB : RegistrarAccion(sesion.Usuario,\n"ENTRADA_STOCK:" + v.Codigo + ":" + m.Cantidad)
+      BB -> TD : Registrar(usuario, accion)
+      TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+      DB --> TD : filas afectadas
+      TD --> BB : void
+      BB --> MB : void
+      MB --> FE : void
+      FE --> U : "Entrada de stock registrada correctamente."\n(título "Éxito")
+      FE -> FE : numCantidad.Value = 0; txtMotivo.Clear()
+      @AV FE
+      FE --> U : stock actual y grilla de movimientos actualizados
+    end
+  end
+end
+
+opt la BLL lanzó InvalidOperationException (catch de btnRegistrarEntrada_Click)
+  FE --> U : ex.Message\n(título "Atención")
+  note right of FE : return: el flujo vuelve a la carga de datos;\nno se limpia ni se refresca la pantalla
+end
+deactivate FE
+
+@enduml

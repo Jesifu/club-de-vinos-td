@@ -1,0 +1,136 @@
+@startuml DiagramaSecuencia_CU06_CrearUsuario
+
+title CU-06 — Crear Usuario — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.7
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador"       as A
+participant ":frmAdminUsuarios"    as FA #FEFECE
+participant ":frmNuevoUsuario"     as FN #FEFECE
+participant ":PerfilBLL"           as PB #E8F4E8
+participant ":UsuarioBLL"          as UB #E8F4E8
+participant ":IntegridadBLL"       as IB #E8F4E8
+participant ":CalculadorDVH" as CD #F4E8E8
+participant ":UsuarioHistorialBLL" as UH #E8F4E8
+participant ":Hasher"              as H  #F4E8E8
+participant ":SessionManager"      as SM #F4E8E8
+participant ":PerfilDAL"           as PD #E8E8F4
+participant ":UsuarioDAL"          as UD #E8E8F4
+participant ":UsuarioPerfilDAL"    as UPD #E8E8F4
+participant ":UsuarioHistorialDAL" as UHD #E8E8F4
+participant ":IntegridadDAL"       as IND #E8E8F4
+database    ":DB"                  as DB #EEEEEE
+
+note over FA
+  Precondición: sesión activa,
+  permiso "Administrar usuarios";
+  frmAdminUsuarios abierto desde frmMenu
+  (Administración > Gestión de usuarios).
+end note
+
+== 1. Apertura del formulario ==
+
+A -> FA : click "Nuevo usuario"
+FA -> FN : new frmNuevoUsuario()\n.ShowDialog()
+activate FN
+
+FN -> PB : ListarRolesParaCombo()
+PB -> PD : ListarParaCombo()
+PD -> DB : ROL_LISTAR_PARA_COMBO
+DB --> PD : filas de ROL (ID, NOMBRE)
+PD --> PB : List<Rol>
+PB --> FN : List<Rol>
+FN -> FN : cboRol.DataSource = roles\n(DisplayMember = Nombre, ValueMember = Id;\nSelectedIndex = 0 solo si hay roles)
+
+== 2. Ingreso de datos ==
+
+A -> FN : ingresar nombre de usuario, contraseña,\nnombre, apellido, teléfono (opcional),\nemail (opcional) y seleccionar un rol
+
+alt 3b. el administrador cancela
+  A -> FN : click "Cancelar"
+  FN -> FN : DialogResult = Cancel; Close()
+  FN --> FA : DialogResult.Cancel
+  deactivate FN
+  note right of FA : no se crea ningún registro\n(fin del caso de uso)
+
+else el administrador acepta
+  A -> FN : click "Crear"
+
+  break 3a. nombre de usuario vacío
+    FN --> A : "Ingresá un nombre de usuario."\n(título "Atención")
+    note right of FN : el flujo vuelve al paso 3\n(el formulario sigue abierto)
+  end
+
+  break 3a. contraseña vacía
+    FN --> A : "Ingresá una contraseña."\n(título "Atención")
+    note right of FN : el flujo vuelve al paso 3\n(el formulario sigue abierto)
+  end
+
+  break 3c. no se seleccionó ningún rol
+    FN --> A : "Seleccioná un rol."\n(título "Atención")
+    note right of FN : el flujo vuelve al paso 3\n(el formulario sigue abierto)
+  end
+
+  FN -> FN : DialogResult = OK; Close()
+  FN --> FA : DialogResult.OK
+  deactivate FN
+  FA -> FN : leer NombreUsuario, Contrasena, RolId,\nNombre, Apellido, Telefono, Email
+  note right of FN : las propiedades hacen Trim(), salvo Contrasena
+
+  == 3. Alta del usuario ==
+
+  FA -> UB : Crear(usuario, contrasena, rolId,\nnombre, apellido, telefono, email)
+  activate UB
+
+  UB -> H : Hashear(contrasena)
+  H --> UB : hash SHA-256
+
+  UB -> UD : Crear(usuario, hash, rolId,\nnombre, apellido, telefono, email)
+  UD -> DB : USUARIO_CREAR(@usuario, @pass, @rol_id,\n@nombre, @apellido, @telefono, @email)
+  note right of DB
+    si el nombre ya existe devuelve OK = 0;
+    si no, calcula USUARIO.ROL ('admin' si el rol es
+    PROTEGIDO, si no 'usuario'), inserta el usuario
+    (INTENTOS_FALLIDOS = 0 y BLOQUEADO = 0 por DEFAULT
+    de la tabla) y asigna el rol elegido en USUARIO_PERFIL
+  end note
+  DB --> UD : OK = 1 / 0
+  UD --> UB : bool
+
+  alt 4a. el nombre de usuario ya existe (OK = 0)
+    UB --> FA : false
+    FA --> A : "El nombre de usuario ya existe."\n(título "Atención")
+    note right of FA : el flujo vuelve al paso 3;\nno se refresca la grilla
+
+  else alta exitosa (OK = 1)
+    @IR UB
+
+    UB -> SM : getUsuario()
+    SM --> UB : BE.USUARIO / null
+    UB -> UB : admin = getUsuario()?.Usuario ?? "sistema"
+
+    UB -> UD : ObtenerIdPorNombre(usuario)
+    UD -> DB : USUARIO_OBTENER_ID_POR_NOMBRE(@usuario)
+    DB --> UD : ID
+    UD --> UB : int?
+
+    opt id.HasValue
+      @RC UB | id.Value | ALTA | admin
+    end
+
+    UB --> FA : true
+    FA --> A : "Usuario creado correctamente."\n(título "Éxito")
+    @LU
+  end
+  deactivate UB
+end
+
+@enduml

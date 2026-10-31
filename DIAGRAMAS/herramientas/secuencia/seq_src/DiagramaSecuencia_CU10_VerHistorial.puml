@@ -1,0 +1,122 @@
+@startuml DiagramaSecuencia_CU10_VerHistorial
+
+title CU-10 — Ver Historial de Usuario — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador"         as A
+participant ":frmAdminUsuarios"      as FA #FEFECE
+participant ":frmHistorial\nUsuario" as FH #FEFECE
+participant ":UsuarioBLL"            as UB #E8F4E8
+participant ":UsuarioHistorialBLL"   as UH #E8F4E8
+participant ":UsuarioDAL"            as UD #E8E8F4
+participant ":UsuarioHistorialDAL"   as UHD #E8E8F4
+database    ":DB"                    as DB #EEEEEE
+
+note over FA
+  Precondición: sesión activa,
+  permiso "Administrar usuarios";
+  frmAdminUsuarios abierto desde frmMenu
+  (Administración > Gestión de usuarios);
+  el usuario a consultar existe.
+end note
+
+== 1. Apertura del formulario ==
+
+A -> FA : seleccionar usuario en la grilla\n+ click "Ver historial"
+
+break 1a. ningún usuario seleccionado
+  FA --> A : "Seleccioná un usuario."\n(título "Atención")
+  note right of FA : el caso de uso termina
+end
+
+FA -> FH : new frmHistorialUsuario(usuario)\n.ShowDialog()
+activate FH
+
+note right of FH
+  Load: se registra en IdiomaManager, traduce sus
+  controles (ActualizarIdioma), llama CargarHistorial()
+  y agrega el selector de idiomas (AgregarSelector)
+end note
+
+== 2. Carga del historial ==
+
+FH -> FH : CargarHistorial()
+FH -> UH : ObtenerHistorialPaginado(_usuario.Id,\n_paginaActual, TAMANIO_PAGINA = 20)
+UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
+UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
+DB --> UHD : filas + TOTAL_FILAS
+UHD --> UH : PaginaResultado<UsuarioHistorial>
+UH --> FH : PaginaResultado<UsuarioHistorial>
+
+FH -> FH : _totalPaginas = TotalPaginas (1 si es 0);\nsi _paginaActual > _totalPaginas, la ajusta
+FH -> FH : dgvHistorial.DataSource = resultado.Items
+FH -> FH : ocultar columnas técnicas\n(Id, UsuarioId, UsuarioLogin, RolId)
+FH -> FH : ActualizarEncabezados()
+note right of FH
+  Columnas visibles, en el orden de las propiedades de
+  BE.UsuarioHistorial: Rol, Bloqueado, Intentos, Perfiles,
+  Nombre, Apellido, Teléfono, Email, Fecha, Realizado por,
+  Tipo, Versión origen
+end note
+FH -> FH : btnRollback.Enabled = false
+FH -> FH : ActualizarControlesPaginacion()
+note right of FH : lblPagina = "Página X de Y";\nhabilita Anterior / Siguiente según la página
+
+alt 2a. el usuario no tiene historial
+  FH --> A : grilla vacía,\nbotón "Restaurar versión" deshabilitado
+
+else el usuario tiene historial
+  FH --> A : grilla con las entradas\ndel historial (paginadas)
+
+  opt navegación entre páginas
+    A -> FH : click "Siguiente >" / "< Anterior"
+    note right of FH : si ya está en la última / primera página,\nel handler hace return sin recargar
+    FH -> FH : _paginaActual++ / _paginaActual--\nCargarHistorial()
+    FH -> UH : ObtenerHistorialPaginado(_usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
+    UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
+    UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
+    DB --> UHD : filas + TOTAL_FILAS
+    UHD --> UH : PaginaResultado<UsuarioHistorial>
+    UH --> FH : PaginaResultado<UsuarioHistorial>
+    FH --> A : grilla con la página solicitada
+  end
+
+  == 3. Selección de una entrada ==
+
+  A -> FH : seleccionar una fila de la grilla
+  FH -> FH : dgvHistorial_SelectionChanged\n(sel = CurrentRow.DataBoundItem)
+
+  alt la entrada es de tipo BAJA (o no hay fila: sel == null)
+    FH -> FH : btnRollback.Enabled = false
+    note right of FH
+      RT-03: BAJA captura el último
+      estado conocido antes de eliminar
+      al usuario — no es restaurable.
+    end note
+  else otro tipo (ALTA, BLOQUEO, DESBLOQUEO,\nCAMBIO_CLAVE, ASIGNACION_PERFIL,\nEDICION_DATOS, ROLLBACK)
+    FH -> FH : btnRollback.Enabled = true
+    note right of FH
+      Habilita CU-11 — Restaurar
+      Usuario desde Historial.
+    end note
+  end
+end
+
+== 4. Cierre ==
+
+A -> FH : click "Cerrar"
+FH -> FH : this.Close()
+FH --> FA : (form cerrado)
+deactivate FH
+@LU
+
+@enduml

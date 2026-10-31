@@ -1,0 +1,240 @@
+@startuml DiagramaSecuencia_CU31_DespacharCaja
+
+title CU-31 — Despachar Caja — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.75
+
+actor       ":Usuario"             as U
+participant ":frmDespacharCaja"    as FD #FEFECE
+participant ":RemitoDespachoPdf"   as RP #FEFECE
+participant ":CajaMensualBLL"      as CB #E8F4E8
+participant ":BitacoraBLL"         as BB #E8F4E8
+participant ":CajaMensualDAL"      as CD #E8E8F4
+participant ":BitacoraDAL"         as BD #E8E8F4
+database    ":DB"                  as DB #EEEEEE
+
+note over FD
+  Precondición: sesión activa; permiso "Despachar cajas"; la caja está en estado Armada;
+  RN-10 — quien armó la caja no puede despacharla.
+  _sesion = SessionManager.getInstance().getUsuario() (campo del formulario).
+end note
+
+U -> FD : menú Club de Socios > "Despachar Cajas"\n(new frmDespacharCaja().ShowDialog())
+activate FD
+note right of FD
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarCajasArmadas() y agrega el selector de idiomas
+end note
+
+FD -> FD : CargarCajasArmadas()
+FD -> CB : ListarArmadas()
+CB -> CD : ListarPorEstado("Armada")
+CD -> DB : CAJA_LISTAR_POR_ESTADO(@estado)
+DB --> CD : filas
+CD --> CB : List<CajaMensual>
+CB --> FD : List<CajaMensual>
+FD -> FD : dgvCajasArmadas.DataSource = cajas; oculta columnas\ny ActualizarEncabezados()
+note over FD, DB
+  Al enlazar la grilla queda seleccionada la primera fila y se dispara
+  dgvCajasArmadas_SelectionChanged, sin acción del usuario.
+end note
+FD -> FD : dgvCajasArmadas_SelectionChanged
+alt no hay una caja seleccionada (la fila actual no es una CajaMensual)
+  FD -> FD : dgvComposicionEfectiva.DataSource = null;\nbtnDespachar.Enabled = false
+else hay una caja seleccionada (cajaFila)
+  FD -> CB : ObtenerConComposicionEfectiva(cajaFila.Id)
+  CB -> CD : ObtenerPorId(cajaId)
+  CD -> DB : CAJA_OBTENER_POR_ID(@id)
+  DB --> CD : fila
+  CD --> CB : CajaMensual (o null)
+  break la caja no existe
+    CB --> FD : throw InvalidOperationException\n("La caja no existe.")
+    note right of FD : esta llamada de la UI no tiene try/catch
+  end
+  CB -> CD : ListarComposicionEfectiva(cajaId)
+  CD -> DB : CAJA_VINO_LISTAR_EFECTIVO(@caja_id)
+  DB --> CD : composición efectiva + stock disponible por línea
+  CD --> CB : List<CajaVino>
+  CB -> CB : caja.Lineas = composición efectiva
+  CB --> FD : CajaMensual (con Lineas)
+  FD -> FD : dgvComposicionEfectiva.DataSource = caja.Lineas; oculta columnas\ny ActualizarEncabezados(); CellFormatting resalta en rojo\nlas líneas con StockDisponible < Cantidad
+  FD -> FD : btnDespachar.Enabled = (caja.ArmadoPor != _sesion.Id)\n(RN-10, capa UI)
+end
+FD --> U : cajas armadas y composición efectiva de la caja seleccionada
+
+opt el usuario selecciona otra caja armada
+  U -> FD : seleccionar una caja de dgvCajasArmadas
+  FD -> FD : dgvCajasArmadas_SelectionChanged
+  alt no hay una caja seleccionada (la fila actual no es una CajaMensual)
+    FD -> FD : dgvComposicionEfectiva.DataSource = null;\nbtnDespachar.Enabled = false
+  else hay una caja seleccionada (cajaFila)
+    FD -> CB : ObtenerConComposicionEfectiva(cajaFila.Id)
+    CB -> CD : ObtenerPorId(cajaId)
+    CD -> DB : CAJA_OBTENER_POR_ID(@id)
+    DB --> CD : fila
+    CD --> CB : CajaMensual (o null)
+    break la caja no existe
+      CB --> FD : throw InvalidOperationException\n("La caja no existe.")
+      note right of FD : esta llamada de la UI no tiene try/catch
+    end
+    CB -> CD : ListarComposicionEfectiva(cajaId)
+    CD -> DB : CAJA_VINO_LISTAR_EFECTIVO(@caja_id)
+    DB --> CD : composición efectiva + stock disponible por línea
+    CD --> CB : List<CajaVino>
+    CB -> CB : caja.Lineas = composición efectiva
+    CB --> FD : CajaMensual (con Lineas)
+    FD -> FD : dgvComposicionEfectiva.DataSource = caja.Lineas; oculta columnas\ny ActualizarEncabezados(); CellFormatting resalta en rojo\nlas líneas con StockDisponible < Cantidad
+    FD -> FD : btnDespachar.Enabled = (caja.ArmadoPor != _sesion.Id)\n(RN-10, capa UI)
+  end
+end
+
+U -> FD : click "Despachar caja"
+
+break no hay una caja actual (la fila actual no es una CajaMensual)
+  FD -> FD : return
+end
+
+FD --> U : solicitar confirmación\n("¿Confirma el despacho de esta caja? La acción no se puede deshacer.")\n(título "Confirmar despacho", botones Sí/No)
+
+break 31e. el usuario responde "No" (confirmacion != DialogResult.Yes)
+  U --> FD : No
+  note right of FD : return: no llama a la BLL ni recarga la grilla
+end
+
+U --> FD : Sí
+FD -> CB : Despachar(caja.Id, _sesion)
+CB -> CD : ObtenerPorId(cajaId)
+CD -> DB : CAJA_OBTENER_POR_ID(@id)
+DB --> CD : fila
+CD --> CB : CajaMensual (o null)
+
+break 31f. la caja no existe
+  CB --> FD : throw InvalidOperationException\n("La caja no existe.")
+end
+
+break 31a. la caja no está en estado Armada (RN-08)
+  CB --> FD : throw InvalidOperationException\n("Solo se puede despachar una caja Armada.")
+end
+
+break 31b. quien armó la caja es el usuario (caja.ArmadoPor == sesion.Id; RN-10, capa BLL)
+  CB --> FD : throw InvalidOperationException\n("Quien armó la caja no puede despacharla.")
+end
+
+CB -> CD : ListarComposicionEfectiva(cajaId)
+CD -> DB : CAJA_VINO_LISTAR_EFECTIVO(@caja_id)
+DB --> CD : composición efectiva + stock disponible por línea
+CD --> CB : List<CajaVino>
+
+break 31c. existe una línea con StockDisponible < Cantidad (RN-03, pre-chequeo de la BLL)
+  CB --> FD : throw InvalidOperationException\n("No hay stock suficiente de "<NombreEfectivo>" para despachar la caja.")
+  note right of CB : pre-chequeo: todavía no se escribe nada en la base de datos
+end
+
+CB -> CD : Despachar(cajaId, sesion.Id, sesion.Usuario)
+CD -> DB : CAJA_DESPACHAR(@caja_id,@despachado_por,@responsable_login)
+note right of DB
+  SP transaccional (una sola tanda de cambios):
+  - si la caja no está Armada o ARMADO_POR = @despachado_por: FILAS = 0, sin cambios
+  - BEGIN TRAN; calcula la composición efectiva con su stock
+  - si alguna línea tiene STOCK < CANTIDAD: ROLLBACK y FILAS = 0 (RN-03)
+  - INSERT de una Salida en MOVIMIENTO_STOCK por línea efectiva
+    (MOTIVO "Despacho de caja mensual", REFERENCIA_TIPO "CAJA",
+    REFERENCIA_ID = @caja_id, RESPONSABLE = @responsable_login; RN-09)
+  - UPDATE CAJA_MENSUAL a "Despachada" (FECHA_DESPACHO, DESPACHADO_POR)
+  - COMMIT y SELECT FILAS
+end note
+DB --> CD : FILAS
+CD --> CB : int filas
+
+break 31f. 0 filas (respaldo del SP: la caja cambió de estado, RN-10 o stock insuficiente por una carrera)
+  CB --> FD : throw InvalidOperationException\n("No se pudo despachar la caja (verificar estado o permisos).")
+end
+
+CB -> BB : RegistrarAccion(sesion.Usuario, "DESPACHO_CAJA:" + cajaId)
+BB -> BD : Registrar(usuario, accion)
+BD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+DB --> BD : filas afectadas
+BD --> BB : void
+BB --> CB : void
+CB --> FD : void
+
+alt sin excepciones al obtener la caja, generar y abrir el remito (try; RN-11)
+  FD -> CB : ObtenerConComposicionEfectiva(caja.Id)
+  CB -> CD : ObtenerPorId(cajaId)
+  CD -> DB : CAJA_OBTENER_POR_ID(@id)
+  DB --> CD : fila
+  CD --> CB : CajaMensual (o null)
+  break la caja no existe
+    CB --> FD : throw InvalidOperationException\n("La caja no existe.")
+    note right of FD : la excepción salta al catch (Exception) de este bloque
+  end
+  CB -> CD : ListarComposicionEfectiva(cajaId)
+  CD -> DB : CAJA_VINO_LISTAR_EFECTIVO(@caja_id)
+  DB --> CD : composición efectiva + stock disponible por línea
+  CD --> CB : List<CajaVino>
+  CB -> CB : caja.Lineas = composición efectiva
+  CB --> FD : CajaMensual (con Lineas)
+  FD -> RP : Generar(cajaDespachada)
+  activate RP
+  RP -> RP : Directory.CreateDirectory(Documentos\ClubDeVinos\Remitos);\narmar el documento (MigraDoc): encabezado, datos de la caja y del socio,\ntabla de líneas (Σ Cantidad × PrecioEfectivo) y firma
+  RP -> RP : PdfDocument.Save(ruta):\nDocumentos\ClubDeVinos\Remitos\Remito_Caja{id}.pdf
+  RP --> FD : rutaRemito
+  deactivate RP
+  FD -> RP : Abrir(rutaRemito)
+  RP -> RP : Process.Start(rutaPdf)
+  note right of RP : Abrir traga su propia excepción (p. ej. lector de PDF ausente):\nen ese caso no se muestra ningún mensaje
+else 31d. catch (Exception): falla alguna de las tres llamadas anteriores
+  FD --> U : "No se pudo generar el remito de despacho; la caja fue despachada igualmente."\n(título "Atención")
+  note right of FD : el despacho ya confirmado no se revierte (RN-11)
+end
+
+FD --> U : "Caja despachada correctamente."\n(título "Éxito")
+note right of FD : se muestra siempre después del bloque anterior,\nincluso si se mostró el aviso de la falla del remito
+FD -> FD : CargarCajasArmadas()
+FD -> CB : ListarArmadas()
+CB -> CD : ListarPorEstado("Armada")
+CD -> DB : CAJA_LISTAR_POR_ESTADO(@estado)
+DB --> CD : filas
+CD --> CB : List<CajaMensual>
+CB --> FD : List<CajaMensual>
+FD -> FD : dgvCajasArmadas.DataSource = cajas; oculta columnas\ny ActualizarEncabezados()
+note over FD, DB
+  Al enlazar la grilla queda seleccionada la primera fila y se dispara
+  dgvCajasArmadas_SelectionChanged, sin acción del usuario.
+end note
+FD -> FD : dgvCajasArmadas_SelectionChanged
+alt no hay una caja seleccionada (la fila actual no es una CajaMensual)
+  FD -> FD : dgvComposicionEfectiva.DataSource = null;\nbtnDespachar.Enabled = false
+else hay una caja seleccionada (cajaFila)
+  FD -> CB : ObtenerConComposicionEfectiva(cajaFila.Id)
+  CB -> CD : ObtenerPorId(cajaId)
+  CD -> DB : CAJA_OBTENER_POR_ID(@id)
+  DB --> CD : fila
+  CD --> CB : CajaMensual (o null)
+  break la caja no existe
+    CB --> FD : throw InvalidOperationException\n("La caja no existe.")
+    note right of FD : esta llamada de la UI no tiene try/catch
+  end
+  CB -> CD : ListarComposicionEfectiva(cajaId)
+  CD -> DB : CAJA_VINO_LISTAR_EFECTIVO(@caja_id)
+  DB --> CD : composición efectiva + stock disponible por línea
+  CD --> CB : List<CajaVino>
+  CB -> CB : caja.Lineas = composición efectiva
+  CB --> FD : CajaMensual (con Lineas)
+  FD -> FD : dgvComposicionEfectiva.DataSource = caja.Lineas; oculta columnas\ny ActualizarEncabezados(); CellFormatting resalta en rojo\nlas líneas con StockDisponible < Cantidad
+  FD -> FD : btnDespachar.Enabled = (caja.ArmadoPor != _sesion.Id)\n(RN-10, capa UI)
+end
+FD --> U : cajas armadas sin la caja despachada
+
+opt la BLL lanzó InvalidOperationException (catch de btnDespachar_Click)
+  FD --> U : ex.Message\n(título "Atención")
+  note right of FD : return: no se genera el remito ni se recarga la grilla
+end
+deactivate FD
+
+@enduml

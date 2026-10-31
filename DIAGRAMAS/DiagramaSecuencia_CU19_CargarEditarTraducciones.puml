@@ -25,79 +25,100 @@ note over FI
   existe al menos un idioma y
   los controles a traducir ya
   están registrados en la BD.
+  Al abrirse, frmIdiomas se registra en IdiomaManager, carga la
+  grilla de idiomas (CargarIdiomas), traduce sus controles y
+  agrega el selector de idiomas.
 end note
 
 == 1. Selección del idioma ==
 
 A -> FI : seleccionar un idioma en\nla grilla superior
-FI -> FI : dgvIdiomas_SelectionChanged\n→ _idiomaSeleccionado
-FI -> FI : CargarTraducciones()
+FI -> FI : dgvIdiomas_SelectionChanged\n→ _idiomaSeleccionado = CurrentRow?.DataBoundItem as IDIOMA
 
-FI -> IB : ListarControlesConTraduccion(idiomaId)
-activate IB
-IB -> IDD : ListarControlesConTraduccion(idiomaId)
-IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)\n(controles + traducción actual)
-DB --> IDD : filas (ID, CLAVE, TEXTO_DEFAULT,\nTEXTO_TRADUCCION)
-IDD --> IB : List<CONTROL_IDIOMA>
-IB --> FI : List<CONTROL_IDIOMA>
-deactivate IB
-FI -> FI : dgvTraducciones.DataSource = controles\n(Clave y TextoDefault de solo lectura,\nTextoTraduccion editable)
-FI --> A : grilla inferior con clave,\ntexto por defecto y\ntraducción actual
+opt _idiomaSeleccionado != null
+  FI -> FI : CargarTraducciones()
+
+  FI -> IB : ListarControlesConTraduccion(idiomaId)
+  activate IB
+  IB -> IDD : ListarControlesConTraduccion(idiomaId)
+  IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)\n(controles + traducción actual)
+  DB --> IDD : filas (ID, CLAVE, TEXTO_DEFAULT,\nTEXTO_TRADUCCION)
+  IDD --> IB : List<CONTROL_IDIOMA>
+  IB --> FI : List<CONTROL_IDIOMA>
+  deactivate IB
+  FI -> FI : dgvTraducciones.DataSource = null;\ndgvTraducciones.DataSource = controles\n(Clave y TextoDefault de solo lectura,\nTextoTraduccion editable)
+  FI --> A : grilla inferior con clave,\ntexto por defecto y\ntraducción actual
+end
 
 == 2. Edición ==
 
 A -> FI : editar la columna "Traducción"\nen las filas deseadas
 A -> FI : click "Guardar traducciones"
+
+break _idiomaSeleccionado == null
+  FI -> FI : return (no hace nada)
+end
+
 FI -> FI : dgvTraducciones.CommitEdit(Commit)
 
 == 3. Persistencia ==
 
 loop por cada fila de dgvTraducciones
 
-  alt 3a. TextoTraduccion vacío
+  opt la fila no está enlazada a un CONTROL_IDIOMA
+    FI -> FI : continue (omite la fila)
+  end
+
+  alt 3a. TextoTraduccion vacío o solo espacios
     FI -> FI : omitir fila (no se persiste)
     note right of FI
-      RN-01: una traducción vacía
+      RT-01: una traducción vacía
       no se guarda — se mantiene
       el texto por defecto del
-      control como fallback.
+      control como fallback. Vaciar
+      una fila NO borra una traducción
+      ya guardada.
     end note
-  else TextoTraduccion no vacío
+  else TextoTraduccion con texto
     FI -> IB : GuardarTraduccion(idiomaId,\ncontrol.Id, control.TextoTraduccion)
     IB -> IDD : GuardarTraduccion(idiomaId, controlId, texto)
     IDD -> DB : TRADUCCION_GUARDAR(@idioma_id,\n@control_id, @texto)\n(upsert en TRADUCCION)
   end
 end
 
-FI --> A : "Traducciones guardadas." (Éxito)
+FI --> A : "Traducciones guardadas."\n(título "Éxito")
 
 == 4. Refresco si es el idioma activo ==
 
 FI -> IM : IdiomaActivo
 IM --> FI : idioma activo (o null)
 
-opt el idioma editado coincide con el activo
+opt IdiomaActivo != null y su Id == _idiomaSeleccionado.Id
   FI -> IB : CargarTraducciones(idiomaId)
   activate IB
   IB -> IDD : CargarTraducciones(idiomaId)
   IDD -> IDD : ListarControlesConTraduccion(idiomaId)
   IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)\n(mismo SP del paso 1, LEFT JOIN)
   DB --> IDD : filas
-  IDD -> IDD : por cada control:\nvalor = TextoTraduccion si no está\nvacío; si no, TextoDefault (fallback)
+  IDD -> IDD : por cada control:\nvalor = TextoTraduccion si no está\nvacío; si no, TextoDefault (fallback);\nse omiten los valores vacíos
   IDD --> IB : Dictionary<string, string>
   IB --> FI : Dictionary<string, string>\n(incluye texto por defecto para\ncontroles sin traducción)
   deactivate IB
   FI -> IM : CambiarIdioma(idioma, traducciones)
-  IM -> IM : Notificar()\n→ ActualizarIdioma() en cada\nformulario registrado
+  IM -> IM : Notificar()
+  loop por cada formulario registrado (incluye frmIdiomas)
+    IM -> FI : ActualizarIdioma()
+    note right of FI : traduce los controles de cada formulario\n(Traducir(clave) ?? texto por defecto)
+  end
   note right of IM
-    RN-03: la interfaz se actualiza
+    RT-03: la interfaz se actualiza
     en tiempo real, sin reiniciar
     el sistema.
   end note
 end
 
 note over IB
-  RN-02: los controles disponibles
+  RT-02: los controles disponibles
   para traducción son los
   registrados previamente vía
   CONTROL_REGISTRAR.

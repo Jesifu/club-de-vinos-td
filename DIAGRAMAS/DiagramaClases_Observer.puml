@@ -17,16 +17,23 @@ package "SeguridadYServicios" #F4E8E8 {
     - _observers : List<IObservadorIdioma>
     - _traducciones : Dictionary<string,string>
     - _idiomaActivo : IDIOMA
+    + IdiomaActivo : IDIOMA
     --
+    - IdiomaManager()
+    + {static} getInstance() : IdiomaManager
     + Registrar(obs : IObservadorIdioma)
     + Desregistrar(obs : IObservadorIdioma)
-    + CambiarIdioma(idioma : IDIOMA, traducciones : Dictionary)
+    + CambiarIdioma(idioma : IDIOMA, traducciones : Dictionary<string,string>)
     - Notificar()
     + Traducir(clave : string) : string
   }
 }
 
-package "CAPAS" #FEFECE {
+package "BE" #FEFECE {
+  class IDIOMA
+}
+
+package "CAPAS" #F8CECC {
 
   class "frmMenu / LogIn / etc." as FormConcreto <<ConcreteObserver, Form>> {
     - _controles : Dictionary<string,Control>
@@ -38,6 +45,7 @@ package "CAPAS" #FEFECE {
 }
 
 IdiomaManager "1" o-- "0..*" IObservadorIdioma : _observers
+IdiomaManager --> IDIOMA : IdiomaActivo >
 FormConcreto ..|> IObservadorIdioma
 
 ' ─────────────────────────────────────────
@@ -77,6 +85,9 @@ note bottom of FormConcreto
   Si el Form tiene ""DataGridView"", también llama
   ""ActualizarEncabezados()"" (los encabezados de
   columna no están en ""Controls"").
+  Excepciones: ""frmMenu"" guarda sus textos en
+  ""_menuItems""/""_menuDefaults"" (no en ""_controles"")
+  y ""frmRestaurarIntegridad"" no participa del patrón.
 end note
 
 note as N_notificar

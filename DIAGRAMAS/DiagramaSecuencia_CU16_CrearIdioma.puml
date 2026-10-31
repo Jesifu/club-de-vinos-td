@@ -21,22 +21,25 @@ database    ":DB"            as DB #EEEEEE
 note over FI
   Precondición: sesión activa,
   permiso "Gestión de idiomas".
+  Al abrirse, frmIdiomas se registra en IdiomaManager, carga la
+  grilla de idiomas (CargarIdiomas), traduce sus controles y
+  agrega el selector de idiomas.
 end note
 
 == 1. Solicitud ==
 
 A -> FI : click "Agregar idioma"
-FI --> A : InputBox "Nombre del nuevo idioma:"
+FI --> A : InputBox "Nombre del nuevo idioma:"\n(título "Agregar idioma")
 A --> FI : ingresar nombre + Aceptar
 
-opt 3a. nombre vacío (o cancelado)
+break 3a. nombre vacío, solo espacios o cancelado
   FI -> FI : return (no hace nada)
   note right of FI : el caso de uso termina
 end
 
 == 2. Creación ==
 
-FI -> IB : Crear(nombre, habilitado: false)
+FI -> IB : Crear(nombre, false)
 activate IB
 IB -> IDD : Insertar(nombre, habilitado)
 IDD -> DB : IDIOMA_INSERTAR(@nombre, @habilitado)
@@ -44,14 +47,15 @@ DB --> IDD : ID del nuevo idioma
 IDD --> IB : int id
 IB --> FI : new IDIOMA { Id, Nombre,\nHabilitado = false }
 deactivate IB
+note right of FI : frmIdiomas descarta el valor devuelto
 
 note right of IB
-  RN-01: el idioma nace
+  RT-01: el idioma nace
   deshabilitado — no aparece
   en los combos hasta que se
-  lo habilite (CU-17) y se
-  cargue al menos una
-  traducción (CU-19).
+  lo habilite (CU-17). El SP
+  IDIOMA_LISTAR_HABILITADOS
+  solo filtra HABILITADO = 1.
 end note
 
 == 3. Actualización de la grilla ==
@@ -63,7 +67,16 @@ IDD -> DB : IDIOMA_LISTAR_TODOS
 DB --> IDD : filas de IDIOMA
 IDD --> IB : List<IDIOMA>
 IB --> FI : List<IDIOMA>
-FI -> FI : dgvIdiomas.DataSource = idiomas
-FI --> A : grilla refrescada con el\nnuevo idioma (deshabilitado)
+FI -> FI : dgvIdiomas.DataSource = null;\ndgvIdiomas.DataSource = idiomas
+FI -> FI : dgvIdiomas_SelectionChanged\n(al re-enlazar la grilla queda seleccionada\nla primera fila: _idiomaSeleccionado)
+FI -> FI : CargarTraducciones()
+FI -> IB : ListarControlesConTraduccion(idiomaId)
+IB -> IDD : ListarControlesConTraduccion(idiomaId)
+IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)
+DB --> IDD : filas (ID, CLAVE, TEXTO_DEFAULT, TEXTO_TRADUCCION)
+IDD --> IB : List<CONTROL_IDIOMA>
+IB --> FI : List<CONTROL_IDIOMA>
+FI -> FI : dgvTraducciones.DataSource = null;\ndgvTraducciones.DataSource = controles
+FI --> A : grilla de idiomas refrescada con el nuevo idioma\n(deshabilitado) y grilla de traducciones del idioma\nque queda seleccionado
 
 @enduml

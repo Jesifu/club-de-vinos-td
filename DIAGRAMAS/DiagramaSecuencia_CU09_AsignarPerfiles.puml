@@ -18,6 +18,7 @@ participant ":frmAsignar\nPerfiles" as FP #FEFECE
 participant ":PerfilBLL"            as PB #E8F4E8
 participant ":UsuarioPerfilBLL"     as UP #E8F4E8
 participant ":IntegridadBLL"        as IB #E8F4E8
+participant ":CalculadorDVH" as CD #F4E8E8
 participant ":UsuarioHistorialBLL"  as UH #E8F4E8
 participant ":SessionManager"       as SM #F4E8E8
 participant ":PerfilDAL"            as PD #E8E8F4
@@ -29,7 +30,9 @@ database    ":DB"                   as DB #EEEEEE
 
 note over FA
   Precondición: sesión activa,
-  permiso "Administrar usuarios",
+  permiso "Administrar usuarios";
+  frmAdminUsuarios abierto desde frmMenu
+  (Administración > Gestión de usuarios);
   el usuario existe y hay al
   menos un rol en el sistema.
 end note
@@ -38,8 +41,8 @@ end note
 
 A -> FA : seleccionar usuario en la grilla\n+ click "Modificar perfiles"
 
-opt 1a. ningún usuario seleccionado
-  FA --> A : "Seleccioná un usuario."
+break 1a. ningún usuario seleccionado
+  FA --> A : "Seleccioná un usuario."\n(título "Atención")
   note right of FA : el caso de uso termina
 end
 
@@ -53,17 +56,19 @@ PB -> PD : ListarRoles()
 PD -> DB : ROL_LISTAR_TODOS
 DB --> PD : filas de ROL
 PD --> PB : List<NodoPermiso>
+PB -> PB : armar la jerarquía de roles\n(PadreId → Agregar hijos)
 PB -> PD : ListarRolPermisos()
 PD -> DB : ROL_PERMISO_LISTAR_TODOS
 DB --> PD : filas de ROL_PERMISO + PERMISO
 PD --> PB : List<Permiso>
-PB -> PB : armar árbol en memoria\n(PadreId → Agregar hijos)
+PB -> PB : adjuntar cada permiso a su rol\n(PadreId = ROL_ID → Agregar)
 PB --> FP : List<NodoPermiso> (raíces)
+FP -> FP : CargarArbolRoles()
 note right of FP
   Solo se muestran nodos
   rama (roles), no las hojas
   de permisos del catálogo
-  (RN-01).
+  (RT-01): if (!EsHoja()).
 end note
 
 FP -> UP : ObtenerPerfilesAsignados(usuario.Id)
@@ -72,14 +77,15 @@ UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
 DB --> UPD : PERFIL_ID
 UPD --> UP : List<int> asignados
 UP --> FP : asignados
-FP -> FP : marcar checks de los\nroles ya asignados
+FP -> FP : MarcarRolesAsignados():\nmarcar los checks de los\nroles ya asignados
 
 == 3. Edición de la selección ==
 
 A -> FP : marcar / desmarcar roles\nen el árbol
 
-alt 6a. el administrador cierra sin guardar
+alt 3a. el administrador cierra sin guardar
   A -> FP : click "Cerrar"
+  FP -> FP : this.Close()
   FP --> FA : (form cerrado)
   deactivate FP
   note right of FA : las asignaciones existentes\nno se modifican
@@ -93,17 +99,19 @@ else el administrador guarda
   FP -> UP : GuardarAsignaciones(usuario.Id, idsSeleccionados)
   activate UP
 
-  UP -> UPD : BorrarTodos(usuario.Id)
+  UP -> UPD : BorrarTodos(usuarioId)
   UPD -> DB : USUARIO_PERFIL_BORRAR_TODOS(@usuario_id)
-  loop por cada id en idsSeleccionados
-    UP -> UPD : Asignar(usuario.Id, id)
+  loop por cada id en perfilIds
+    UP -> UPD : Asignar(usuarioId, id)
     UPD -> DB : USUARIO_PERFIL_ASIGNAR(@usuario_id, @perfil_id)
   end
   note right of DB
     Reemplazo completo de
     USUARIO_PERFIL — no es
     una operación incremental
-    (RN-02).
+    (RT-02). Sin transacción:
+    cada llamada abre su
+    propia conexión.
   end note
 
   UP -> IB : RecalcularIntegridadUsuarios()
@@ -112,45 +120,61 @@ else el administrador guarda
   IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
   DB --> IND : filas de USUARIO
   IND --> IB : DataTable
-  IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
-  UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-  DB --> UPD : PERFIL_ID
-  UPD --> IB : List<int>
-  IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
-  IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
-  IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
-  IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
-  IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+  loop por cada usuario
+    IB -> UPD : ListarPerfilesPorUsuario(id)
+    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+    DB --> UPD : PERFIL_ID
+    UPD --> IB : List<int>
+    IB -> CD : Calcular(atributos)
+    CD --> IB : int dvh
+    IB -> IND : ActualizarDVHUsuario(id, dvh)
+    IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+  end
+  loop por cada una de las 7 columnas (c = índice)
+    IB -> CD : CalcularVertical(todasFilas, c)
+    CD --> IB : int dvv
+    IB -> IND : ActualizarDVV("USUARIO", columnas[c], dvv)
+    IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+  end
   IB --> UP : (DVH / DVV recalculados)
   deactivate IB
   note right of IB : PERFILES forma parte del DVH
 
   UP -> SM : getUsuario()
-  SM --> UP : administrador actual
+  SM --> UP : BE.USUARIO / null
+  UP -> UP : admin = getUsuario()?.Usuario ?? "sistema"
 
-  UP -> UH : RegistrarCambio(usuario.Id, "ASIGNACION_PERFIL", admin)
+  UP -> UH : RegistrarCambio(usuarioId, "ASIGNACION_PERFIL", admin)
+  activate UH
   UH -> UD : ObtenerPorId(usuarioId)
   UD -> DB : USUARIO_OBTENER_POR_ID(@id)
   DB --> UD : fila de USUARIO
-  UD --> UH : BE.USUARIO
-  UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
-  UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-  DB --> UPD : PERFIL_ID
-  UPD --> UH : List<int> perfiles
-  UH -> UHD : Insertar(UsuarioHistorial)
-  UHD -> DB : USUARIO_HISTORIAL_INSERTAR(snapshot,\n@tipo_cambio, @realizado_por)
+  UD --> UH : BE.USUARIO / null
+  alt el usuario no existe (u == null)
+    UH --> UP : return (no inserta nada)
+  else el usuario existe
+    UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
+    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+    DB --> UPD : PERFIL_ID
+    UPD --> UH : List<int> perfiles
+    UH -> UH : ordenar los ids y unirlos en CSV (Perfiles)
+    UH -> UHD : Insertar(UsuarioHistorial)
+    UHD -> DB : USUARIO_HISTORIAL_INSERTAR(@usuario_id, @usuario_login, @rol,\n@bloqueado, @intentos_fallidos, @perfiles, @nombre, @apellido,\n@telefono, @email, @realizado_por, @tipo_cambio = "ASIGNACION_PERFIL",\n@version_origen = null, @rol_id)
+    UH --> UP : (cambio registrado)
+  end
+  deactivate UH
 
   UP -> SM : getUsuario()
   SM --> UP : usuarioSesion
 
-  opt usuario.Id == administrador logueado
-    UP -> UD : ObtenerPorId(usuario.Id)
+  opt usuarioSesion != null y\nusuarioSesion.Id == usuarioId
+    UP -> UD : ObtenerPorId(usuarioId)
     UD -> DB : USUARIO_OBTENER_POR_ID(@id)
     DB --> UD : fila de USUARIO
     UD --> UP : usuarioActualizado
     UP -> SM : setUsuario(usuarioActualizado)
 
-    UP -> UPD : ListarPermisosDeUsuario(usuario.Id)
+    UP -> UPD : ListarPermisosDeUsuario(usuarioId)
     UPD -> DB : USUARIO_PERMISOS_LISTAR(@usuario_id)
     DB --> UPD : NOMBRE de cada permiso
     UPD --> UP : permisosActualizados
@@ -167,7 +191,14 @@ else el administrador guarda
   UP --> FP : (asignaciones guardadas)
   deactivate UP
 
-  FP --> A : "Asignaciones guardadas."
+  FP --> A : "Asignaciones guardadas."\n(título "Éxito")
+  note right of FP : el formulario NO se cierra tras guardar;\nse cierra con el botón "Cerrar"
 end
+
+note over FA, SM
+  Al volver de frmAdminUsuarios, frmMenu ejecuta
+  ActualizarVisibilidadMenu() (usa SessionManager.TienePermiso),
+  por eso el menú refleja los permisos refrescados.
+end note
 
 @enduml

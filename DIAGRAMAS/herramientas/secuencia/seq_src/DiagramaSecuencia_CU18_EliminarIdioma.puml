@@ -1,0 +1,114 @@
+@startuml DiagramaSecuencia_CU18_EliminarIdioma
+
+title CU-18 — Eliminar Idioma — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador" as A
+participant ":frmIdiomas"    as FI #FEFECE
+participant ":IdiomaBLL"     as IB #E8F4E8
+participant ":IdiomaDAL"     as IDD #E8E8F4
+database    ":DB"            as DB #EEEEEE
+
+note over FI
+  Precondición: sesión activa,
+  permiso "Gestión de idiomas",
+  existe al menos un idioma.
+  Al abrirse, frmIdiomas se registra en IdiomaManager, carga la
+  grilla de idiomas (CargarIdiomas), traduce sus controles y
+  agrega el selector de idiomas.
+end note
+
+== 1. Selección y solicitud ==
+
+A -> FI : seleccionar un idioma en la grilla
+FI -> FI : dgvIdiomas_SelectionChanged\n→ _idiomaSeleccionado = CurrentRow?.DataBoundItem as IDIOMA
+
+opt _idiomaSeleccionado != null
+  @CT
+  note right of FI : la selección también carga la grilla de\ntraducciones del idioma (ver CU-19)
+end
+
+A -> FI : click "Eliminar idioma"
+
+break 1a. ningún idioma seleccionado
+  FI --> A : "Seleccioná un idioma."\n(título "Aviso")
+  note right of FI : el caso de uso termina
+end
+
+== Validaciones de negocio ==
+
+break 1b. el idioma es el predeterminado del sistema
+  FI --> A : "No se puede eliminar el idioma predeterminado del sistema."\n(título "Aviso")
+  note right of FI
+    RT-03: el idioma marcado como predeterminado
+    (IDIOMA.PREDETERMINADO = 1) nunca puede eliminarse.
+    Se evalúa sobre el objeto IDIOMA ya cargado en
+    memoria, sin consultar la base de datos.
+  end note
+  note right of FI : el caso de uso termina
+end
+
+FI -> IB : EstaEnUso(_idiomaSeleccionado.Id)
+activate IB
+IB -> IDD : EstaEnUso(id)
+IDD -> DB : IDIOMA_ESTA_EN_USO(@id)
+DB --> IDD : TOTAL (cantidad de usuarios)
+IDD --> IB : bool (TOTAL > 0)
+IB --> FI : bool
+deactivate IB
+
+break 1c. el idioma está en uso por algún usuario
+  FI --> A : "No se puede eliminar un idioma que está en uso por algún usuario."\n(título "Aviso")
+  note right of FI
+    RT-04: no se puede eliminar un idioma
+    asignado a algún usuario (USUARIO.IDIOMA_ID),
+    sin importar si es el idioma activo
+    de la sesión actual.
+  end note
+  note right of FI : el caso de uso termina
+end
+
+FI --> A : solicitar confirmación\n("¿Eliminar el idioma 'X'? Se borrarán todas sus traducciones.")\n(título "Confirmar eliminación")
+
+alt 3a. el administrador cancela
+  A --> FI : No
+  note right of FI : el caso de uso termina\n(no se elimina el idioma)
+
+else el administrador confirma
+  A --> FI : Sí
+
+  == 2. Eliminación ==
+
+  FI -> IB : Eliminar(_idiomaSeleccionado.Id)
+  activate IB
+  IB -> IDD : Eliminar(id)
+  IDD -> DB : IDIOMA_ELIMINAR(@id)
+  note right of DB
+    RT-01: operación irreversible —
+    el SP borra las filas de
+    TRADUCCION del idioma y luego
+    el propio IDIOMA (dos DELETE,
+    sin transacción explícita).
+  end note
+  IB --> FI : (idioma eliminado)
+  deactivate IB
+
+  FI -> FI : _idiomaSeleccionado = null
+  FI -> FI : dgvTraducciones.DataSource = null
+
+  == 3. Actualización de la grilla ==
+
+  @CI
+  FI --> A : grilla de idiomas refrescada; al re-enlazarla queda\nseleccionada la primera fila y se recarga la grilla\nde traducciones con el idioma que queda seleccionado
+end
+
+@enduml

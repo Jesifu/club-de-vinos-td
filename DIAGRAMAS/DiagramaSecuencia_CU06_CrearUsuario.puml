@@ -18,6 +18,7 @@ participant ":frmNuevoUsuario"     as FN #FEFECE
 participant ":PerfilBLL"           as PB #E8F4E8
 participant ":UsuarioBLL"          as UB #E8F4E8
 participant ":IntegridadBLL"       as IB #E8F4E8
+participant ":CalculadorDVH" as CD #F4E8E8
 participant ":UsuarioHistorialBLL" as UH #E8F4E8
 participant ":Hasher"              as H  #F4E8E8
 participant ":SessionManager"      as SM #F4E8E8
@@ -30,46 +31,59 @@ database    ":DB"                  as DB #EEEEEE
 
 note over FA
   Precondición: sesión activa,
-  permiso "Administrar usuarios".
+  permiso "Administrar usuarios";
+  frmAdminUsuarios abierto desde frmMenu
+  (Administración > Gestión de usuarios).
 end note
 
 == 1. Apertura del formulario ==
 
-A -> FA : click "Nuevo"
+A -> FA : click "Nuevo usuario"
 FA -> FN : new frmNuevoUsuario()\n.ShowDialog()
 activate FN
 
 FN -> PB : ListarRolesParaCombo()
 PB -> PD : ListarParaCombo()
 PD -> DB : ROL_LISTAR_PARA_COMBO
-DB --> PD : filas de ROL
+DB --> PD : filas de ROL (ID, NOMBRE)
 PD --> PB : List<Rol>
 PB --> FN : List<Rol>
-FN -> FN : cboRol.DataSource = roles\n(combo poblado dinámicamente)
+FN -> FN : cboRol.DataSource = roles\n(DisplayMember = Nombre, ValueMember = Id;\nSelectedIndex = 0 solo si hay roles)
 
 == 2. Ingreso de datos ==
 
-A -> FN : ingresar nombre de usuario, contraseña,\nnombre, apellido, teléfono (opcional),\nemail (opcional) y seleccionar rol\n+ click Aceptar
+A -> FN : ingresar nombre de usuario, contraseña,\nnombre, apellido, teléfono (opcional),\nemail (opcional) y seleccionar un rol
 
-opt 3a. nombre o contraseña vacíos
-  FN --> A : "Ingresá un nombre de usuario." /\n"Ingresá una contraseña."
-  note right of FN : el flujo vuelve al paso 3\n(el formulario sigue abierto)
-end
-
-opt 3b. no se seleccionó ningún rol
-  FN --> A : "Seleccioná un rol."
-  note right of FN : el flujo vuelve al paso 3\n(el formulario sigue abierto)
-end
-
-alt 4a. el administrador cancela
+alt 3b. el administrador cancela
+  A -> FN : click "Cancelar"
+  FN -> FN : DialogResult = Cancel; Close()
   FN --> FA : DialogResult.Cancel
   deactivate FN
   note right of FA : no se crea ningún registro\n(fin del caso de uso)
 
 else el administrador acepta
-  FN -> FN : DialogResult = OK
+  A -> FN : click "Crear"
+
+  break 3a. nombre de usuario vacío
+    FN --> A : "Ingresá un nombre de usuario."\n(título "Atención")
+    note right of FN : el flujo vuelve al paso 3\n(el formulario sigue abierto)
+  end
+
+  break 3a. contraseña vacía
+    FN --> A : "Ingresá una contraseña."\n(título "Atención")
+    note right of FN : el flujo vuelve al paso 3\n(el formulario sigue abierto)
+  end
+
+  break 3c. no se seleccionó ningún rol
+    FN --> A : "Seleccioná un rol."\n(título "Atención")
+    note right of FN : el flujo vuelve al paso 3\n(el formulario sigue abierto)
+  end
+
+  FN -> FN : DialogResult = OK; Close()
   FN --> FA : DialogResult.OK
   deactivate FN
+  FA -> FN : leer NombreUsuario, Contrasena, RolId,\nNombre, Apellido, Telefono, Email
+  note right of FN : las propiedades hacen Trim(), salvo Contrasena
 
   == 3. Alta del usuario ==
 
@@ -82,17 +96,19 @@ else el administrador acepta
   UB -> UD : Crear(usuario, hash, rolId,\nnombre, apellido, telefono, email)
   UD -> DB : USUARIO_CREAR(@usuario, @pass, @rol_id,\n@nombre, @apellido, @telefono, @email)
   note right of DB
-    el SP inserta con
-    INTENTOS_FALLIDOS = 0
-    y BLOQUEADO = 0
+    si el nombre ya existe devuelve OK = 0;
+    si no, calcula USUARIO.ROL ('admin' si el rol es
+    PROTEGIDO, si no 'usuario'), inserta el usuario
+    (INTENTOS_FALLIDOS = 0 y BLOQUEADO = 0 por DEFAULT
+    de la tabla) y asigna el rol elegido en USUARIO_PERFIL
   end note
   DB --> UD : OK = 1 / 0
   UD --> UB : bool
 
-  alt 7a. el nombre de usuario ya existe (OK = 0)
+  alt 4a. el nombre de usuario ya existe (OK = 0)
     UB --> FA : false
-    FA --> A : "El nombre de usuario ya existe."
-    note right of FA : el flujo vuelve al paso 3
+    FA --> A : "El nombre de usuario ya existe."\n(título "Atención")
+    note right of FA : el flujo vuelve al paso 3;\nno se refresca la grilla
 
   else alta exitosa (OK = 1)
     UB -> IB : RecalcularIntegridadUsuarios()
@@ -101,47 +117,66 @@ else el administrador acepta
     IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
     DB --> IND : filas de USUARIO
     IND --> IB : DataTable
-    IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
-    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-    DB --> UPD : PERFIL_ID
-    UPD --> IB : List<int>
-    IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
-    IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
-    IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
-    IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
-    IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    loop por cada usuario
+      IB -> UPD : ListarPerfilesPorUsuario(id)
+      UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+      DB --> UPD : PERFIL_ID
+      UPD --> IB : List<int>
+      IB -> CD : Calcular(atributos)
+      CD --> IB : int dvh
+      IB -> IND : ActualizarDVHUsuario(id, dvh)
+      IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+    end
+    loop por cada una de las 7 columnas (c = índice)
+      IB -> CD : CalcularVertical(todasFilas, c)
+      CD --> IB : int dvv
+      IB -> IND : ActualizarDVV("USUARIO", columnas[c], dvv)
+      IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    end
     IB --> UB : (DVH / DVV recalculados)
     deactivate IB
 
     UB -> SM : getUsuario()
-    SM --> UB : administrador actual
+    SM --> UB : BE.USUARIO / null
+    UB -> UB : admin = getUsuario()?.Usuario ?? "sistema"
 
     UB -> UD : ObtenerIdPorNombre(usuario)
     UD -> DB : USUARIO_OBTENER_ID_POR_NOMBRE(@usuario)
     DB --> UD : ID
     UD --> UB : int?
 
-    UB -> UH : RegistrarCambio(usuarioId, "ALTA", admin)
-    UH -> UD : ObtenerPorId(usuarioId)
-    UD -> DB : USUARIO_OBTENER_POR_ID(@id)
-    DB --> UD : fila de USUARIO
-    UD --> UH : BE.USUARIO
-    UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
-    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-    DB --> UPD : PERFIL_ID
-    UPD --> UH : List<int> perfiles
-    UH -> UHD : Insertar(UsuarioHistorial)
-    UHD -> DB : USUARIO_HISTORIAL_INSERTAR(snapshot,\n@tipo_cambio, @realizado_por)
+    opt id.HasValue
+      UB -> UH : RegistrarCambio(id.Value, "ALTA", admin)
+      activate UH
+      UH -> UD : ObtenerPorId(usuarioId)
+      UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+      DB --> UD : fila de USUARIO
+      UD --> UH : BE.USUARIO / null
+      alt el usuario no existe (u == null)
+        UH --> UB : return (no inserta nada)
+      else el usuario existe
+        UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
+        UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+        DB --> UPD : PERFIL_ID
+        UPD --> UH : List<int> perfiles
+        UH -> UH : ordenar los ids y unirlos en CSV (Perfiles)
+        UH -> UHD : Insertar(UsuarioHistorial)
+        UHD -> DB : USUARIO_HISTORIAL_INSERTAR(@usuario_id, @usuario_login, @rol,\n@bloqueado, @intentos_fallidos, @perfiles, @nombre, @apellido,\n@telefono, @email, @realizado_por, @tipo_cambio = "ALTA",\n@version_origen = null, @rol_id)
+        UH --> UB : (cambio registrado)
+      end
+      deactivate UH
+    end
 
     UB --> FA : true
-    FA --> A : "Usuario creado correctamente."
+    FA --> A : "Usuario creado correctamente."\n(título "Éxito")
+    FA -> FA : CargarUsuarios()
     FA -> UB : ListarPaginado(_busquedaActual,\n_paginaActual, TAMANIO_PAGINA)
     UB -> UD : ListarPaginado(busqueda, pagina, tamanio)
     UD -> DB : USUARIO_LISTAR_PAGINADO(@busqueda,\n@pagina, @tamanio)
     DB --> UD : filas + TOTAL_FILAS
     UD --> UB : PaginaResultado<USUARIO>
     UB --> FA : PaginaResultado<USUARIO>
-    FA -> FA : refrescar grilla
+    FA -> FA : dgvUsuarios.DataSource = resultado.Items;\nocultar columnas, ActualizarEncabezados() y\nActualizarControlesPaginacion()
   end
   deactivate UB
 end

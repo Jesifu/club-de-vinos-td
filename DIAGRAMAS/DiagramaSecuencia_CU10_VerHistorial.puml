@@ -23,53 +23,65 @@ database    ":DB"                    as DB #EEEEEE
 
 note over FA
   Precondición: sesión activa,
-  permiso "Administrar usuarios",
+  permiso "Administrar usuarios";
+  frmAdminUsuarios abierto desde frmMenu
+  (Administración > Gestión de usuarios);
   el usuario a consultar existe.
 end note
 
 == 1. Apertura del formulario ==
 
-A -> FA : seleccionar usuario en la grilla\n+ click "Historial"
+A -> FA : seleccionar usuario en la grilla\n+ click "Ver historial"
 
-opt 1a. ningún usuario seleccionado
-  FA --> A : "Seleccioná un usuario."
+break 1a. ningún usuario seleccionado
+  FA --> A : "Seleccioná un usuario."\n(título "Atención")
   note right of FA : el caso de uso termina
 end
 
 FA -> FH : new frmHistorialUsuario(usuario)\n.ShowDialog()
 activate FH
 
+note right of FH
+  Load: se registra en IdiomaManager, traduce sus
+  controles (ActualizarIdioma), llama CargarHistorial()
+  y agrega el selector de idiomas (AgregarSelector)
+end note
+
 == 2. Carga del historial ==
 
 FH -> FH : CargarHistorial()
-FH -> UH : ObtenerHistorialPaginado(usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
+FH -> UH : ObtenerHistorialPaginado(_usuario.Id,\n_paginaActual, TAMANIO_PAGINA = 20)
 UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
 UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
 DB --> UHD : filas + TOTAL_FILAS
 UHD --> UH : PaginaResultado<UsuarioHistorial>
 UH --> FH : PaginaResultado<UsuarioHistorial>
 
+FH -> FH : _totalPaginas = TotalPaginas (1 si es 0);\nsi _paginaActual > _totalPaginas, la ajusta
 FH -> FH : dgvHistorial.DataSource = resultado.Items
 FH -> FH : ocultar columnas técnicas\n(Id, UsuarioId, UsuarioLogin, RolId)
 FH -> FH : ActualizarEncabezados()
 note right of FH
-  Fecha, Tipo, Rol, Nombre, Apellido,
-  Teléfono, Email, Bloqueado,
-  Intentos fallidos, Perfiles,
-  Realizado por, Versión origen
+  Columnas visibles, en el orden de las propiedades de
+  BE.UsuarioHistorial: Rol, Bloqueado, Intentos, Perfiles,
+  Nombre, Apellido, Teléfono, Email, Fecha, Realizado por,
+  Tipo, Versión origen
 end note
 FH -> FH : btnRollback.Enabled = false
+FH -> FH : ActualizarControlesPaginacion()
+note right of FH : lblPagina = "Página X de Y";\nhabilita Anterior / Siguiente según la página
 
-alt 3a. el usuario no tiene historial
-  FH --> A : grilla vacía,\nbotón Rollback deshabilitado
+alt 2a. el usuario no tiene historial
+  FH --> A : grilla vacía,\nbotón "Restaurar versión" deshabilitado
 
 else el usuario tiene historial
   FH --> A : grilla con las entradas\ndel historial (paginadas)
 
   opt navegación entre páginas
-    A -> FH : click "Página siguiente" /\n"Página anterior"
+    A -> FH : click "Siguiente >" / "< Anterior"
+    note right of FH : si ya está en la última / primera página,\nel handler hace return sin recargar
     FH -> FH : _paginaActual++ / _paginaActual--\nCargarHistorial()
-    FH -> UH : ObtenerHistorialPaginado(usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
+    FH -> UH : ObtenerHistorialPaginado(_usuario.Id,\n_paginaActual, TAMANIO_PAGINA)
     UH -> UHD : ListarPorUsuarioPaginado(usuarioId,\npagina, tamanio)
     UHD -> DB : USUARIO_HISTORIAL_LISTAR_PAGINADO(\n@usuario_id, @pagina, @tamanio)
     DB --> UHD : filas + TOTAL_FILAS
@@ -81,12 +93,12 @@ else el usuario tiene historial
   == 3. Selección de una entrada ==
 
   A -> FH : seleccionar una fila de la grilla
-  FH -> FH : dgvHistorial_SelectionChanged
+  FH -> FH : dgvHistorial_SelectionChanged\n(sel = CurrentRow.DataBoundItem)
 
-  alt la entrada es de tipo BAJA
+  alt la entrada es de tipo BAJA (o no hay fila: sel == null)
     FH -> FH : btnRollback.Enabled = false
     note right of FH
-      RN-03: BAJA captura el último
+      RT-03: BAJA captura el último
       estado conocido antes de eliminar
       al usuario — no es restaurable.
     end note
@@ -102,6 +114,7 @@ end
 == 4. Cierre ==
 
 A -> FH : click "Cerrar"
+FH -> FH : this.Close()
 FH --> FA : (form cerrado)
 deactivate FH
 FA -> FA : CargarUsuarios()
@@ -111,5 +124,6 @@ UD -> DB : USUARIO_LISTAR_PAGINADO(@busqueda,\n@pagina, @tamanio)
 DB --> UD : filas + TOTAL_FILAS
 UD --> UB : PaginaResultado<USUARIO>
 UB --> FA : PaginaResultado<USUARIO>
+FA -> FA : dgvUsuarios.DataSource = resultado.Items;\nocultar columnas, ActualizarEncabezados() y\nActualizarControlesPaginacion()
 
 @enduml

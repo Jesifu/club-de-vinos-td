@@ -22,22 +22,26 @@ note over FP
   Precondición: sesión activa,
   permiso "Gestión de roles",
   el rol a mover existe.
+  Al abrirse, frmPerfiles se registra en IdiomaManager,
+  carga el catálogo de permisos (ObtenerPermisosDisponibles),
+  traduce sus controles, carga el árbol (CargarArbol, que se
+  ejecuta dos veces: vía ActualizarIdioma y directo)
+  y agrega el selector de idiomas.
 end note
 
 == 1. Selección y preparación del combo ==
 
 A -> FP : seleccionar un rol en el árbol
 FP -> FP : treePermisos_AfterSelect
+FP -> FP : PopularCheckPermisos(rol)
 FP -> FP : PopularComboPadre(rol, nodoActual)
 note right of FP
-  RN-01: el combo excluye al
-  propio rol y a todos sus
-  descendientes (recorrido del
-  subárbol), y agrega la opción
-  "(ninguno)". Los ancestros por
-  encima del padre actual (RN-04)
-  se muestran pero deshabilitados
-  (no seleccionables).
+  RT-01: el combo excluye al propio rol y a todos
+  sus descendientes (recorrido del TreeView en
+  memoria, sin consultar la base de datos) y agrega
+  la opción "(ninguno)". Los ancestros por encima
+  del padre actual (RT-04) se muestran en gris pero
+  no son seleccionables.
 end note
 FP -> FP : cboPadre.SelectedIndex =\npadre actual del rol\n(0 = "(ninguno)" si no tiene)
 FP --> A : panelPadre visible con\nel combo de padres
@@ -45,11 +49,19 @@ FP --> A : panelPadre visible con\nel combo de padres
 == 2. Selección de nuevo padre ==
 
 A -> FP : elegir un padre en el combo\n(o "(ninguno)")
+
+opt elige un ancestro por encima del padre actual (deshabilitado)
+  FP -> FP : cboPadre_SelectedIndexChanged:\nvuelve a _cboPadreIndiceAnterior
+  note right of FP : sin mensaje: el combo revierte\nsilenciosamente a la selección anterior
+end
+
 A -> FP : click "Asignar padre"
+note right of FP : si no hay un Rol seleccionado en el árbol o el combo\nno tiene un ItemRol seleccionado, el handler hace return
 
 == 3. Validación y actualización ==
 
-FP -> PB : CambiarPadre(rol.Id, nuevoPadreId)
+FP -> PB : CambiarPadre(rol.Id, seleccionado.Id)
+note right of PB : seleccionado.Id es int?\n(null = "(ninguno)")
 activate PB
 
 opt nuevoPadreId tiene valor
@@ -60,35 +72,36 @@ opt nuevoPadreId tiene valor
 
   PB -> PB : GenerariaCiclo(rol.Id, nuevoPadreId, todos)
   note right of PB
-    RN-02: validación en memoria,
+    RT-02: validación en memoria,
     recorre la cadena de padres
     hacia arriba desde
     nuevoPadreId.
   end note
-  break 5a. GenerariaCiclo → true
+  break 4a. GenerariaCiclo → true
     PB --> FP : throw InvalidOperationException\n("No se puede asignar ese padre:\ngeneraría una referencia circular.")
-    FP --> A : MessageBox de error
-    note right of FP : el caso de uso termina\nsin modificar la jerarquía
+    FP --> A : ex.Message en un MessageBox de error\n(título "Error")
+    note right of FP : el caso de uso termina\nsin modificar la jerarquía ni recargar el árbol
   end
 
+  PB -> PB : padreActual = todos.FirstOrDefault(id == rolId)?.PadreId
   PB -> PB : EsAncestroDelPadreActual(padreActual,\nnuevoPadreId, todos)
   note right of PB
-    RN-04: validación en memoria,
+    RT-04: validación en memoria,
     recorre la cadena de padres
     hacia arriba desde el padre
-    actual del rol (sin incluirlo).
+    del padre actual del rol.
   end note
-  break 5b. EsAncestroDelPadreActual → true\n(el nuevo padre es un ancestro superior\nal padre actual del rol)
+  break 4b. EsAncestroDelPadreActual → true\n(el nuevo padre es un ancestro superior\nal padre actual del rol)
     PB --> FP : throw InvalidOperationException\n("No se puede asignar como padre\na un ancestro del padre actual del rol.")
-    FP --> A : MessageBox de error
-    note right of FP : el caso de uso termina\nsin modificar la jerarquía
+    FP --> A : ex.Message en un MessageBox de error\n(título "Error")
+    note right of FP : el caso de uso termina\nsin modificar la jerarquía ni recargar el árbol
   end
 end
 
 PB -> PD : CambiarPadre(rolId, nuevoPadreId)
 PD -> DB : ROL_CAMBIAR_PADRE(@id, @padre_id)\n(UPDATE ROL SET PADRE_ID)
 note right of DB
-  RN-03: asignar "(ninguno)"
+  RT-03: asignar "(ninguno)"
   (nuevoPadreId = null) hace
   al rol raíz del árbol.
 end note
@@ -103,13 +116,16 @@ PB -> PD : ListarRoles()
 PD -> DB : ROL_LISTAR_TODOS
 DB --> PD : filas de ROL
 PD --> PB : List<NodoPermiso>
+PB -> PB : armar la jerarquía de roles\n(PadreId → Agregar hijos)
 PB -> PD : ListarRolPermisos()
 PD -> DB : ROL_PERMISO_LISTAR_TODOS
 DB --> PD : filas de ROL_PERMISO + PERMISO
 PD --> PB : List<Permiso>
-PB -> PB : armar árbol en memoria\n(PadreId → Agregar hijos)
+PB -> PB : adjuntar cada permiso a su rol\n(PadreId = ROL_ID → Agregar)
 PB --> FP : List<NodoPermiso> (raíces)
-FP -> FP : BuscarNodo(rol.Id)\n→ mantener selección sobre\nel rol movido
+FP -> FP : armar los TreeNode (CrearNodoVisual con prefijo\n"[Rol] " / "[Permiso] " vía Traducir) y ExpandAll()
+FP -> FP : por cada nodo raíz tn: BuscarNodo(tn, rol.Id) y\ntreePermisos.SelectedNode = encontrado\n→ mantener selección sobre el rol movido
+FP -> FP : treePermisos_AfterSelect\n(PopularCheckPermisos + PopularComboPadre\ncon la nueva jerarquía)
 FP --> A : árbol refrescado con\nla nueva jerarquía
 
 @enduml

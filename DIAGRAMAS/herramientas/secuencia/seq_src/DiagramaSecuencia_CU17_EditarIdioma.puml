@@ -1,0 +1,89 @@
+@startuml DiagramaSecuencia_CU17_EditarIdioma
+
+title CU-17 — Editar Idioma (renombrar o habilitar/deshabilitar) — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.85
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Administrador" as A
+participant ":frmIdiomas"    as FI #FEFECE
+participant ":IdiomaBLL"     as IB #E8F4E8
+participant ":IdiomaDAL"     as IDD #E8E8F4
+database    ":DB"            as DB #EEEEEE
+
+note over FI
+  Precondición: sesión activa,
+  permiso "Gestión de idiomas",
+  existe al menos un idioma.
+  Al abrirse, frmIdiomas se registra en IdiomaManager, carga la
+  grilla de idiomas (CargarIdiomas), traduce sus controles y
+  agrega el selector de idiomas.
+end note
+
+== 1. Selección ==
+
+A -> FI : seleccionar un idioma en la grilla
+FI -> FI : dgvIdiomas_SelectionChanged\n→ _idiomaSeleccionado = CurrentRow?.DataBoundItem as IDIOMA
+
+opt _idiomaSeleccionado != null
+  @CT
+  note right of FI : la selección también carga la grilla de\ntraducciones del idioma (ver CU-19)
+end
+
+A -> FI : click "Renombrar idioma" o\n"Habilitar/Deshabilitar"
+
+break 1a. ningún idioma seleccionado
+  FI --> A : "Seleccioná un idioma."\n(título "Aviso")
+  note right of FI
+    el caso de uso termina (el chequeo
+    se repite en cada uno de los dos handlers)
+  end note
+end
+
+alt acción = Renombrar idioma
+
+  == Renombrar idioma ==
+
+  FI --> A : InputBox "Nuevo nombre:"\n(título "Renombrar idioma", valor actual precargado)
+  A --> FI : ingresar nuevo nombre + Aceptar
+
+  break 2a. nuevo nombre vacío (o solo espacios), cancelado o igual al actual
+    FI -> FI : return (no hace nada)
+    note right of FI : el caso de uso termina\nsin modificar el idioma
+  end
+
+  FI -> IB : Renombrar(id, nuevoNombre)
+  IB -> IDD : Renombrar(id, nombre)
+  IDD -> DB : IDIOMA_RENOMBRAR(@id, @nombre)
+
+else acción = Habilitar/Deshabilitar
+
+  == Habilitar / Deshabilitar ==
+
+  FI -> IB : ActualizarEstado(id, !_idiomaSeleccionado.Habilitado)
+  IB -> IDD : ActualizarEstado(id, habilitado)
+  IDD -> DB : IDIOMA_ACTUALIZAR_ESTADO(@id, @habilitado)
+
+  note right of IB
+    RT-01: solo los idiomas
+    habilitados aparecen en el
+    selector de los formularios.
+    RT-02: deshabilitar no borra
+    las traducciones — el idioma
+    puede rehabilitarse sin pérdida.
+  end note
+end
+
+== 3. Actualización de la grilla ==
+
+@CI
+FI --> A : grilla refrescada con el nuevo nombre / estado\n(tras el re-enlace queda seleccionada la primera fila,\nno necesariamente el idioma editado)
+
+@enduml

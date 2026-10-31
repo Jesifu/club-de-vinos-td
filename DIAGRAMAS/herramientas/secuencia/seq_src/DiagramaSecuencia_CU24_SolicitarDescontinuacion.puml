@@ -1,0 +1,137 @@
+@startuml DiagramaSecuencia_CU24_SolicitarDescontinuacion
+
+title CU-24 — Solicitar Descontinuación de Vino — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.65
+
+actor       ":Usuario"                as U
+participant ":frmCatalogoVinos"       as FC #FEFECE
+participant ":VinoBLL"                as VB #E8F4E8
+participant ":BitacoraBLL"            as BB #E8F4E8
+participant ":BodegaDAL"              as BD #E8E8F4
+participant ":VinoDAL"                as VD #E8E8F4
+participant ":SolicitudAutorizacionDAL" as SD #E8E8F4
+participant ":MovimientoStockDAL"     as MD #E8E8F4
+participant ":BitacoraDAL"            as TD #E8E8F4
+database    ":DB"                     as DB #EEEEEE
+
+note over FC
+  Precondición: sesión activa; permiso "Gestionar catálogo de vinos";
+  vino con ESTADO = 'Activo', sin baja pendiente y con stock 0 (RN-15).
+  sesion = SessionManager.getInstance().getUsuario().
+end note
+
+U -> FC : menú Catálogo > "Gestionar catálogo de vinos"\n(new frmCatalogoVinos().ShowDialog())
+activate FC
+note right of FC
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarBodegas(), CargarVinos() y agrega el selector de idiomas
+end note
+
+FC -> FC : CargarBodegas()
+FC -> VB : ListarBodegas()
+VB -> BD : ListarHabilitadas()
+BD -> DB : BODEGA_LISTAR_HABILITADAS
+DB --> BD : filas
+BD --> VB : List<Bodega>
+VB --> FC : List<Bodega>
+FC -> FC : cboBodega.DataSource = bodegas;\nDisplayMember = Nombre; ValueMember = Id;\nSelectedIndex = 0 solo si hay bodegas
+
+@LC
+FC --> U : grilla del catálogo con la última solicitud de cada vino
+
+U -> FC : seleccionar un vino de la grilla
+FC -> FC : dgvVinos_SelectionChanged → ActualizarEstadoBajaBoton()
+opt 24a. el vino no admite la solicitud
+  FC -> FC : btnSolicitarBaja.Enabled = false\n(el vino no está Activo, o su última solicitud es una baja Pendiente)
+  note right of FC : el caso de uso finaliza sin registrar cambios\n(el botón solo se habilita con un vino Activo sin baja pendiente)
+end
+
+U -> FC : click "Solicitar descontinuación"
+
+break 24e. no hay vino seleccionado
+  FC --> U : "Seleccioná un vino."\n(título "Atención")
+  note right of FC : return: no llama a la BLL ni recarga la grilla
+end
+
+FC --> U : solicitar confirmación\n("¿Solicitar la descontinuación del vino 'X'?") (título "Confirmar")
+
+break 24f. el usuario responde "No"
+  U --> FC : No
+  note right of FC : return: no llama a la BLL ni recarga la grilla
+end
+
+U --> FC : Sí
+FC -> VB : SolicitarBaja(vino.Id, sesion)
+VB -> VD : ObtenerPorId(vinoId)
+VD -> DB : VINO_OBTENER_POR_ID(@id)
+DB --> VD : filas
+VD --> VB : Vino (o null)
+
+alt 24b. el vino no existe
+  VB --> FC : throw InvalidOperationException\n("El vino indicado no existe.")
+else 24b. el vino ya está descontinuado
+  VB --> FC : throw InvalidOperationException\n("El vino ya está descontinuado.")
+else 24b. el vino no está Activo (Pendiente o Rechazado)
+  VB --> FC : throw InvalidOperationException\n("Solo se puede solicitar la baja de un vino activo.")
+else vino Activo
+  VB -> SD : ObtenerPendiente(vinoId, TipoSolicitud.Baja)
+  SD -> DB : SOLICITUD_OBTENER_PENDIENTE(@vino_id,@tipo)
+  DB --> SD : filas
+  SD --> VB : SolicitudAutorizacion (o null)
+
+  alt 24b. el vino ya tiene una baja pendiente
+    VB --> FC : throw InvalidOperationException\n("El vino ya tiene una baja solicitada, pendiente de autorización.")
+  else sin baja pendiente
+    VB -> VB : ValidarSinStock(vinoId)
+    VB -> MD : ObtenerStockActual(vinoId)
+    MD -> DB : STOCK_ACTUAL_OBTENER(@vino_id)
+    DB --> MD : STOCK
+    MD --> VB : int
+
+    alt 24c. el vino tiene stock distinto de 0 (RN-15)
+      VB --> FC : throw InvalidOperationException\n("No se puede descontinuar un vino con stock (N botellas). Registre un\najuste de inventario para dejarlo en 0 y luego solicite la baja.")
+    else stock = 0
+      VB -> VD : SolicitarBaja(vinoId, sesion.Id)
+      VD -> DB : VINO_SOLICITAR_BAJA(@id,@solicitante_id)
+      note right of DB : INSERT SOLICITUD_AUTORIZACION (BAJA, Pendiente)\nsolo si el vino sigue Activo, sin baja pendiente y con stock 0\n(lectura con UPDLOCK/HOLDLOCK). El vino sigue Activo.
+
+      alt 24d. otra solicitud de baja ganó la carrera (SqlException 2601 / 2627)
+        DB --> VD : SqlException
+        VD --> VB : SqlException
+        VB --> FC : throw InvalidOperationException\n("El vino ya tiene una baja solicitada, pendiente de autorización.")
+      else sin colisión
+        DB --> VD : FILAS
+        VD --> VB : int filas
+
+        alt 24d. 0 filas (el estado o el stock cambiaron entre la lectura y la escritura; backstop del SP)
+          VB --> FC : throw InvalidOperationException\n("No se pudo solicitar la baja: el estado o el stock del vino cambiaron.\nActualice e intente nuevamente.")
+        else 1 fila
+          VB -> BB : RegistrarAccion(sesion.Usuario,\n"BAJA_SOLICITADA_VINO:" + v.Codigo)
+          BB -> TD : Registrar(usuario, accion)
+          TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+          DB --> TD : filas afectadas
+          TD --> BB : void
+          BB --> VB : void
+          VB --> FC : void
+          FC --> U : "Descontinuación solicitada, pendiente de autorización."\n(título "Éxito")
+          @LC
+        end
+      end
+    end
+  end
+end
+
+opt la BLL lanzó InvalidOperationException (catch de btnSolicitarBaja_Click)
+  FC --> U : ex.Message\n(título "Atención")
+  @LC
+  note right of FC : return
+end
+deactivate FC
+
+@enduml

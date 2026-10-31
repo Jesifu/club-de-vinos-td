@@ -1,0 +1,197 @@
+@startuml DiagramaSecuencia_CU01_IniciarSesion
+
+title CU-01 — Iniciar Sesión — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.7
+
+' ─────────────────────────────────────────
+' Participantes en orden de aparición
+' ─────────────────────────────────────────
+actor       ":Usuario"                  as U
+participant ":LogIn"                    as L   #FEFECE
+participant ":frmRestaurar\nIntegridad" as FR  #FEFECE
+participant ":frmMenu"                  as FM  #FEFECE
+participant ":LoginBLL"                 as LB  #E8F4E8
+participant ":UsuarioPerfilBLL"         as UPB #E8F4E8
+participant ":BitacoraBLL"              as BB  #E8F4E8
+participant ":UsuarioHistorialBLL"      as UH  #E8F4E8
+participant ":IdiomaBLL"                as IDB #E8F4E8
+participant ":IntegridadBLL"            as IB  #E8F4E8
+participant ":CalculadorDVH"            as CD #F4E8E8
+participant ":Hasher"                   as H   #F4E8E8
+participant ":SessionManager"           as SM  #F4E8E8
+participant ":IdiomaManager"            as IDM #F4E8E8
+participant ":UsuarioDAL"               as UD  #E8E8F4
+participant ":UsuarioPerfilDAL"         as UPD #E8E8F4
+participant ":BitacoraDAL"              as BD  #E8E8F4
+participant ":UsuarioHistorialDAL"      as UHD #E8E8F4
+participant ":IdiomaDAL"                as IDD #E8E8F4
+participant ":IntegridadDAL"            as IND #E8E8F4
+database    ":DB"                       as DB  #EEEEEE
+
+note over L
+  Precondición de arranque: antes de abrir LogIn, Program.Main() ejecuta InicializarIntegridad():
+  si EstaInicializado() es false llama a RecalcularIntegridad(); luego VerificarIntegridad()
+  y guarda el resultado en Program.ResultadoIntegridad (si falla, EsValido = false).
+  No bloquea el arranque: el formulario de login se abre siempre.
+end note
+
+== 1. Solicitud de autenticación ==
+
+U -> L : ingresar usuario y contraseña\n+ click Ingresar
+
+break 2a. algún campo vacío o solo espacios
+  L --> U : "Completá usuario y contraseña."\n(título "Atención")
+  note right of L : el flujo aborta y\nvuelve al paso 1
+end
+
+L -> LB : AutenticarUsuario(usuario, contrasena)\n(ambos con Trim())
+activate LB
+note right of LB : LoginBLL repite el guard de vacíos\n(devuelve CredencialesInvalidas);\ninalcanzable desde la UI
+
+LB -> UD : EstaBloqueado(usuario)
+UD -> DB : USUARIO_VERIFICAR_BLOQUEO(@usuario)
+DB --> UD : BLOQUEADO (sin filas si el usuario no existe)
+UD --> LB : bool
+
+alt 2b. el usuario ya está bloqueado
+  LB --> L : UsuarioBloqueado
+
+else usuario no bloqueado
+  LB -> H : Hashear(contrasena)
+  H --> LB : hash SHA-256
+  LB -> UD : ObtenerPorCredenciales(usuario, contrasenHash)
+  UD -> DB : USUARIO_LOGIN(@usuario, @pass)
+  DB --> UD : fila de USUARIO / vacío
+  UD --> LB : BE.USUARIO / null
+
+  alt 2c / 2d. credenciales inválidas (u == null)
+    LB -> UD : IncrementarIntentos(usuario)
+    UD -> DB : USUARIO_INCREMENTAR_INTENTOS(@usuario)
+    DB --> UD : BLOQUEADO
+    UD --> LB : quedoBloqueado
+    LB -> BB : RegistrarAccion(usuario, "LOGIN_FALLIDO")
+    BB -> BD : Registrar(usuario, "LOGIN_FALLIDO")
+    BD -> DB : BITACORA_INSERTAR(@usuario, @accion)
+
+    alt 2d. se alcanzó el límite (quedoBloqueado)
+      LB -> BB : RegistrarAccion(usuario, "USUARIO_BLOQUEADO")
+      BB -> BD : Registrar(usuario, "USUARIO_BLOQUEADO")
+      BD -> DB : BITACORA_INSERTAR(@usuario, @accion)
+      LB -> UD : ObtenerIdPorNombre(usuario)
+      UD -> DB : USUARIO_OBTENER_ID_POR_NOMBRE(@usuario)
+      DB --> UD : ID
+      UD --> LB : int?
+
+      opt id.HasValue
+        @RC LB | id.Value | BLOQUEO | "sistema"
+      end
+
+      LB --> L : UsuarioBloqueado
+    else 2c. aún no se alcanzó el límite
+      LB --> L : CredencialesInvalidas
+    end
+
+  else credenciales válidas
+    LB -> UD : ResetearIntentos(usuario)
+    UD -> DB : USUARIO_RESETEAR_INTENTOS(@usuario)
+    LB -> SM : setUsuario(u)
+    LB -> UPB : ObtenerPermisos(u.Id)
+    UPB -> UPD : ListarPermisosDeUsuario(usuarioId)
+    UPD -> DB : USUARIO_PERMISOS_LISTAR(@usuario_id)
+    DB --> UPD : NOMBRE de cada permiso
+    UPD --> UPB : List<string>
+    UPB --> LB : permisos
+    LB -> SM : setPermisos(permisos)
+    LB -> BB : RegistrarLogin(usuario)
+    BB -> BD : Registrar(usuario, "LOGIN")
+    BD -> DB : BITACORA_INSERTAR(@usuario, @accion)
+
+    opt u.IdiomaId.HasValue
+      LB -> IDB : ObtenerPorId(u.IdiomaId.Value)
+      IDB -> IDD : ObtenerPorId(id)
+      IDD -> DB : IDIOMA_OBTENER_POR_ID(@id)
+      DB --> IDD : fila de IDIOMA
+      IDD --> IDB : IDIOMA / null
+      IDB --> LB : idioma
+
+      opt idioma != null
+        LB -> IDB : CargarTraducciones(idioma.Id)
+        IDB -> IDD : CargarTraducciones(idiomaId)
+        IDD -> IDD : ListarControlesConTraduccion(idiomaId)
+        IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)
+        DB --> IDD : filas de CONTROL / TRADUCCION
+        IDD --> IDB : Dictionary<clave, texto>
+        IDB --> LB : traducciones
+        LB -> IDM : CambiarIdioma(idioma, traducciones)
+        loop por cada observador registrado (LogIn)
+          IDM -> L : ActualizarIdioma()
+          note right of L : L traduce sus controles\n(Traducir(clave) ?? texto por defecto)
+        end
+      end
+    end
+
+    LB --> L : Exito
+  end
+end
+deactivate LB
+
+== 2. Evaluación de integridad y resultado ==
+
+alt resultado == Exito
+
+  L -> SM : getUsuario()
+  SM --> L : usuarioActual
+
+  alt Program.ResultadoIntegridad != null\ny no es válido (EsValido == false)
+    L -> SM : TienePermiso("Administrar usuarios")
+    SM --> L : esAdmin
+    L -> L : suDataEstaIntegra = !IdsUsuariosAfectados\n.Contains(usuarioActual.Id)
+
+    alt 2e. administrador habilitado\n(esAdmin y suDataEstaIntegra)
+      L -> FR : new frmRestaurarIntegridad(Program.ResultadoIntegridad)\n.ShowDialog()
+      activate FR
+      note right of FR : detalle del flujo en CU-02\n(Restaurar Integridad del Sistema)
+      FR --> L : DialogResult (OK / Cancel)
+      deactivate FR
+
+      break el administrador cancela (DialogResult != OK)
+        L -> SM : cerrarSesion()
+        note right of L : return: no se muestra ningún mensaje,\nel LogIn sigue visible y el caso de uso termina
+      end
+
+    else 2f. usuario NO habilitado para restaurar
+      break el caso de uso termina
+        L --> U : "El sistema no puede iniciarse debido a un problema interno.\n\nComuníquese con el administrador del sistema."\n(título "Error del sistema")
+        L -> SM : cerrarSesion()
+        note right of L : return: el LogIn sigue visible
+      end
+    end
+
+  else integridad OK\n(ResultadoIntegridad es null o EsValido)
+    @IR L
+  end
+
+  L --> U : "Bienvenido, <usuario>!"\n(título "Login exitoso")
+  L -> FM : new frmMenu().Show()
+  L -> L : this.Hide()
+
+else resultado == UsuarioBloqueado
+  opt integridad OK\n(ResultadoIntegridad es null o EsValido)
+    @IR L
+  end
+  L --> U : "Usuario bloqueado por intentos fallidos. Contactate con un administrador."\n(título "Acceso denegado")
+
+else resultado == CredencialesInvalidas
+  opt integridad OK\n(ResultadoIntegridad es null o EsValido)
+    @IR L
+  end
+  L --> U : "Usuario o contraseña incorrectos."\n(título "Error")
+end
+
+@enduml

@@ -22,6 +22,7 @@ participant ":BitacoraBLL"              as BB  #E8F4E8
 participant ":UsuarioHistorialBLL"      as UH  #E8F4E8
 participant ":IdiomaBLL"                as IDB #E8F4E8
 participant ":IntegridadBLL"            as IB  #E8F4E8
+participant ":CalculadorDVH"            as CD #F4E8E8
 participant ":Hasher"                   as H   #F4E8E8
 participant ":SessionManager"           as SM  #F4E8E8
 participant ":IdiomaManager"            as IDM #F4E8E8
@@ -33,35 +34,43 @@ participant ":IdiomaDAL"                as IDD #E8E8F4
 participant ":IntegridadDAL"            as IND #E8E8F4
 database    ":DB"                       as DB  #EEEEEE
 
+note over L
+  Precondición de arranque: antes de abrir LogIn, Program.Main() ejecuta InicializarIntegridad():
+  si EstaInicializado() es false llama a RecalcularIntegridad(); luego VerificarIntegridad()
+  y guarda el resultado en Program.ResultadoIntegridad (si falla, EsValido = false).
+  No bloquea el arranque: el formulario de login se abre siempre.
+end note
+
 == 1. Solicitud de autenticación ==
 
 U -> L : ingresar usuario y contraseña\n+ click Ingresar
 
-opt 3a. algún campo vacío
-  L --> U : "Completá usuario y contraseña."
+break 2a. algún campo vacío o solo espacios
+  L --> U : "Completá usuario y contraseña."\n(título "Atención")
   note right of L : el flujo aborta y\nvuelve al paso 1
 end
 
-L -> LB : AutenticarUsuario(usuario, contrasena)
+L -> LB : AutenticarUsuario(usuario, contrasena)\n(ambos con Trim())
 activate LB
+note right of LB : LoginBLL repite el guard de vacíos\n(devuelve CredencialesInvalidas);\ninalcanzable desde la UI
 
 LB -> UD : EstaBloqueado(usuario)
 UD -> DB : USUARIO_VERIFICAR_BLOQUEO(@usuario)
-DB --> UD : BLOQUEADO
+DB --> UD : BLOQUEADO (sin filas si el usuario no existe)
 UD --> LB : bool
 
-alt 4a. el usuario ya está bloqueado
+alt 2b. el usuario ya está bloqueado
   LB --> L : UsuarioBloqueado
 
 else usuario no bloqueado
   LB -> H : Hashear(contrasena)
   H --> LB : hash SHA-256
-  LB -> UD : ObtenerPorCredenciales(usuario, hash)
+  LB -> UD : ObtenerPorCredenciales(usuario, contrasenHash)
   UD -> DB : USUARIO_LOGIN(@usuario, @pass)
   DB --> UD : fila de USUARIO / vacío
   UD --> LB : BE.USUARIO / null
 
-  alt 5a / 5b. credenciales inválidas (u == null)
+  alt 2c / 2d. credenciales inválidas (u == null)
     LB -> UD : IncrementarIntentos(usuario)
     UD -> DB : USUARIO_INCREMENTAR_INTENTOS(@usuario)
     DB --> UD : BLOQUEADO
@@ -70,7 +79,7 @@ else usuario no bloqueado
     BB -> BD : Registrar(usuario, "LOGIN_FALLIDO")
     BD -> DB : BITACORA_INSERTAR(@usuario, @accion)
 
-    alt 5b. se alcanzó el límite (quedoBloqueado)
+    alt 2d. se alcanzó el límite (quedoBloqueado)
       LB -> BB : RegistrarAccion(usuario, "USUARIO_BLOQUEADO")
       BB -> BD : Registrar(usuario, "USUARIO_BLOQUEADO")
       BD -> DB : BITACORA_INSERTAR(@usuario, @accion)
@@ -78,19 +87,31 @@ else usuario no bloqueado
       UD -> DB : USUARIO_OBTENER_ID_POR_NOMBRE(@usuario)
       DB --> UD : ID
       UD --> LB : int?
-      LB -> UH : RegistrarCambio(usuarioId, "BLOQUEO", "sistema")
-      UH -> UD : ObtenerPorId(usuarioId)
-      UD -> DB : USUARIO_OBTENER_POR_ID(@id)
-      DB --> UD : fila de USUARIO
-      UD --> UH : BE.USUARIO
-      UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
-      UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-      DB --> UPD : PERFIL_ID
-      UPD --> UH : List<int> perfiles
-      UH -> UHD : Insertar(UsuarioHistorial)
-      UHD -> DB : USUARIO_HISTORIAL_INSERTAR(snapshot,\n@tipo_cambio, @realizado_por)
+
+      opt id.HasValue
+        LB -> UH : RegistrarCambio(id.Value, "BLOQUEO", "sistema")
+        activate UH
+        UH -> UD : ObtenerPorId(usuarioId)
+        UD -> DB : USUARIO_OBTENER_POR_ID(@id)
+        DB --> UD : fila de USUARIO
+        UD --> UH : BE.USUARIO / null
+        alt el usuario no existe (u == null)
+          UH --> LB : return (no inserta nada)
+        else el usuario existe
+          UH -> UPD : ListarPerfilesPorUsuario(usuarioId)
+          UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+          DB --> UPD : PERFIL_ID
+          UPD --> UH : List<int> perfiles
+          UH -> UH : ordenar los ids y unirlos en CSV (Perfiles)
+          UH -> UHD : Insertar(UsuarioHistorial)
+          UHD -> DB : USUARIO_HISTORIAL_INSERTAR(@usuario_id, @usuario_login, @rol,\n@bloqueado, @intentos_fallidos, @perfiles, @nombre, @apellido,\n@telefono, @email, @realizado_por, @tipo_cambio = "BLOQUEO",\n@version_origen = null, @rol_id)
+          UH --> LB : (cambio registrado)
+        end
+        deactivate UH
+      end
+
       LB --> L : UsuarioBloqueado
-    else 5a. aún no se alcanzó el límite
+    else 2c. aún no se alcanzó el límite
       LB --> L : CredencialesInvalidas
     end
 
@@ -114,17 +135,23 @@ else usuario no bloqueado
       IDB -> IDD : ObtenerPorId(id)
       IDD -> DB : IDIOMA_OBTENER_POR_ID(@id)
       DB --> IDD : fila de IDIOMA
-      IDD --> IDB : IDIOMA
+      IDD --> IDB : IDIOMA / null
       IDB --> LB : idioma
 
-      LB -> IDB : CargarTraducciones(idioma.Id)
-      IDB -> IDD : CargarTraducciones(idiomaId)
-      IDD -> IDD : ListarControlesConTraduccion(idiomaId)
-      IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)
-      DB --> IDD : filas de CONTROL / TRADUCCION
-      IDD --> IDB : Dictionary<clave, texto>
-      IDB --> LB : traducciones
-      LB -> IDM : CambiarIdioma(idioma, traducciones)
+      opt idioma != null
+        LB -> IDB : CargarTraducciones(idioma.Id)
+        IDB -> IDD : CargarTraducciones(idiomaId)
+        IDD -> IDD : ListarControlesConTraduccion(idiomaId)
+        IDD -> DB : TRADUCCION_LISTAR_CONTROLES(@idioma_id)
+        DB --> IDD : filas de CONTROL / TRADUCCION
+        IDD --> IDB : Dictionary<clave, texto>
+        IDB --> LB : traducciones
+        LB -> IDM : CambiarIdioma(idioma, traducciones)
+        loop por cada observador registrado (LogIn)
+          IDM -> L : ActualizarIdioma()
+          note right of L : L traduce sus controles\n(Traducir(clave) ?? texto por defecto)
+        end
+      end
     end
 
     LB --> L : Exito
@@ -139,77 +166,119 @@ alt resultado == Exito
   L -> SM : getUsuario()
   SM --> L : usuarioActual
 
-  alt Program.ResultadoIntegridad inválido
+  alt Program.ResultadoIntegridad != null\ny no es válido (EsValido == false)
     L -> SM : TienePermiso("Administrar usuarios")
     SM --> L : esAdmin
+    L -> L : suDataEstaIntegra = !IdsUsuariosAfectados\n.Contains(usuarioActual.Id)
 
-    alt 9a. administrador habilitado\n(esAdmin y su ID no figura en IdsUsuariosAfectados)
-      L -> FR : new frmRestaurarIntegridad(resultado)\n.ShowDialog()
+    alt 2e. administrador habilitado\n(esAdmin y suDataEstaIntegra)
+      L -> FR : new frmRestaurarIntegridad(Program.ResultadoIntegridad)\n.ShowDialog()
       activate FR
       note right of FR : detalle del flujo en CU-02\n(Restaurar Integridad del Sistema)
       FR --> L : DialogResult (OK / Cancel)
       deactivate FR
 
-      alt el administrador cancela
+      break el administrador cancela (DialogResult != OK)
         L -> SM : cerrarSesion()
-        L --> U : vuelve al login
-        note right of L : el caso de uso termina
-      else el administrador confirma (DialogResult.OK)
-        L --> U : "Bienvenido"
-        L -> FM : new frmMenu().Show()
-        L -> L : this.Hide()
+        note right of L : return: no se muestra ningún mensaje,\nel LogIn sigue visible y el caso de uso termina
       end
 
-    else 9b. usuario NO habilitado para restaurar
-      L --> U : "Error del sistema. Comuníquese con el administrador."
-      L -> SM : cerrarSesion()
-      note right of L : el caso de uso termina
+    else 2f. usuario NO habilitado para restaurar
+      break el caso de uso termina
+        L --> U : "El sistema no puede iniciarse debido a un problema interno.\n\nComuníquese con el administrador del sistema."\n(título "Error del sistema")
+        L -> SM : cerrarSesion()
+        note right of L : return: el LogIn sigue visible
+      end
     end
 
-  else integridad OK
+  else integridad OK\n(ResultadoIntegridad es null o EsValido)
     L -> IB : RecalcularIntegridadUsuarios()
     activate IB
     IB -> IND : ListarUsuariosParaIntegridad()
     IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
     DB --> IND : filas de USUARIO
     IND --> IB : DataTable
-    IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
-    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-    DB --> UPD : PERFIL_ID
-    UPD --> IB : List<int>
-    IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
-    IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
-    IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
-    IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
-    IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    loop por cada usuario
+      IB -> UPD : ListarPerfilesPorUsuario(id)
+      UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+      DB --> UPD : PERFIL_ID
+      UPD --> IB : List<int>
+      IB -> CD : Calcular(atributos)
+      CD --> IB : int dvh
+      IB -> IND : ActualizarDVHUsuario(id, dvh)
+      IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+    end
+    loop por cada una de las 7 columnas (c = índice)
+      IB -> CD : CalcularVertical(todasFilas, c)
+      CD --> IB : int dvv
+      IB -> IND : ActualizarDVV("USUARIO", columnas[c], dvv)
+      IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    end
     IB --> L : (DVH / DVV recalculados)
     deactivate IB
-    L --> U : "Bienvenido"
-    L -> FM : new frmMenu().Show()
-    L -> L : this.Hide()
   end
 
-else resultado fallido (4a / 5a / 5b)
-  opt integridad OK\n(ResultadoIntegridad nulo o válido)
+  L --> U : "Bienvenido, <usuario>!"\n(título "Login exitoso")
+  L -> FM : new frmMenu().Show()
+  L -> L : this.Hide()
+
+else resultado == UsuarioBloqueado
+  opt integridad OK\n(ResultadoIntegridad es null o EsValido)
     L -> IB : RecalcularIntegridadUsuarios()
     activate IB
     IB -> IND : ListarUsuariosParaIntegridad()
     IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
     DB --> IND : filas de USUARIO
     IND --> IB : DataTable
-    IB -> UPD : ListarPerfilesPorUsuario(id)\n(por cada usuario, atributo PERFILES)
-    UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
-    DB --> UPD : PERFIL_ID
-    UPD --> IB : List<int>
-    IB -> IB : CalculadorDVH.Calcular(atributos)\nCalculadorDVH.CalcularVertical(filas, col)
-    IB -> IND : ActualizarDVHUsuario(id, dvh)\n(por cada usuario)
-    IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
-    IB -> IND : ActualizarDVV("USUARIO", columna, dvv)\n(por cada columna)
-    IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    loop por cada usuario
+      IB -> UPD : ListarPerfilesPorUsuario(id)
+      UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+      DB --> UPD : PERFIL_ID
+      UPD --> IB : List<int>
+      IB -> CD : Calcular(atributos)
+      CD --> IB : int dvh
+      IB -> IND : ActualizarDVHUsuario(id, dvh)
+      IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+    end
+    loop por cada una de las 7 columnas (c = índice)
+      IB -> CD : CalcularVertical(todasFilas, c)
+      CD --> IB : int dvv
+      IB -> IND : ActualizarDVV("USUARIO", columnas[c], dvv)
+      IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    end
     IB --> L : (DVH / DVV recalculados)
     deactivate IB
   end
-  L --> U : mensaje de error correspondiente
+  L --> U : "Usuario bloqueado por intentos fallidos. Contactate con un administrador."\n(título "Acceso denegado")
+
+else resultado == CredencialesInvalidas
+  opt integridad OK\n(ResultadoIntegridad es null o EsValido)
+    L -> IB : RecalcularIntegridadUsuarios()
+    activate IB
+    IB -> IND : ListarUsuariosParaIntegridad()
+    IND -> DB : USUARIO_LISTAR_PARA_INTEGRIDAD
+    DB --> IND : filas de USUARIO
+    IND --> IB : DataTable
+    loop por cada usuario
+      IB -> UPD : ListarPerfilesPorUsuario(id)
+      UPD -> DB : USUARIO_PERFIL_LISTAR(@usuario_id)
+      DB --> UPD : PERFIL_ID
+      UPD --> IB : List<int>
+      IB -> CD : Calcular(atributos)
+      CD --> IB : int dvh
+      IB -> IND : ActualizarDVHUsuario(id, dvh)
+      IND -> DB : USUARIO_ACTUALIZAR_DVH(@id, @dvh)
+    end
+    loop por cada una de las 7 columnas (c = índice)
+      IB -> CD : CalcularVertical(todasFilas, c)
+      CD --> IB : int dvv
+      IB -> IND : ActualizarDVV("USUARIO", columnas[c], dvv)
+      IND -> DB : DVV_ACTUALIZAR(@tabla, @columna, @dvv)
+    end
+    IB --> L : (DVH / DVV recalculados)
+    deactivate IB
+  end
+  L --> U : "Usuario o contraseña incorrectos."\n(título "Error")
 end
 
 @enduml

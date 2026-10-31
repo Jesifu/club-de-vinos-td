@@ -22,121 +22,194 @@ database    ":DB"                as DB #EEEEEE
 
 note over FA
   Precondición: sesión activa; permiso "Armar cajas mensuales";
-  existe al menos un socio activo con perfil vigente.
+  existe al menos un socio activo.
+  sesion = SessionManager.getInstance().getUsuario().
 end note
 
-U -> FA : abrir "Armar caja mensual"
+U -> FA : menú Club de Socios > "Armar Caja Mensual"\n(new frmArmarCaja().ShowDialog())
 activate FA
+note right of FA
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarSocios(), agrega el selector de idiomas y
+  ActualizarTotales()
+end note
+
+FA -> FA : CargarSocios()
 FA -> SB : ListarActivos()
-activate SB
 SB -> SD : ListarActivos()
-activate SD
 SD -> DB : SOCIO_LISTAR_ACTIVOS
 DB --> SD : filas
 SD --> SB : List<Socio>
-deactivate SD
 SB --> FA : List<Socio>
-deactivate SB
+FA -> FA : cboSocio.DataSource = socios
 
-U -> FA : seleccionar socio + período (YYYY-MM)
-
-FA -> CB : ListarCandidatos(socio.Id)
-activate CB
-CB -> VD : ListarCandidatos(socioId)
-activate VD
-VD -> DB : VINO_LISTAR_CANDIDATOS(@socio_id)
-DB --> VD : filas
-VD --> CB : List<VinoCandidato>
-deactivate VD
-note right of VD
-  RN-06 — filtra en la SP (solo catálogo gobernado).
-  RN-05.2 — varietales preferidos ordenan, no filtran.
+note over FA, DB
+  Al enlazar el combo, WinForms dispara cboSocio_SelectedIndexChanged
+  con el primer socio, sin acción del usuario: se cargan sus candidatos.
 end note
+FA -> FA : cboSocio_SelectedIndexChanged: _lineas.Clear();\npresupuesto = socio.PresupuestoMensual
+FA -> CB : ListarCandidatos(socio.Id)
+CB -> VD : ListarCandidatos(socioId)
+VD -> DB : VINO_LISTAR_CANDIDATOS(@socio_id)
+DB --> VD : filas de vinos Activos con stock derivado > 0 (RN-06),\nordenadas por PREFERIDO DESC, PRECIO ASC, NOMBRE ASC (RN-05)
+VD --> CB : List<VinoCandidato>
 CB --> FA : List<VinoCandidato>
-deactivate CB
+FA -> FA : dgvCandidatos.DataSource = candidatos\n(columna Preferido resaltada)
+FA -> FA : RefreshLineas()
+FA -> FA : ActualizarTotales()
+FA -> CB : CalcularTotal(_lineas)
+CB --> FA : decimal total
+FA -> FA : lblPresupuestoValor y lblTotalValor\n(en rojo si total > presupuesto); btnConfirmarArmado.Enabled =\nsocio seleccionado y _lineas.Count > 0 y total <= presupuesto\ny período con formato YYYY-MM
+FA -> FA : ActualizarTotales()
+FA -> CB : CalcularTotal(_lineas)
+CB --> FA : decimal total
+FA -> FA : lblPresupuestoValor y lblTotalValor\n(en rojo si total > presupuesto); btnConfirmarArmado.Enabled =\nsocio seleccionado y _lineas.Count > 0 y total <= presupuesto\ny período con formato YYYY-MM
+FA --> U : candidatos del primer socio, presupuesto del socio\ny total de la caja en $0
 
-FA -> FA : mostrar candidatos; presupuesto = socio.PresupuestoMensual
+opt el usuario cambia de socio
+  U -> FA : seleccionar otro socio en el combo
+  FA -> FA : cboSocio_SelectedIndexChanged: _lineas.Clear();\npresupuesto = socio.PresupuestoMensual
+  FA -> CB : ListarCandidatos(socio.Id)
+  CB -> VD : ListarCandidatos(socioId)
+  VD -> DB : VINO_LISTAR_CANDIDATOS(@socio_id)
+  DB --> VD : filas de vinos Activos con stock derivado > 0 (RN-06),\nordenadas por PREFERIDO DESC, PRECIO ASC, NOMBRE ASC (RN-05)
+  VD --> CB : List<VinoCandidato>
+  CB --> FA : List<VinoCandidato>
+  FA -> FA : dgvCandidatos.DataSource = candidatos\n(columna Preferido resaltada)
+  FA -> FA : RefreshLineas()
+  FA -> FA : ActualizarTotales()
+  FA -> CB : CalcularTotal(_lineas)
+  CB --> FA : decimal total
+  FA -> FA : lblPresupuestoValor y lblTotalValor\n(en rojo si total > presupuesto); btnConfirmarArmado.Enabled =\nsocio seleccionado y _lineas.Count > 0 y total <= presupuesto\ny período con formato YYYY-MM
+end
 
-loop mientras el curador agrega líneas
-  U -> FA : agregar vino + cantidad
-  FA -> CB : CalcularTotal(lineas)
-  CB --> FA : decimal
-  FA -> FA : deshabilitar "Confirmar" si el total supera el presupuesto
+U -> FA : escribir el período (YYYY-MM) en txtPeriodo
+FA -> FA : txtPeriodo_TextChanged → ActualizarTotales()
+FA -> CB : CalcularTotal(_lineas)
+CB --> FA : decimal total
+FA -> FA : btnConfirmarArmado.Enabled = socio seleccionado y _lineas.Count > 0\ny total <= presupuesto y período con formato YYYY-MM
+note right of FA : escribir el período no consulta la base de datos
+
+loop mientras el curador agrega o quita líneas
+  alt el curador agrega un vino
+    U -> FA : seleccionar un vino de los candidatos + cantidad\n+ click "Agregar a la caja"
+
+    break 28d. no hay socio seleccionado
+      FA --> U : "Seleccioná un socio."\n(título "Atención")
+    end
+
+    break 28d. no hay vino seleccionado en la grilla de candidatos
+      FA --> U : "Seleccioná un vino de la lista."\n(título "Atención")
+    end
+
+    alt el vino ya está entre las líneas (UQ_CAJA_VINO)
+      FA -> FA : linea.Cantidad += cantidad
+    else vino nuevo en la caja
+      FA -> FA : _lineas.Add(new CajaVino { VinoId, NombreSnapshot,\nPrecioSnapshot, Cantidad }) — snapshot provisorio
+    end
+    FA -> FA : RefreshLineas()
+    FA -> FA : ActualizarTotales()
+    FA -> CB : CalcularTotal(_lineas)
+    CB --> FA : decimal total
+    FA -> FA : lblPresupuestoValor y lblTotalValor\n(en rojo si total > presupuesto); btnConfirmarArmado.Enabled =\nsocio seleccionado y _lineas.Count > 0 y total <= presupuesto\ny período con formato YYYY-MM
+  else el curador quita una línea
+    U -> FA : doble clic sobre una línea de la caja
+    FA -> FA : _lineas.Remove(linea)
+    FA -> FA : RefreshLineas()
+    FA -> FA : ActualizarTotales()
+    FA -> CB : CalcularTotal(_lineas)
+    CB --> FA : decimal total
+    FA -> FA : lblPresupuestoValor y lblTotalValor\n(en rojo si total > presupuesto); btnConfirmarArmado.Enabled =\nsocio seleccionado y _lineas.Count > 0 y total <= presupuesto\ny período con formato YYYY-MM
+  end
 end
 
 U -> FA : click "Confirmar armado"
-FA -> CB : Armar(caja, sesion)
-activate CB
-
-alt la caja no tiene líneas
-  CB --> FA : InvalidOperationException
-  FA --> U : mensaje de la excepción
-else hay al menos una línea
-  CB -> SD : ObtenerPorId(caja.SocioId)
-  activate SD
-  SD -> DB : SOCIO_OBTENER_POR_ID, SOCIO_VARIETAL_LISTAR
-  DB --> SD : filas
-  SD --> CB : Socio
-  deactivate SD
-
-  alt el socio no existe
-    CB --> FA : InvalidOperationException
-    FA --> U : mensaje de la excepción
-  else el socio existe
-    CB -> VD : ListarCandidatos(caja.SocioId)
-    activate VD
-    VD -> DB : VINO_LISTAR_CANDIDATOS(@socio_id)
-    DB --> VD : filas
-    VD --> CB : List<VinoCandidato>
-    deactivate VD
-    note right of CB : RN-06 revalidada por línea; RN-04 — nombre y precio\nde cada línea se congelan con el candidato vigente.
-    CB -> CB : CalcularTotal(caja.Lineas)
-
-    alt 8c. una línea dejó de cumplir RN-06 durante la selección
-      CB --> FA : InvalidOperationException
-      FA --> U : mensaje de la excepción
-    else 8a. el total supera el presupuesto mensual (RN-05.1)
-      CB --> FA : InvalidOperationException
-      FA --> U : mensaje de la excepción
-      note right of FA : el flujo vuelve a la selección de líneas
-    else curación válida
-      CB -> CD : Armar(caja)
-      activate CD
-      CD -> DB : BEGIN TRAN
-      CD -> DB : CAJA_INSERTAR(@socio_id,@periodo,@armado_por,@presupuesto_snapshot)
-      DB --> CD : ID de la caja
-      loop por cada línea
-        CD -> DB : CAJA_VINO_INSERTAR(@caja_id,@vino_id,@cantidad,@nombre_snapshot,@precio_snapshot)
-      end
-      alt 8b. ya existe una caja no cancelada del socio para el período (índice único)
-        DB --> CD : SqlException 2601 / 2627
-        CD -> DB : ROLLBACK
-        CD --> CB : SqlException
-        CB --> FA : InvalidOperationException
-        FA --> U : mensaje de la excepción
-      else sin conflicto
-        CD -> DB : COMMIT
-        CD --> CB : cajaId
-        deactivate CD
-        CB -> BB : RegistrarAccion(sesion.Usuario, "ARMADO_CAJA:" + periodo)
-        activate BB
-        BB -> BD : Registrar(usuario, accion)
-        activate BD
-        BD -> DB : BITACORA_INSERTAR(@usuario,@accion)
-        deactivate BD
-        BB --> CB
-        deactivate BB
-        CB --> FA : cajaId
-        FA --> U : "Caja armada correctamente."
-        note right of FA
-          RN-09 — armar NO reserva stock;
-          la salida se registra recién al despachar (por eso existe CU-29).
-        end note
-      end
-    end
-  end
+note right of FA : el botón solo está habilitado si hay socio, al menos una\nlínea, total <= presupuesto y período válido (YYYY-MM)
+break no hay socio seleccionado
+  FA -> FA : return (inalcanzable: el botón estaría deshabilitado)
 end
-deactivate CB
+FA -> FA : caja = new CajaMensual { SocioId, Periodo = txtPeriodo.Text.Trim(),\nLineas = _lineas.ToList() }
+FA -> CB : Armar(caja, sesion)
+
+break 28e. defensa: la caja no tiene líneas (el botón ya lo impide)
+  CB --> FA : throw InvalidOperationException\n("La caja debe tener al menos un vino.")
+end
+
+CB -> SD : ObtenerPorId(caja.SocioId)
+SD -> DB : SOCIO_OBTENER_POR_ID(@id)
+DB --> SD : filas
+opt el socio existe (hay filas)
+  SD -> DB : SOCIO_VARIETAL_LISTAR(@socio_id)
+  DB --> SD : filas
+end
+SD --> CB : Socio (o null)
+
+break 28e. el socio no existe
+  CB --> FA : throw InvalidOperationException\n("El socio no existe.")
+end
+
+CB -> CB : ListarCandidatos(caja.SocioId)
+CB -> VD : ListarCandidatos(socioId)
+VD -> DB : VINO_LISTAR_CANDIDATOS(@socio_id)
+DB --> VD : filas
+VD --> CB : List<VinoCandidato>
+note right of CB : RN-06 revalidada por línea contra los candidatos vigentes
+
+loop por cada línea de caja.Lineas
+  break 28c. la línea dejó de cumplir RN-06 (ya no es un candidato vigente)
+    CB --> FA : throw InvalidOperationException\n("Uno de los vinos seleccionados ya no está disponible para este socio.")
+  end
+  CB -> CB : linea.NombreSnapshot = candidato.Nombre;\nlinea.PrecioSnapshot = candidato.Precio (snapshot)
+end
+
+CB -> CB : CalcularTotal(caja.Lineas)
+
+break 28a. el total supera el presupuesto mensual (RN-05)
+  CB --> FA : throw InvalidOperationException\n("El total de la caja supera el presupuesto mensual del socio.")
+  note right of FA : el flujo vuelve a la selección de líneas
+end
+
+CB -> CB : caja.PresupuestoSnapshot = socio.PresupuestoMensual;\ncaja.Estado = Armada; caja.ArmadoPor = sesion.Id
+CB -> CD : Armar(caja)
+CD -> DB : (inicia la transacción)
+CD -> DB : CAJA_INSERTAR(@socio_id,@periodo,@armado_por,@presupuesto_snapshot)
+
+alt 28b. ya existe una caja no cancelada del socio para el período\n(índice único UQ_CAJA_SOCIO_PERIODO, en el INSERT de la cabecera)
+  DB --> CD : SqlException 2601 / 2627
+  CD -> DB : ROLLBACK (DeshacerTX)
+  CD --> CB : SqlException
+  CB --> FA : throw InvalidOperationException\n("El socio ya tiene una caja armada para ese período.")
+else sin conflicto
+  DB --> CD : ID de la caja
+  loop por cada línea
+    CD -> DB : CAJA_VINO_INSERTAR(@caja_id,@vino_id,@cantidad,\n@nombre_snapshot,@precio_snapshot)
+  end
+  CD -> DB : COMMIT (ConfirmarTX)
+  CD --> CB : cajaId
+  CB -> BB : RegistrarAccion(sesion.Usuario, "ARMADO_CAJA:" + caja.Periodo)
+  BB -> BD : Registrar(usuario, accion)
+  BD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+  DB --> BD : filas afectadas
+  BD --> BB : void
+  BB --> CB : void
+  CB --> FA : cajaId
+  FA --> U : "Caja armada correctamente."\n(título "Éxito")
+  FA -> FA : LimpiarFormulario(): _lineas.Clear(); txtPeriodo.Clear();\nnumCantidad.Value = 1
+  FA -> FA : RefreshLineas()
+  FA -> FA : ActualizarTotales()
+  FA -> CB : CalcularTotal(_lineas)
+  CB --> FA : decimal total
+  FA -> FA : lblPresupuestoValor y lblTotalValor\n(en rojo si total > presupuesto); btnConfirmarArmado.Enabled =\nsocio seleccionado y _lineas.Count > 0 y total <= presupuesto\ny período con formato YYYY-MM
+  note right of FA
+    RN-09 — armar NO reserva stock; la salida de stock se
+    registra recién al despachar la caja (CU-31).
+  end note
+end
+
+opt la BLL lanzó InvalidOperationException (catch de btnConfirmarArmado_Click)
+  FA --> U : ex.Message\n(título "Atención")
+  note right of FA : return: no se limpia el formulario
+end
 deactivate FA
 
 @enduml

@@ -103,7 +103,7 @@ CUS = [
                     "El sistema registra LOGIN_FALLIDO y USUARIO_BLOQUEADO en la bitácora.",
                     "El sistema registra BLOQUEO en el historial del usuario.",
                     "Si la integridad es válida, el sistema recalcula los dígitos verificadores.",
-                    "El sistema muestra el mensaje \"Usuario bloqueado por intentos fallidos\".",
+                    "El sistema muestra el mensaje \"Usuario bloqueado por intentos fallidos. Contactate con un administrador.\".",
                     "El caso de uso vuelve al paso 1.",
                 ],
             },
@@ -125,9 +125,7 @@ CUS = [
             },
         ],
         "excepciones": [
-            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos.",
-             "manejo": "Mensaje genérico al usuario, registro en log de la aplicación, vuelve al paso 1."},
-            {"codigo": "EX-02", "descripcion": "Error inesperado durante la verificación de integridad.",
+            {"codigo": "EX-01", "descripcion": "Error inesperado durante la verificación de integridad.",
              "manejo": "El resultado se marca como inválido con el detalle del error y se sigue el flujo 9a / 9b."},
         ],
         "reglas_negocio": [
@@ -169,7 +167,7 @@ CUS = [
         ],
         "postcondiciones_exito": [
             "Los dígitos verificadores horizontal y vertical de la tabla USUARIO quedan recalculados.",
-            "Si se eligió Restaurar: los usuarios afectados quedan en el estado del snapshot seleccionado y se registra una entrada ROLLBACK en su historial.",
+            "Si el administrador restauró una versión: el usuario queda en el estado del snapshot seleccionado y se registra una entrada ROLLBACK en su historial; los afectados cuyo historial se cerró sin restaurar conservan su estado actual.",
             "El error inicial queda registrado en integridad_error.log.",
             "El administrador accede al menú principal.",
         ],
@@ -194,7 +192,7 @@ CUS = [
                 "pasos": [
                     "Para cada usuario afectado con historial disponible, el sistema abre el formulario de Historial de Usuario (CU-10).",
                     "El administrador selecciona la versión a restaurar y confirma (CU-11).",
-                    "Una vez procesados todos los afectados, el sistema recalcula los dígitos verificadores.",
+                    "Una vez procesados todos los afectados, si al menos uno tenía historial, el sistema recalcula los dígitos verificadores; los usuarios que no se restauraron conservan su estado actual.",
                     "El sistema cierra el formulario y continúa al paso 6.",
                 ],
             },
@@ -212,13 +210,20 @@ CUS = [
                     "El sistema cierra el formulario, cierra la sesión y vuelve al formulario de login.",
                 ],
             },
+            {
+                "id": "4a.ii", "nombre": "Ningún usuario afectado tiene historial",
+                "pasos": [
+                    "El sistema muestra el aviso correspondiente a cada usuario afectado.",
+                    "El sistema no recalcula y mantiene abierto el formulario, para que el administrador elija \"Recalcular y continuar\" o \"Cancelar\".",
+                ],
+            },
         ],
         "excepciones": [
             {"codigo": "EX-01", "descripcion": "Error al escribir en integridad_error.log.",
              "manejo": "El sistema continúa sin interrumpir el flujo (el log es best-effort)."},
         ],
         "reglas_negocio": [
-            {"codigo": "RN-01", "regla": "La opción \"Restaurar desde historial\" requiere que al menos un usuario afectado tenga registros en USUARIO_HISTORIAL. Si ninguno tiene, queda deshabilitada."},
+            {"codigo": "RN-01", "regla": "El botón \"Restaurar desde historial\" se habilita siempre que haya al menos un usuario afectado (IdsUsuariosAfectados.Count > 0). Al presionarlo se verifica, por cada afectado, si tiene registros en USUARIO_HISTORIAL; si ninguno los tiene, se informa cada caso y el formulario permanece abierto."},
             {"codigo": "RN-02", "regla": "El rollback no restaura la contraseña — siempre se mantiene la actual en USUARIO."},
             {"codigo": "RN-03", "regla": "Si la corrupción ocurrió antes de que se implementara el historial, la única opción es \"Recalcular y continuar\" (acepta el estado actual como nuevo baseline)."},
         ],
@@ -255,9 +260,9 @@ CUS = [
             "Se cierra el menú principal y se abre el formulario de login.",
         ],
         "postcondiciones_fallo": [],
-        "disparador": "El usuario selecciona la opción \"Cerrar sesión\" desde el menú principal.",
+        "disparador": "El usuario selecciona la opción \"Cerrar Sesion\" del menú \"Usuario\" del menú principal.",
         "flujo_principal": [
-            "El usuario selecciona \"Cerrar sesión\" desde el menú.",
+            "El usuario selecciona \"Cerrar Sesion\" en el menú \"Usuario\".",
             "El sistema obtiene el nombre del usuario actual.",
             "El sistema registra el evento LOGOUT en la bitácora.",
             "El sistema invoca SessionManager.cerrarSesion() para anular la sesión.",
@@ -283,7 +288,6 @@ CUS = [
         "proposito": "Permitir al usuario modificar su propia contraseña, garantizando su autenticación previa y la validez de la nueva clave.",
         "precondiciones": [
             "El usuario inició sesión correctamente.",
-            "El usuario tiene el permiso \"Cambiar contraseña\".",
         ],
         "postcondiciones_exito": [
             "La contraseña del usuario queda actualizada en la base de datos con su nuevo hash SHA-256.",
@@ -295,7 +299,7 @@ CUS = [
             "La contraseña no se modifica.",
             "Se muestra el mensaje de error correspondiente.",
         ],
-        "disparador": "El usuario selecciona \"Cambiar contraseña\" en el menú principal y presiona Continuar.",
+        "disparador": "El usuario selecciona \"Cambiar Contraseña\" en el menú \"Configuración\" del menú principal y presiona Continuar.",
         "flujo_principal": [
             "El usuario ingresa contraseña actual, nueva contraseña y confirmación.",
             "El usuario presiona Continuar.",
@@ -304,8 +308,9 @@ CUS = [
             "El sistema valida que la nueva contraseña cumpla las reglas de fortaleza (mínimo 6 caracteres, al menos una mayúscula, al menos un dígito).",
             "El sistema verifica que la contraseña actual ingresada coincida con la almacenada.",
             "El sistema actualiza la contraseña en la base de datos con el nuevo hash.",
-            "El sistema registra el evento en la bitácora y crea un snapshot en el historial.",
+            "El sistema registra el evento en la bitácora.",
             "El sistema recalcula los dígitos verificadores.",
+            "El sistema crea un snapshot en el historial.",
             "El sistema muestra \"Contraseña cambiada exitosamente\" y cierra el formulario.",
         ],
         "flujos_alternativos": [
@@ -344,6 +349,12 @@ CUS = [
                     "El caso de uso vuelve al paso 1.",
                 ],
             },
+            {
+                "id": "1a", "nombre": "El usuario presiona Cancelar",
+                "pasos": [
+                    "El sistema cierra el formulario sin modificar la contraseña.",
+                ],
+            },
         ],
         "excepciones": [],
         "reglas_negocio": [
@@ -374,6 +385,7 @@ CUS = [
             "El IdiomaManager registra el nuevo idioma activo y su diccionario de traducciones.",
             "Todos los formularios registrados como observadores actualizan sus textos al nuevo idioma.",
             "Los controles sin traducción muestran el texto por defecto.",
+            "Si hay un usuario con sesión iniciada, el idioma elegido queda guardado como su preferencia (USUARIO.IDIOMA_ID) y se aplica en su próximo inicio de sesión; en el formulario de login la elección no se guarda.",
         ],
         "postcondiciones_fallo": [],
         "disparador": "El usuario selecciona un idioma distinto en el combo de idiomas presente en cualquier formulario.",
@@ -389,7 +401,7 @@ CUS = [
             {
                 "id": "2a", "nombre": "El usuario selecciona el mismo idioma activo",
                 "pasos": [
-                    "No se dispara ningún evento de cambio (la lógica de la UI ignora la selección redundante).",
+                    "En los selectores agregados a cada formulario el idioma activo aparece preseleccionado y elegirlo de nuevo no dispara ningún evento de cambio; en el selector del menú principal no hay preselección y la elección se procesa como un cambio normal.",
                 ],
             },
         ],
@@ -428,15 +440,15 @@ CUS = [
         "postcondiciones_fallo": [
             "Si el nombre ya existe: no se crea el usuario y se muestra un aviso.",
         ],
-        "disparador": "El administrador presiona el botón \"Nuevo\" en el formulario de administración de usuarios.",
+        "disparador": "El administrador presiona el botón \"Nuevo usuario\" en el formulario de administración de usuarios.",
         "flujo_principal": [
-            "El administrador presiona \"Nuevo\" en frmAdminUsuarios.",
+            "El administrador presiona \"Nuevo usuario\" en frmAdminUsuarios.",
             "El sistema abre el formulario frmNuevoUsuario.",
-            "El administrador ingresa nombre de usuario, contraseña y selecciona un rol (admin o usuario).",
-            "El administrador presiona Aceptar.",
-            "El sistema valida que el nombre y la contraseña no estén vacíos.",
+            "El administrador ingresa nombre de usuario y contraseña (obligatorios), nombre, apellido, teléfono y email (opcionales) y selecciona un rol de la lista de roles existentes.",
+            "El administrador presiona \"Crear\".",
+            "El sistema valida que el nombre y la contraseña no estén vacíos y que se haya seleccionado un rol.",
             "El sistema calcula el hash SHA-256 de la contraseña.",
-            "El sistema inserta el nuevo registro en USUARIO con los valores iniciales.",
+            "El sistema inserta el nuevo registro en USUARIO con los valores iniciales y le asigna el rol elegido (USUARIO_PERFIL).",
             "El sistema recalcula los dígitos verificadores y registra el alta en el historial.",
             "El sistema muestra \"Usuario creado correctamente\" y refresca la grilla.",
         ],
@@ -461,19 +473,26 @@ CUS = [
                     "El caso de uso vuelve al paso 3.",
                 ],
             },
+            {
+                "id": "3b", "nombre": "No se seleccionó ningún rol",
+                "pasos": [
+                    "El sistema muestra \"Seleccioná un rol\".",
+                    "El caso de uso vuelve al paso 3.",
+                ],
+            },
         ],
         "excepciones": [],
         "reglas_negocio": [
             {"codigo": "RN-01", "regla": "El nombre de usuario debe ser único en el sistema."},
             {"codigo": "RN-02", "regla": "La contraseña se almacena únicamente como hash SHA-256, no en claro."},
-            {"codigo": "RN-03", "regla": "Al crear el usuario, el campo Rol acepta solo los valores 'admin' o 'usuario'. Este campo es informativo: los permisos reales se asignan vía CU-09."},
+            {"codigo": "RN-03", "regla": "Al crear el usuario se elige un rol cualquiera de la tabla ROL; la cadena ROL del usuario (admin/usuario) la deriva el procedimiento almacenado y el rol elegido se asigna también en USUARIO_PERFIL, por lo que el usuario ya cuenta con los permisos de ese rol (CU-09 permite modificarlos luego)."},
             {"codigo": "RN-04", "regla": "Toda alta queda registrada en el historial con tipo ALTA y nombre del administrador que la realizó."},
         ],
         "relaciones": [],
         "observaciones": (
-            "El campo 'Rol' del usuario es un descriptor general (admin/usuario) que no determina "
-            "los permisos efectivos — esos se obtienen vía USUARIO_PERFIL → ROL_PERMISO. Para "
-            "darle permisos reales al usuario nuevo, ver CU-09."
+            "La cadena 'Rol' del usuario (admin/usuario) es un descriptor derivado que no determina "
+            "los permisos efectivos — esos se obtienen vía USUARIO_PERFIL → ROL_PERMISO. El alta ya "
+            "asigna el rol elegido en USUARIO_PERFIL; CU-09 permite modificar luego las asignaciones."
         ),
     },
     # ───── CU-07 ─────────────────────────────────────────────────────
@@ -499,10 +518,10 @@ CUS = [
         "postcondiciones_fallo": [
             "El usuario no se elimina.",
         ],
-        "disparador": "El administrador selecciona un usuario en la grilla y presiona el botón \"Eliminar\".",
+        "disparador": "El administrador selecciona un usuario en la grilla y presiona el botón \"Eliminar usuario\".",
         "flujo_principal": [
             "El administrador selecciona un usuario en la grilla.",
-            "El administrador presiona \"Eliminar\".",
+            "El administrador presiona \"Eliminar usuario\".",
             "El sistema verifica que el usuario seleccionado no sea el propio administrador.",
             "El sistema solicita confirmación al administrador.",
             "El administrador confirma la eliminación.",
@@ -566,16 +585,17 @@ CUS = [
             "La grilla se refresca y el usuario aparece como desbloqueado.",
         ],
         "postcondiciones_fallo": [],
-        "disparador": "El administrador selecciona un usuario y presiona \"Desbloquear\".",
+        "disparador": "El administrador selecciona un usuario y presiona \"Desbloquear seleccionado\".",
         "flujo_principal": [
             "El administrador selecciona un usuario en la grilla.",
-            "El administrador presiona \"Desbloquear\".",
+            "El administrador presiona \"Desbloquear seleccionado\".",
             "El sistema verifica que el usuario esté efectivamente bloqueado.",
             "El sistema solicita confirmación.",
             "El administrador confirma.",
             "El sistema desbloquea al usuario y resetea los intentos.",
-            "El sistema registra el evento en la bitácora y en el historial.",
+            "El sistema registra el evento en la bitácora.",
             "El sistema recalcula los dígitos verificadores.",
+            "El sistema registra el desbloqueo en el historial.",
             "El sistema muestra \"Usuario desbloqueado\" y refresca la grilla.",
         ],
         "flujos_alternativos": [
@@ -641,8 +661,9 @@ CUS = [
             "El sistema marca con check los roles actualmente asignados al usuario.",
             "El administrador marca o desmarca roles en el árbol.",
             "El administrador presiona \"Guardar\".",
-            "El sistema borra las asignaciones previas y guarda las nuevas dentro de una operación atómica.",
+            "El sistema borra las asignaciones previas y guarda las nuevas.",
             "El sistema recalcula los dígitos verificadores y registra la asignación en el historial.",
+            "Si el usuario modificado es el administrador con la sesión activa, el sistema actualiza también sus permisos en la sesión.",
             "El sistema muestra \"Asignaciones guardadas\".",
         ],
         "flujos_alternativos": [
@@ -687,12 +708,12 @@ CUS = [
             "Se muestra al administrador la lista de snapshots históricos del usuario, ordenados por fecha.",
         ],
         "postcondiciones_fallo": [],
-        "disparador": "El administrador selecciona un usuario y presiona \"Historial\".",
+        "disparador": "El administrador selecciona un usuario y presiona \"Ver historial\".",
         "flujo_principal": [
             "El administrador selecciona un usuario en la grilla.",
-            "El administrador presiona \"Historial\".",
+            "El administrador presiona \"Ver historial\".",
             "El sistema abre frmHistorialUsuario y carga las entradas del historial para ese usuario.",
-            "El sistema muestra una grilla con fecha, tipo de cambio, rol, bloqueado, intentos fallidos, perfiles, realizado por y versión origen (cuando aplica).",
+            "El sistema muestra una grilla paginada (20 entradas por página, con los botones \"< Anterior\" y \"Siguiente >\") con fecha, tipo de cambio, rol, bloqueado, intentos fallidos, perfiles, datos personales (nombre, apellido, teléfono y email), realizado por y versión origen (cuando aplica).",
         ],
         "flujos_alternativos": [
             {
@@ -705,7 +726,7 @@ CUS = [
             {
                 "id": "3a", "nombre": "El usuario no tiene historial",
                 "pasos": [
-                    "El sistema abre el formulario con la grilla vacía. El botón Rollback queda deshabilitado.",
+                    "El sistema abre el formulario con la grilla vacía. El botón \"Restaurar versión\" queda deshabilitado.",
                 ],
             },
         ],
@@ -741,33 +762,35 @@ CUS = [
             "La entrada seleccionada no es de tipo ROLLBACK.",
         ],
         "postcondiciones_exito": [
-            "Los campos ROL, BLOQUEADO, INTENTOS_FALLIDOS del usuario quedan iguales al snapshot elegido.",
+            "Los campos ROL, BLOQUEADO e INTENTOS_FALLIDOS y los datos personales (nombre, apellido, teléfono y email) del usuario quedan iguales al snapshot elegido.",
             "Las asignaciones en USUARIO_PERFIL del usuario coinciden con las del snapshot.",
             "Se registra una nueva entrada ROLLBACK en el historial con VersionOrigen apuntando al snapshot restaurado.",
             "Los dígitos verificadores quedan recalculados.",
             "La contraseña del usuario permanece inalterada (no se restaura).",
+            "Si el usuario restaurado es el administrador con la sesión activa, sus datos y permisos en la sesión quedan actualizados.",
         ],
         "postcondiciones_fallo": [
             "Si la entrada seleccionada no se encuentra: se lanza una excepción y no se aplica ningún cambio.",
             "Si la entrada seleccionada es de tipo ROLLBACK: el sistema rechaza la operación y no se aplica ningún cambio.",
         ],
-        "disparador": "El administrador selecciona una entrada del historial y presiona \"Rollback\".",
+        "disparador": "El administrador selecciona una entrada del historial y presiona \"Restaurar versión\".",
         "flujo_principal": [
             "El administrador, dentro de CU-10, selecciona una entrada del historial.",
-            "El administrador presiona \"Rollback\".",
+            "El administrador presiona \"Restaurar versión\".",
             "El sistema solicita confirmación, aclarando que la contraseña no se restaurará.",
             "El administrador confirma.",
-            "El sistema aplica al usuario el estado del snapshot (ROL, BLOQUEADO, INTENTOS_FALLIDOS).",
+            "El sistema aplica al usuario el estado del snapshot (ROL, ROL_ID, BLOQUEADO, INTENTOS_FALLIDOS y datos personales: nombre, apellido, teléfono y email).",
             "El sistema borra las asignaciones actuales de perfiles y reasigna las del snapshot.",
             "El sistema registra una nueva entrada ROLLBACK en el historial con VersionOrigen apuntando al snapshot original.",
             "El sistema recalcula los dígitos verificadores.",
+            "Si el usuario restaurado es el administrador con la sesión activa, el sistema actualiza también sus datos y permisos en la sesión.",
             "El sistema muestra \"Estado restaurado correctamente\" y refresca el historial.",
         ],
         "flujos_alternativos": [
             {
                 "id": "1a", "nombre": "La entrada seleccionada es de tipo BAJA",
                 "pasos": [
-                    "El sistema mantiene deshabilitado el botón Rollback.",
+                    "El sistema mantiene deshabilitado el botón \"Restaurar versión\".",
                     "El administrador no puede iniciar el caso de uso sobre esa entrada.",
                 ],
             },
@@ -796,6 +819,8 @@ CUS = [
             {"codigo": "RN-02", "regla": "La contraseña nunca se restaura en un rollback, porque no se almacena en el historial."},
             {"codigo": "RN-03", "regla": "Cada rollback genera una entrada nueva en el historial; los snapshots anteriores nunca se borran."},
             {"codigo": "RN-04", "regla": "Las entradas de tipo ROLLBACK no son restaurables, para evitar cadenas de rollbacks recursivos. La validación se aplica tanto en la UI (antes de pedir confirmación) como en la capa de negocio (defensa en profundidad)."},
+            {"codigo": "RN-05", "regla": "El rollback restaura también el ROL_ID y los datos personales (nombre, apellido, teléfono y email) del snapshot."},
+            {"codigo": "RN-06", "regla": "Si el usuario restaurado es el administrador con la sesión activa, el sistema refresca su sesión en caliente (datos y permisos), sin necesidad de volver a iniciar sesión."},
         ],
         "relaciones": [
             {"tipo": "«include» en", "destino": "CU-02 Restaurar Integridad",
@@ -817,40 +842,32 @@ CUS = [
             "El administrador tiene el permiso \"Gestión de roles\".",
         ],
         "postcondiciones_exito": [
-            "Existe un nuevo nodo de tipo PERFIL en NODO_PERMISO con el nombre elegido y el padre indicado.",
+            "Existe un nuevo rol en la tabla ROL con el nombre elegido y el padre indicado (no protegido y sin permisos asignados).",
             "El árbol de roles se refresca y muestra el nuevo rol.",
         ],
         "postcondiciones_fallo": [
-            "Si el padre elegido generaría una referencia circular: no se crea y se muestra el error.",
+            "Si el nombre está vacío o se cancela el cuadro de diálogo: no se crea ningún rol.",
         ],
-        "disparador": "El administrador presiona \"Agregar rol\" en el formulario de gestión de perfiles.",
+        "disparador": "El administrador presiona \"Agregar Rol\" en el formulario de gestión de perfiles.",
         "flujo_principal": [
-            "El administrador presiona \"Agregar rol\".",
+            "El administrador presiona \"Agregar Rol\".",
             "El sistema solicita el nombre del nuevo rol.",
             "El administrador ingresa el nombre y confirma.",
             "El sistema toma como padre el rol seleccionado en el árbol (o ninguno si no hay selección).",
-            "El sistema verifica que el padre elegido no genere una referencia circular.",
-            "El sistema inserta el nuevo nodo con TIPO = PERFIL.",
+            "El sistema inserta el nuevo rol en la tabla ROL.",
             "El sistema refresca el árbol y deja visible el nuevo rol.",
         ],
         "flujos_alternativos": [
             {
-                "id": "3a", "nombre": "Nombre vacío",
+                "id": "3a", "nombre": "Nombre vacío o cuadro de diálogo cancelado",
                 "pasos": [
                     "El sistema no crea el rol y vuelve al estado anterior.",
-                ],
-            },
-            {
-                "id": "5a", "nombre": "El padre elegido generaría un ciclo",
-                "pasos": [
-                    "El sistema muestra \"No se puede asignar ese padre: generaría una referencia circular\".",
-                    "El caso de uso termina sin crear el rol.",
                 ],
             },
         ],
         "excepciones": [],
         "reglas_negocio": [
-            {"codigo": "RN-01", "regla": "Un rol no puede tener como padre (directo o indirecto) a sí mismo."},
+            {"codigo": "RN-01", "regla": "Al crear un rol no se valida la jerarquía: el rol nuevo todavía no tiene descendientes, por lo que no puede generar ciclos (la validación de ciclos aplica solo al cambiar el padre, CU-14)."},
             {"codigo": "RN-02", "regla": "Los nuevos roles se crean sin permisos asignados — se asignan luego vía CU-15."},
             {"codigo": "RN-03", "regla": "Los nuevos roles tienen PROTEGIDO = 0 por defecto."},
         ],
@@ -873,7 +890,7 @@ CUS = [
             "Ningún rol del subárbol del rol seleccionado tiene usuarios asignados.",
         ],
         "postcondiciones_exito": [
-            "El rol seleccionado y todos sus descendientes quedan eliminados de NODO_PERMISO.",
+            "El rol seleccionado y todos sus descendientes quedan eliminados de ROL.",
             "Sus vínculos en ROL_PERMISO y USUARIO_PERFIL quedan eliminados en cascada.",
             "El árbol de roles se refresca.",
         ],
@@ -886,15 +903,15 @@ CUS = [
             "El administrador presiona \"Eliminar\".",
             "El sistema solicita confirmación.",
             "El administrador confirma.",
-            "El sistema verifica que el rol no sea protegido y que ningún descendiente tenga usuarios asignados.",
-            "El sistema elimina el subárbol en una sola operación atómica (CTE recursiva).",
+            "El sistema verifica que el rol no sea protegido y que ni el rol ni sus descendientes tengan usuarios asignados.",
+            "El sistema elimina el subárbol (CTE recursiva) junto con sus permisos y asignaciones.",
             "El sistema refresca el árbol de roles.",
         ],
         "flujos_alternativos": [
             {
                 "id": "2a", "nombre": "El nodo seleccionado es un Permiso del catálogo (no un rol)",
                 "pasos": [
-                    "El sistema muestra \"Los permisos del catálogo no se pueden eliminar. Desasignalo usando los checkboxes\".",
+                    "El botón Eliminar queda deshabilitado para los permisos del catálogo; si se invocara igualmente, el sistema mostraría \"Los permisos del catálogo no se pueden eliminar. Desasignalo usando los checkboxes\".",
                     "El caso de uso termina.",
                 ],
             },
@@ -916,6 +933,13 @@ CUS = [
                 "pasos": [
                     "El sistema muestra \"No se puede eliminar un rol que tiene usuarios asignados. Reasignálos primero\".",
                     "El caso de uso termina sin eliminar.",
+                ],
+            },
+            {
+                "id": "0a", "nombre": "No hay ningún nodo seleccionado",
+                "pasos": [
+                    "El sistema no realiza ninguna acción.",
+                    "El caso de uso termina.",
                 ],
             },
         ],
@@ -1008,11 +1032,11 @@ CUS = [
             "El árbol se refresca y los permisos asignados quedan visibles como hijos del rol.",
         ],
         "postcondiciones_fallo": [],
-        "disparador": "El administrador selecciona un rol, marca/desmarca permisos del catálogo y presiona \"Guardar\".",
+        "disparador": "El administrador selecciona un rol, marca/desmarca permisos del catálogo y presiona \"Guardar permisos\".",
         "flujo_principal": [
             "El administrador selecciona un rol en el árbol.",
             "El sistema muestra la lista de permisos del catálogo, marcando con check los que el rol ya tiene.",
-            "El administrador modifica las marcas y presiona \"Guardar\".",
+            "El administrador modifica las marcas y presiona \"Guardar permisos\".",
             "El sistema reemplaza todas las asignaciones previas del rol por la nueva selección dentro de una transacción.",
             "El sistema refresca el árbol y mantiene la selección sobre el rol.",
         ],
@@ -1027,7 +1051,7 @@ CUS = [
         ],
         "excepciones": [],
         "reglas_negocio": [
-            {"codigo": "RN-01", "regla": "El catálogo de permisos es estático: \"Administrar usuarios\", \"Gestión de roles\", \"Gestión de idiomas\", \"Ver bitácora\", \"Cambiar contraseña\". No se crean ni se eliminan desde la UI."},
+            {"codigo": "RN-01", "regla": "El catálogo de permisos es estático y no se crea ni se elimina desde la UI: \"Administrar usuarios\", \"Gestión de roles\", \"Gestión de idiomas\", \"Ver bitácora\", \"Cambiar contraseña\", \"Gestionar catálogo de vinos\", \"Autorizar alta de vinos\", \"Gestionar socios\", \"Armar cajas mensuales\", \"Registrar picking y sustituciones\" y \"Despachar cajas\"."},
             {"codigo": "RN-02", "regla": "Guardar reemplaza completamente la lista anterior — no es incremental."},
             {"codigo": "RN-03", "regla": "La operación se ejecuta en una transacción (LIMPIAR + N × INSERTAR) para garantizar consistencia."},
         ],
@@ -1065,7 +1089,7 @@ CUS = [
         ],
         "flujos_alternativos": [
             {
-                "id": "3a", "nombre": "Nombre vacío",
+                "id": "3a", "nombre": "Nombre vacío o cuadro de diálogo cancelado",
                 "pasos": [
                     "El sistema cancela la operación.",
                 ],
@@ -1073,7 +1097,7 @@ CUS = [
         ],
         "excepciones": [],
         "reglas_negocio": [
-            {"codigo": "RN-01", "regla": "Un idioma recién creado nace deshabilitado: no aparece en el combo hasta que se lo habilite (ver CU-17) y se cargue al menos una traducción (CU-19)."},
+            {"codigo": "RN-01", "regla": "Un idioma recién creado nace deshabilitado: no aparece en el combo hasta que se lo habilite (ver CU-17)."},
         ],
         "relaciones": [],
         "observaciones": None,
@@ -1098,10 +1122,10 @@ CUS = [
             "Si se deshabilitó: deja de aparecer en los combos (pero sus traducciones se conservan).",
         ],
         "postcondiciones_fallo": [],
-        "disparador": "El administrador selecciona un idioma y presiona \"Renombrar\" o \"Habilitar/Deshabilitar\".",
+        "disparador": "El administrador selecciona un idioma y presiona \"Renombrar idioma\" o \"Habilitar/Deshabilitar\".",
         "flujo_principal": [
             "El administrador selecciona un idioma en la grilla.",
-            "El administrador presiona la acción deseada (Renombrar o Habilitar/Deshabilitar).",
+            "El administrador presiona la acción deseada (\"Renombrar idioma\" o \"Habilitar/Deshabilitar\").",
             "Si renombró: el sistema solicita el nuevo nombre. Si toggleó habilitado: aplica directamente.",
             "El sistema persiste el cambio y refresca la grilla.",
         ],
@@ -1143,8 +1167,7 @@ CUS = [
             "Existe al menos un idioma.",
         ],
         "postcondiciones_exito": [
-            "El idioma y todas sus traducciones en CONTROL_IDIOMA quedan eliminados.",
-            "Si era el idioma activo: el sistema vuelve al idioma por defecto (textos de diseño).",
+            "El idioma y todas sus traducciones en TRADUCCION quedan eliminados.",
         ],
         "postcondiciones_fallo": [],
         "disparador": "El administrador selecciona un idioma y presiona \"Eliminar\".",
@@ -1153,9 +1176,8 @@ CUS = [
             "El administrador presiona \"Eliminar\".",
             "El sistema solicita confirmación, advirtiendo que se borrarán las traducciones.",
             "El administrador confirma.",
-            "Si el idioma era el activo: el sistema lo desactiva en IdiomaManager (vuelve a textos por defecto).",
             "El sistema elimina el idioma y sus traducciones.",
-            "El sistema refresca la grilla y limpia la grilla de traducciones.",
+            "El sistema refresca la grilla de idiomas.",
         ],
         "flujos_alternativos": [
             {
@@ -1171,11 +1193,26 @@ CUS = [
                     "El sistema no elimina el idioma.",
                 ],
             },
+            {
+                "id": "1b-1", "nombre": "El idioma seleccionado es el predeterminado del sistema",
+                "pasos": [
+                    "El sistema muestra \"No se puede eliminar el idioma predeterminado del sistema\".",
+                    "El caso de uso termina.",
+                ],
+            },
+            {
+                "id": "1b-2", "nombre": "El idioma está en uso por algún usuario",
+                "pasos": [
+                    "El sistema muestra \"No se puede eliminar un idioma que está en uso por algún usuario\".",
+                    "El caso de uso termina.",
+                ],
+            },
         ],
         "excepciones": [],
         "reglas_negocio": [
-            {"codigo": "RN-01", "regla": "Eliminar un idioma borra todas sus traducciones en CONTROL_IDIOMA — la operación no es reversible."},
-            {"codigo": "RN-02", "regla": "Si el idioma a eliminar es el activo, primero se desactiva en IdiomaManager antes de borrar la BD."},
+            {"codigo": "RN-01", "regla": "Eliminar un idioma borra todas sus traducciones en TRADUCCION — la operación no es reversible."},
+            {"codigo": "RN-03", "regla": "No se puede eliminar el idioma predeterminado del sistema (IDIOMA.PREDETERMINADO)."},
+            {"codigo": "RN-04", "regla": "No se puede eliminar un idioma que esté asignado como preferencia de algún usuario (USUARIO.IDIOMA_ID), sea el del usuario actual o el de cualquier otro."},
         ],
         "relaciones": [],
         "observaciones": None,
@@ -1196,7 +1233,7 @@ CUS = [
             "Los controles a traducir ya están registrados en la BD (por el script o por uso previo de la app).",
         ],
         "postcondiciones_exito": [
-            "Las traducciones ingresadas quedan persistidas en CONTROL_IDIOMA para el idioma seleccionado.",
+            "Las traducciones ingresadas quedan persistidas en TRADUCCION para el idioma seleccionado.",
             "Si el idioma editado coincide con el activo: el sistema refresca la interfaz para que las nuevas traducciones se reflejen inmediatamente.",
         ],
         "postcondiciones_fallo": [],
@@ -1247,17 +1284,19 @@ CUS = [
         "disparador": "El administrador selecciona \"Bitácora\" en el menú principal.",
         "flujo_principal": [
             "El administrador selecciona \"Bitácora\".",
-            "El sistema carga todas las entradas de la tabla BITACORA.",
+            "El sistema carga la primera página de entradas de la tabla BITACORA (30 por página; la paginación se resuelve en el servidor de base de datos).",
             "El sistema puebla los combos de filtros de Usuario y Acción con los valores distintos encontrados.",
-            "El sistema muestra todas las entradas en la grilla.",
+            "El sistema muestra la primera página de entradas en la grilla.",
             "El administrador opcionalmente ajusta filtros (usuario, acción, fecha desde, fecha hasta) y presiona \"Filtrar\".",
-            "El sistema aplica los filtros y refresca la grilla.",
+            "El sistema aplica los filtros y muestra la primera página de resultados en la grilla.",
+            "El administrador navega entre páginas con \"Siguiente >\" y \"< Anterior\".",
+            "El sistema muestra la página solicitada, aplicando los filtros vigentes en los controles.",
         ],
         "flujos_alternativos": [
             {
-                "id": "5a", "nombre": "El administrador presiona \"Limpiar filtros\"",
+                "id": "5a", "nombre": "El administrador presiona \"Limpiar\"",
                 "pasos": [
-                    "El sistema vuelve los filtros a su estado inicial y muestra todas las entradas.",
+                    "El sistema vuelve los filtros a su estado inicial y muestra la primera página con todas las entradas.",
                 ],
             },
         ],
@@ -1324,7 +1363,7 @@ CUS = [
             "Si el código ya existe: no se crea el vino y se informa el conflicto.",
             "Si el vino ya no está rechazado o ya tiene una solicitud de alta pendiente: no se emite una nueva solicitud.",
         ],
-        "disparador": "El Usuario completa el formulario de frmCatalogoVinos y presiona \"Guardar\" (alta nueva), o selecciona un vino rechazado y presiona \"Corregir y reproponer\".",
+        "disparador": "El Usuario completa el formulario de frmCatalogoVinos y presiona \"Proponer alta\" (alta nueva), o selecciona un vino rechazado y presiona \"Corregir y reproponer\".",
         "puntos_extension": [
             {"paso": "Tras el paso 4 (solicitud de alta emitida)",
              "extension": "Continúa en CU-22 Autorizar o Rechazar Alta de Vino, ejecutado por un Administrador distinto."},
@@ -1336,7 +1375,7 @@ CUS = [
         "flujo_principal": [
             "El Usuario abre frmCatalogoVinos.",
             "El sistema muestra el formulario de carga con las bodegas habilitadas y la grilla del catálogo, con el estado y la última solicitud de cada vino.",
-            "El Usuario ingresa código/SKU, nombre, bodega, varietal, añada, precio y stock mínimo (maridaje y puntaje son opcionales) y presiona \"Guardar\".",
+            "El Usuario ingresa código/SKU, nombre, bodega, varietal, añada, precio y stock mínimo (maridaje y puntaje son opcionales) y presiona \"Proponer alta\".",
             "El sistema informa que el vino fue propuesto y quedó pendiente de autorización.",
             "El sistema actualiza la grilla y limpia el formulario.",
         ],
@@ -1353,22 +1392,45 @@ CUS = [
             {"id": "R", "nombre": "Corregir y reproponer un vino rechazado",
              "pasos": ["El Usuario selecciona en la grilla un vino con estado Rechazado (el motivo de rechazo está visible) y presiona \"Corregir y reproponer\".",
                        "El sistema carga los datos del vino en el formulario; el SKU queda de solo lectura.",
-                       "El Usuario corrige los datos y presiona \"Guardar\".",
+                       "El Usuario corrige los datos y presiona \"Proponer alta\".",
                        "El sistema informa que se emitió una nueva solicitud de alta, pendiente de autorización, y actualiza la grilla.",
                        "El caso de uso finaliza."]},
-            {"id": "R-a", "nombre": "El vino dejó de estar rechazado, ya tiene una solicitud pendiente o los datos son inválidos",
+            {"id": "R-a", "nombre": "El vino dejó de estar rechazado, ya tiene una solicitud de alta pendiente (RN-16) o los datos son inválidos (re-propuesta)",
              "pasos": ["El sistema muestra el mensaje correspondiente y actualiza la grilla.",
                        "El caso de uso finaliza sin emitir una nueva solicitud."]},
+            {
+                "id": "3d", "nombre": "La bodega no existe en una propuesta nueva (carrera o bypass de la interfaz)",
+                "pasos": [
+                    "El sistema muestra \"Debe seleccionar una bodega válida.\"",
+                    "El caso de uso vuelve al paso 3 sin crear el vino.",
+                ],
+            },
+            {
+                "id": "3e", "nombre": "El SKU se duplicó en una carga simultánea",
+                "pasos": [
+                    "El sistema muestra \"Ya existe un vino con el SKU indicado.\"",
+                    "El caso de uso vuelve al paso 3 sin crear el vino.",
+                ],
+            },
+            {
+                "id": "R-b", "nombre": "La bodega no existe al reproponer",
+                "pasos": [
+                    "El sistema muestra \"Debe seleccionar una bodega válida.\"",
+                    "El caso de uso finaliza sin emitir una nueva solicitud.",
+                ],
+            },
+            {
+                "id": "R-c", "nombre": "No hay un vino rechazado seleccionado",
+                "pasos": [
+                    "El sistema muestra \"Seleccione un vino rechazado.\"",
+                    "El caso de uso finaliza sin emitir una nueva solicitud.",
+                ],
+            },
         ],
-        "excepciones": [
-            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante el alta.",
-             "manejo": "Mensaje genérico al Usuario; no se persiste ningún cambio parcial (el vino y su solicitud se crean en una única transacción)."},
-        ],
+        "excepciones": [],
         "reglas_negocio": [
             {"codigo": "RN-01", "regla": "Separación de funciones: quien resuelve la solicitud nunca puede ser quien la emitió. En una re-propuesta, el emisor es quien repropone."},
-            {"codigo": "RN-02", "regla": "Un vino solo es operable (movimientos de stock, cajas, alertas de stock mínimo) cuando está Activo; los vinos Pendientes, Rechazados o Descontinuados quedan excluidos."},
-            {"codigo": "RN-03", "regla": "El código/SKU del vino es único en todo el catálogo; un vino rechazado se corrige y se repropone con el mismo SKU."},
-            {"codigo": "RN-04", "regla": "A lo sumo existe una solicitud pendiente por vino y tipo."},
+            {"codigo": "RN-16", "regla": "Una solicitud pendiente por vino y tipo: un vino no puede tener más de una solicitud de alta pendiente ni más de una de baja pendiente al mismo tiempo (se verifica en la BLL y lo respalda un índice único de la base)."},
         ],
         "relaciones": [
             {"tipo": "«precede» a", "destino": "CU-22 Autorizar o Rechazar Alta de Vino",
@@ -1390,7 +1452,7 @@ CUS = [
             "| Varietal: [______]  Aniada: [____]  Precio: [____]                 |\n"
             "| Stock minimo: [____]  Maridaje: [______]  Puntaje: [__] (opcional)  |\n"
             "|                                                                     |\n"
-            "| [ Guardar ] [ Limpiar ] [ Corregir y reproponer ]                  |\n"
+            "| [ Proponer alta ] [ Limpiar ] [ Corregir y reproponer ]                  |\n"
             "| [ Solicitar descontinuacion ]                        [ Cerrar ]      |\n"
             "+---------------------------------------------------------------------+"
         ),
@@ -1428,7 +1490,7 @@ CUS = [
         ],
         "postcondiciones_exito": [
             "Si se aprueba: la solicitud queda Aprobada (con resolutor y fecha de resolución) y el vino pasa a ESTADO = 'Activo', operable y visible para todos los usuarios del catálogo.",
-            "Si se rechaza: la solicitud queda Rechazada con su motivo y el vino pasa a ESTADO = 'Rechazado', a la espera de corrección y re-propuesta (CU-21).",
+            "Si se rechaza: la solicitud queda Rechazada con su motivo (RN-17) y el vino pasa a ESTADO = 'Rechazado', a la espera de corrección y re-propuesta (CU-21).",
             "La resolución queda registrada en la bitácora.",
         ],
         "postcondiciones_fallo": [
@@ -1463,22 +1525,24 @@ CUS = [
                        "El Administrador confirma.",
                        "El sistema informa que el alta fue rechazada y que el vino quedó rechazado, y actualiza la grilla.",
                        "El caso de uso finaliza."]},
-            {"id": "5b", "nombre": "Rechazo sin motivo",
-             "pasos": ["El sistema muestra \"Debe indicar el motivo del rechazo.\" y no rechaza la solicitud.",
+            {"id": "5b", "nombre": "Rechazo sin motivo o con motivo demasiado largo (RN-17)",
+             "pasos": ["El sistema muestra \"Debe indicar el motivo del rechazo.\" (o \"El motivo del rechazo no puede superar los 200 caracteres.\") y no rechaza la solicitud.",
                        "El caso de uso vuelve al paso 5."]},
             {"id": "5c", "nombre": "La solicitud ya fue resuelta o cambió de estado",
              "pasos": ["El sistema informa que la solicitud cambió de estado y actualiza la grilla.",
                        "El caso de uso vuelve al paso 3."]},
+            {
+                "id": "5d", "nombre": "No hay una solicitud seleccionada",
+                "pasos": [
+                    "El sistema muestra \"Seleccione una solicitud de alta pendiente.\"",
+                    "El caso de uso vuelve al paso 3.",
+                ],
+            },
         ],
-        "excepciones": [
-            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante la resolución.",
-             "manejo": "Mensaje genérico al Administrador; no se persiste ningún cambio parcial (la solicitud y el vino se actualizan en una única transacción)."},
-        ],
+        "excepciones": [],
         "reglas_negocio": [
             {"codigo": "RN-01", "regla": "Separación de funciones: el resolutor de una solicitud nunca puede ser su emisor, ni al aprobar ni al rechazar. Se verifica en la interfaz, en la capa de negocio y en el procedimiento almacenado, y además lo impide una restricción de la tabla."},
-            {"codigo": "RN-02", "regla": "Un vino solo es operable cuando está Activo; la aprobación del alta es lo que lo activa."},
-            {"codigo": "RN-03", "regla": "El rechazo exige un motivo no vacío de hasta 200 caracteres; una solicitud aprobada no tiene motivo."},
-            {"codigo": "RN-04", "regla": "Una solicitud resuelta es inmutable: no puede aprobarse ni rechazarse nuevamente."},
+            {"codigo": "RN-17", "regla": "Rechazo con motivo: el rechazo exige un motivo no vacío de hasta 200 caracteres; una solicitud aprobada no tiene motivo."},
         ],
         "relaciones": [
             {"tipo": "«precedido por»", "destino": "CU-21 Proponer Alta de Vino",
@@ -1536,7 +1600,7 @@ CUS = [
         "postcondiciones_fallo": [
             "Si la cantidad ingresada es menor o igual a cero: el movimiento se rechaza y no se persiste.",
         ],
-        "disparador": "El Usuario abre frmMovimientoStock, selecciona un vino y registra una entrada.",
+        "disparador": "El Usuario abre frmRegistrarEntradaStock, selecciona un vino y registra una entrada.",
         "puntos_extension": [
             {"paso": "Tras cualquier movimiento registrado",
              "extension": "Recalcular y notificar si el vino queda por debajo de STOCK_MINIMO — la notificación activa es fuera de alcance; ver CU-26 Consultar Alerta de Stock Mínimo (consulta pasiva)."},
@@ -1546,10 +1610,10 @@ CUS = [
             "  ──> (Registrar Movimiento de Stock — Entrada)"
         ),
         "flujo_principal": [
-            "El Usuario abre frmMovimientoStock y selecciona un vino.",
+            "El Usuario abre frmRegistrarEntradaStock y selecciona un vino.",
             "El sistema calcula y muestra el stock actual (derivado del kardex).",
-            "El Usuario ingresa la cantidad recibida y el motivo (compra a bodega/proveedor) y presiona Registrar.",
-            "El sistema valida que la cantidad sea mayor a cero.",
+            "El Usuario ingresa la cantidad recibida y el motivo (compra a bodega/proveedor) y presiona \"Registrar entrada\".",
+            "El sistema valida que la cantidad sea mayor a cero, que el motivo no esté vacío y que el vino esté Activo.",
             "El sistema inserta el movimiento en MOVIMIENTO_STOCK con tipo Entrada.",
             "El sistema recalcula el stock actual y refresca la pantalla.",
         ],
@@ -1557,6 +1621,20 @@ CUS = [
             {"id": "4a", "nombre": "Cantidad menor o igual a cero",
              "pasos": ["El sistema muestra \"La cantidad debe ser mayor a cero.\"",
                        "El caso de uso vuelve al paso 3."]},
+            {
+                "id": "4b", "nombre": "Motivo vacío",
+                "pasos": [
+                    "El sistema muestra \"El motivo es obligatorio.\"",
+                    "El caso de uso vuelve al paso 3.",
+                ],
+            },
+            {
+                "id": "4c", "nombre": "El vino no existe o no está Activo",
+                "pasos": [
+                    "El sistema muestra \"El vino debe estar autorizado para registrar movimientos de stock.\"",
+                    "El caso de uso vuelve al paso 3.",
+                ],
+            },
         ],
         "excepciones": [],
         "reglas_negocio": [
@@ -1574,7 +1652,7 @@ CUS = [
         "der_imagen": "DER.png",
         "der_entidades_afectadas": ["VINO", "MOVIMIENTO_STOCK"],
         "prototipo_interfaz": (
-            "frmMovimientoStock (WinForms — MaterialForm)\n"
+            "frmRegistrarEntradaStock (WinForms — MaterialForm)\n"
             "+-----------------------------------------------------+\n"
             "|  Registrar Entrada de Stock                   [x]    |\n"
             "+-------------------------------------------------------+\n"
@@ -1583,9 +1661,8 @@ CUS = [
             "|                                                         |\n"
             "| Cantidad recibida: [____]                              |\n"
             "| Motivo:          [____________] (compra a bodega)      |\n"
-            "| Referencia:      [____________] (opcional)             |\n"
             "|                                                         |\n"
-            "|              [ Registrar ]  [ Cancelar ]               |\n"
+            "|          [ Registrar entrada ]  [ Cerrar ]            |\n"
             "+---------------------------------------------------------+"
         ),
         "observaciones": (
@@ -1648,24 +1725,35 @@ CUS = [
             {"id": "1a", "nombre": "El vino no admite la solicitud",
              "pasos": ["El sistema deshabilita \"Solicitar descontinuación\" cuando el vino no está Activo o ya tiene una baja pendiente.",
                        "El caso de uso finaliza sin registrar cambios."]},
-            {"id": "3a", "nombre": "El vino ya está descontinuado, no está activo o ya tiene una baja pendiente",
-             "pasos": ["El sistema muestra el mensaje correspondiente y actualiza la grilla.",
+            {"id": "3a", "nombre": "El vino no existe, ya está descontinuado, no está activo o ya tiene una baja pendiente (RN-16)",
+             "pasos": ["Si el vino no existe (por ejemplo, ante una llamada que omita la interfaz), está descontinuado, no está activo o ya tiene una baja pendiente, el sistema muestra el mensaje correspondiente (por ejemplo, \"El vino indicado no existe.\" o \"El vino ya está descontinuado.\") y actualiza la grilla.",
                        "El caso de uso finaliza sin registrar cambios."]},
             {"id": "3b", "nombre": "El vino tiene stock (RN-15)",
              "pasos": ["El sistema muestra la cantidad de botellas en depósito e indica que debe registrarse un ajuste de inventario (CU-27) que deje el stock en 0.",
                        "El caso de uso finaliza sin registrar cambios."]},
-            {"id": "3c", "nombre": "El estado o el stock cambiaron durante la operación",
-             "pasos": ["El sistema informa que el estado o el stock del vino cambiaron y pide actualizar la grilla.",
+            {"id": "3c", "nombre": "El estado o el stock cambiaron, o se emitió otra baja del mismo vino, durante la operación (RN-16)",
+             "pasos": ["El sistema informa que el estado o el stock del vino cambiaron o que el vino ya tiene una baja pendiente, y pide actualizar la grilla.",
                        "El caso de uso finaliza sin registrar cambios."]},
+            {
+                "id": "1b", "nombre": "No hay un vino seleccionado",
+                "pasos": [
+                    "El sistema muestra \"Seleccioná un vino.\"",
+                    "El caso de uso finaliza sin registrar cambios.",
+                ],
+            },
+            {
+                "id": "3d", "nombre": "El Usuario no confirma la descontinuación",
+                "pasos": [
+                    "El sistema no emite la solicitud.",
+                    "El caso de uso finaliza sin registrar cambios.",
+                ],
+            },
         ],
-        "excepciones": [
-            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante la solicitud.",
-             "manejo": "Mensaje genérico al Usuario; no se persiste ningún cambio parcial."},
-        ],
+        "excepciones": [],
         "reglas_negocio": [
             {"codigo": "RN-04", "regla": "El vino nunca se elimina físicamente; la descontinuación es siempre un cambio de ESTADO, preservando integridad referencial con movimientos de stock históricos."},
             {"codigo": "RN-15", "regla": "No se descontinúa un vino con stock: el stock remanente se liquida antes con un ajuste de inventario (CU-27). Se valida al solicitar y se revalida al autorizar."},
-            {"codigo": "RN-16", "regla": "A lo sumo existe una solicitud de baja pendiente por vino."},
+            {"codigo": "RN-16", "regla": "Una solicitud pendiente por vino y tipo: a lo sumo existe una solicitud de baja pendiente por vino."},
         ],
         "relaciones": [
             {"tipo": "«precede» a", "destino": "CU-25 Autorizar o Rechazar Descontinuación de Vino",
@@ -1685,7 +1773,7 @@ CUS = [
             "| [DataGridView: SKU | Nombre | Bodega | Estado |          |\n"
             "|  Ultima solicitud | Estado de la solicitud | Motivo]       |\n"
             "|                                                           |\n"
-            "|  [ Guardar ] [ Corregir y reproponer ]                    |\n"
+            "|  [ Proponer alta ] [ Corregir y reproponer ]              |\n"
             "|  [ Solicitar descontinuacion ]                [ Cerrar ]   |\n"
             "+-------------------------------------------------------------+"
         ),
@@ -1755,8 +1843,8 @@ CUS = [
                        "El Administrador confirma.",
                        "El sistema informa que la solicitud fue rechazada y que el vino sigue activo, y actualiza la grilla.",
                        "El caso de uso finaliza."]},
-            {"id": "5b", "nombre": "Rechazo sin motivo",
-             "pasos": ["El sistema muestra \"Debe indicar el motivo del rechazo.\" y no rechaza la solicitud.",
+            {"id": "5b", "nombre": "Rechazo sin motivo o con motivo demasiado largo (RN-17)",
+             "pasos": ["El sistema muestra \"Debe indicar el motivo del rechazo.\" (o \"El motivo del rechazo no puede superar los 200 caracteres.\") y no rechaza la solicitud.",
                        "El caso de uso vuelve al paso 5."]},
             {"id": "5c", "nombre": "El vino tiene stock (RN-15)",
              "pasos": ["El sistema muestra la cantidad de botellas en depósito e indica que debe registrarse un ajuste de inventario previo.",
@@ -1764,16 +1852,27 @@ CUS = [
             {"id": "5d", "nombre": "La solicitud ya fue resuelta o el vino cambió de estado o de stock",
              "pasos": ["El sistema informa que la solicitud cambió de estado y actualiza la grilla.",
                        "El caso de uso vuelve al paso 3."]},
+            {
+                "id": "3b", "nombre": "No hay una solicitud seleccionada",
+                "pasos": [
+                    "El sistema muestra \"Seleccioná un vino con baja solicitada.\"",
+                    "El caso de uso vuelve al paso 3.",
+                ],
+            },
+            {
+                "id": "5e", "nombre": "El Administrador no confirma",
+                "pasos": [
+                    "El sistema no resuelve la solicitud (autorización o rechazo).",
+                    "El caso de uso vuelve al paso 3.",
+                ],
+            },
         ],
-        "excepciones": [
-            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante la resolución.",
-             "manejo": "Mensaje genérico al Administrador; no se persiste ningún cambio parcial (la solicitud y el vino se actualizan en una única transacción)."},
-        ],
+        "excepciones": [],
         "reglas_negocio": [
             {"codigo": "RN-01", "regla": "Separación de funciones: el resolutor de una solicitud nunca puede ser su emisor, ni al autorizar ni al rechazar. Se verifica en la interfaz, en la capa de negocio y en el procedimiento almacenado, y además lo impide una restricción de la tabla."},
             {"codigo": "RN-04", "regla": "El vino nunca se elimina físicamente; la descontinuación es siempre un cambio de ESTADO, preservando integridad referencial con movimientos de stock históricos."},
             {"codigo": "RN-15", "regla": "No se descontinúa un vino con stock; se revalida al autorizar, porque pudo ingresar mercadería entre la solicitud y la autorización."},
-            {"codigo": "RN-17", "regla": "El rechazo exige un motivo no vacío de hasta 200 caracteres; al rechazar, el vino sigue Activo."},
+            {"codigo": "RN-17", "regla": "Rechazo con motivo: el rechazo exige un motivo no vacío de hasta 200 caracteres; al rechazar, el vino sigue Activo."},
         ],
         "relaciones": [
             {"tipo": "«precedido por»", "destino": "CU-24 Solicitar Descontinuación de Vino",
@@ -1819,7 +1918,7 @@ CUS = [
             "Se muestra al Usuario la lista de vinos con stock actual menor a su STOCK_MINIMO.",
         ],
         "postcondiciones_fallo": [],
-        "disparador": "El Usuario selecciona \"Alerta de stock mínimo\" en el menú principal.",
+        "disparador": "El Usuario selecciona \"Consultar alerta de stock mínimo\" en el menú \"Catálogo\" del menú principal.",
         "flujo_principal": [
             "El Usuario abre frmAlertaStockMinimo.",
             "El sistema calcula el stock actual de cada vino (derivado del kardex de MOVIMIENTO_STOCK).",
@@ -1828,7 +1927,7 @@ CUS = [
         ],
         "flujos_alternativos": [
             {"id": "3a", "nombre": "Ningún vino está por debajo de su stock mínimo",
-             "pasos": ["El sistema muestra la grilla vacía con el mensaje \"No hay vinos con stock bajo mínimo.\""]},
+             "pasos": ["El sistema muestra la grilla vacía con el mensaje \"No hay vinos por debajo del stock mínimo.\""]},
         ],
         "excepciones": [],
         "reglas_negocio": [
@@ -1840,7 +1939,8 @@ CUS = [
             {"tipo": "«extend» de", "destino": "CU-27 Registrar Ajuste de Inventario",
              "condicion": "Se consulta habitualmente después de registrar ajustes que reducen stock."},
         ],
-        "observaciones": "Especificación simple — no requiere diagrama de secuencia completo ni DER dedicado (ver diseño: solo los CU principales llevan modelado completo).",
+        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU26_ConsultarAlertaStockMinimo.png",
+        "observaciones": "Especificación simple, con diagrama de secuencia propio y sin DER dedicado (ver diseño: solo los CU principales llevan modelado completo).",
     },
     # ───── CU-27 ─────────────────────────────────────────────────────
     {
@@ -1873,7 +1973,7 @@ CUS = [
         "postcondiciones_fallo": [
             "Si el ajuste es de sentido negativo y dejaría el stock resultante por debajo de cero: el movimiento se rechaza y no se persiste (RN-03).",
         ],
-        "disparador": "El Usuario abre frmMovimientoStock, selecciona un vino y registra un ajuste de inventario.",
+        "disparador": "El Usuario abre frmRegistrarAjusteInventario, selecciona un vino y registra un ajuste de inventario.",
         "puntos_extension": [
             {"paso": "Tras cualquier ajuste registrado",
              "extension": "Recalcular y notificar si el vino queda por debajo de STOCK_MINIMO — la notificación activa es fuera de alcance; ver CU-26 Consultar Alerta de Stock Mínimo (consulta pasiva)."},
@@ -1886,9 +1986,9 @@ CUS = [
             "  - Ajuste negativo (rotura, merma), con rechazo si el stock resultante es negativo"
         ),
         "flujo_principal": [
-            "El Usuario abre frmMovimientoStock y selecciona un vino.",
+            "El Usuario abre frmRegistrarAjusteInventario y selecciona un vino.",
             "El sistema calcula y muestra el stock actual (derivado del kardex).",
-            "El Usuario indica el sentido del ajuste (positivo o negativo), la cantidad y el motivo (rotura, merma, corrección de conteo) y presiona Registrar.",
+            "El Usuario indica el sentido del ajuste (\"Aumenta el stock\" o \"Disminuye el stock\"), la cantidad y el motivo (rotura, merma, corrección de conteo) y presiona \"Registrar ajuste\".",
             "Si el sentido es positivo, el sistema inserta el movimiento en MOVIMIENTO_STOCK con tipo Entrada.",
             "El sistema recalcula el stock actual y refresca la pantalla.",
         ],
@@ -1896,9 +1996,30 @@ CUS = [
             {"id": "3a", "nombre": "Ajuste de sentido negativo",
              "pasos": [
                  "El sistema calcula el stock resultante (stock actual - cantidad).",
-                 "Si el resultado es negativo (RN-03), el sistema rechaza el ajuste y muestra \"No hay stock suficiente para este ajuste.\"; no se persiste ningún registro.",
+                 "Si el resultado es negativo (RN-03), el sistema rechaza el ajuste y muestra \"Stock insuficiente: el ajuste dejaría el stock por debajo de cero (stock actual: N).\"; no se persiste ningún registro.",
                  "Si el resultado es válido, el sistema inserta el movimiento con tipo Salida, recalcula el stock actual y refresca la pantalla.",
              ]},
+            {
+                "id": "3a.i", "nombre": "Cantidad menor o igual a cero o motivo vacío",
+                "pasos": [
+                    "El sistema muestra \"La cantidad debe ser mayor a cero.\" o \"El motivo es obligatorio.\"",
+                    "El caso de uso vuelve al paso 3.",
+                ],
+            },
+            {
+                "id": "3a.ii", "nombre": "El vino no existe o no está Activo",
+                "pasos": [
+                    "El sistema muestra \"El vino debe estar autorizado para registrar movimientos de stock.\"",
+                    "El caso de uso vuelve al paso 3.",
+                ],
+            },
+            {
+                "id": "3a.iv", "nombre": "El stock cambió entre la lectura y la escritura (ajuste negativo)",
+                "pasos": [
+                    "El sistema muestra \"Stock insuficiente: el ajuste dejaría el stock por debajo de cero.\" y no se persiste ningún registro.",
+                    "El caso de uso vuelve al paso 3.",
+                ],
+            },
         ],
         "excepciones": [],
         "reglas_negocio": [
@@ -1915,18 +2036,18 @@ CUS = [
         "der_imagen": "DER.png",
         "der_entidades_afectadas": ["VINO", "MOVIMIENTO_STOCK"],
         "prototipo_interfaz": (
-            "frmMovimientoStock (WinForms — MaterialForm)\n"
+            "frmRegistrarAjusteInventario (WinForms — MaterialForm)\n"
             "+-----------------------------------------------------+\n"
             "|  Registrar Ajuste de Inventario               [x]    |\n"
             "+-------------------------------------------------------+\n"
             "| Vino:            [ ComboBox  v]                        |\n"
             "| Stock actual:    123 unidades  (solo lectura)           |\n"
             "|                                                         |\n"
-            "| Sentido:         (o) Positivo   ( ) Negativo            |\n"
+            "| Sentido:   (o) Aumenta el stock  ( ) Disminuye el stock |\n"
             "| Cantidad:        [____]                                |\n"
             "| Motivo:          [____________] (rotura/merma/conteo)  |\n"
             "|                                                         |\n"
-            "|              [ Registrar ]  [ Cancelar ]               |\n"
+            "|          [ Registrar ajuste ]  [ Cerrar ]             |\n"
             "+---------------------------------------------------------+"
         ),
         "observaciones": (
@@ -1968,7 +2089,7 @@ CUS = [
             "Si el socio ya tiene una caja no cancelada para ese período: se rechaza el armado.",
             "Si una línea dejó de cumplir RN-06 durante la selección: se rechaza el armado.",
         ],
-        "disparador": "El Usuario presiona \"Armar caja mensual\" en frmArmarCaja.",
+        "disparador": "El Usuario presiona \"Confirmar armado\" en frmArmarCaja.",
         "puntos_extension": [
             {"paso": "Tras el paso 8 (caja armada)",
              "extension": "Continúa en CU-29 Registrar Sustitución por Falta de Stock (si el picking detecta faltantes) y en CU-31 Despachar Caja."},
@@ -1979,15 +2100,15 @@ CUS = [
             "(Armar Caja Mensual) ── «precede» ──> (Despachar Caja, CU-31)"
         ),
         "flujo_principal": [
-            "El Usuario abre \"Armar caja mensual\" en frmArmarCaja.",
+            "El Usuario abre \"Armar Caja Mensual\" (menú \"Club de Socios\") en frmArmarCaja.",
             "El sistema lista los socios activos.",
-            "El Usuario selecciona un socio y un período (formato YYYY-MM).",
+            "El Usuario selecciona un socio y un período (formato AAAA-MM).",
             "El sistema lista los vinos candidatos que cumplen RN-06, ordenados con los varietales preferidos del socio primero (RN-05.2, ranking, no filtro).",
             "El sistema muestra el presupuesto mensual del socio y el total de la caja en $0.",
-            "El Usuario agrega vinos con su cantidad; el sistema recalcula el total en cada línea y deshabilita \"Confirmar\" si se supera el presupuesto.",
+            "El Usuario selecciona un vino candidato, indica la cantidad y presiona \"Agregar a la caja\"; el sistema recalcula el total en cada línea y mantiene deshabilitado \"Confirmar armado\" si no hay líneas, el período no tiene el formato AAAA-MM o el total supera el presupuesto.",
             "El Usuario presiona \"Confirmar armado\".",
             "El sistema valida el total contra el presupuesto (RN-05.1), la unicidad del período (RN-08) y que cada línea siga cumpliendo RN-06, e inserta la caja y sus líneas en una única transacción, dejándola en estado Armada.",
-            "El sistema informa que la caja quedó armada.",
+            "El sistema informa que la caja quedó armada (\"Caja armada correctamente.\") y limpia el formulario.",
         ],
         "flujos_alternativos": [
             {"id": "8a", "nombre": "El total supera el presupuesto mensual (RN-05.1)",
@@ -1997,13 +2118,10 @@ CUS = [
              "pasos": ["El sistema muestra \"El socio ya tiene una caja armada para ese período.\"",
                        "El caso de uso vuelve al paso 3."]},
             {"id": "8c", "nombre": "Una línea dejó de cumplir RN-06 durante la selección",
-             "pasos": ["El sistema muestra \"El vino seleccionado no está disponible para armado.\"",
+             "pasos": ["El sistema muestra \"Uno de los vinos seleccionados ya no está disponible para este socio.\"",
                        "El caso de uso vuelve al paso 6."]},
         ],
-        "excepciones": [
-            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante el armado.",
-             "manejo": "Mensaje genérico al Usuario; la transacción se revierte, no queda ninguna línea parcial."},
-        ],
+        "excepciones": [],
         "reglas_negocio": [
             {"codigo": "RN-04", "regla": "Cada línea de caja congela NOMBRE y PRECIO del vino al momento del armado (snapshot)."},
             {"codigo": "RN-05", "regla": "La suma de las líneas no puede exceder el presupuesto del socio (tope duro, RN-05.1); los varietales preferidos solo ordenan candidatos, nunca excluyen (RN-05.2)."},
@@ -2028,9 +2146,9 @@ CUS = [
             "+-------------------------------------------------------+\n"
             "| Socio:        [ ComboBox  v]   Periodo: [ 2026-10 ]   |\n"
             "| Presupuesto:  $ 15000.00        Total:  $ 0.00        |\n"
-            "| [DataGridView: Vino | Precio | Preferido | Cantidad]  |\n"
+            "| [DataGridView candidatos] [DataGridView líneas]       |\n"
             "|                                                       |\n"
-            "|              [ Confirmar armado ]  [ Cancelar ]       |\n"
+            "|  [ Agregar a la caja ] [ Confirmar armado ] [ Cerrar ] |\n"
             "+---------------------------------------------------------+"
         ),
         "observaciones": (
@@ -2075,7 +2193,7 @@ CUS = [
             "Si la caja ya no está en estado Armada (RN-08): se rechaza.",
             "Si el reemplazo excede el presupuesto disponible o no cumple RN-06: se rechaza.",
         ],
-        "disparador": "El Usuario selecciona una línea con faltante y presiona \"Registrar sustitución\" en frmPickingCaja.",
+        "disparador": "El Usuario selecciona una línea de la composición, elige el vino de reemplazo, indica el motivo y presiona \"Registrar sustitución\" en frmPickingCaja.",
         "puntos_extension": [
             {"paso": "Tras el paso 8 (sustitución registrada)",
              "extension": "La composición efectiva actualizada es la que se despacha en CU-31 Despachar Caja."},
@@ -2089,27 +2207,38 @@ CUS = [
             "El Usuario abre el picking de la caja en frmPickingCaja.",
             "El sistema obtiene la composición efectiva de la caja, derivada de CAJA_VINO y su historial de sustituciones (RN-07).",
             "El sistema marca las líneas con faltante de stock y deshabilita \"Registrar sustitución\" si el Usuario es quien armó la caja (RN-10).",
-            "El Usuario selecciona una línea con faltante y presiona \"Registrar sustitución\".",
-            "El sistema lista vinos de reemplazo candidatos, filtrados por el saldo de presupuesto liberado por esa línea.",
-            "El Usuario elige un vino de reemplazo y un motivo.",
-            "El sistema valida RN-10, RN-08 y RN-05/RN-06 sobre el reemplazo, e inserta la sustitución como fila append-only.",
+            "El Usuario selecciona una línea de la composición, elige el vino de reemplazo entre los candidatos vigentes del socio (cargados al seleccionar la caja, sin filtro de presupuesto), indica el motivo y presiona \"Registrar sustitución\".",
+            "El sistema valida que la línea pertenezca a la caja y que el vino de reemplazo siga siendo un candidato vigente del socio (RN-06).",
+            "El sistema valida RN-10 y RN-08 sobre la caja y que el total con el reemplazo no supere el presupuesto congelado de la caja (RN-05).",
+            "El sistema inserta la sustitución como fila append-only y registra el evento en la bitácora.",
             "El sistema informa que la sustitución quedó registrada y refresca la grilla con la composición efectiva actualizada.",
         ],
         "flujos_alternativos": [
             {"id": "7a", "nombre": "El usuario armó esta caja (RN-10)",
-             "pasos": ["El sistema muestra \"No puede registrar una sustitución en una caja que usted mismo armó.\"",
+             "pasos": ["El sistema muestra \"Quien armó la caja no puede registrar sustituciones sobre ella.\"",
                        "El caso de uso vuelve al paso 4."]},
             {"id": "7b", "nombre": "La caja no está en estado Armada (RN-08)",
-             "pasos": ["El sistema muestra \"La caja ya fue despachada; su composición es inmutable.\"",
+             "pasos": ["El sistema muestra \"Solo se pueden registrar sustituciones sobre una caja Armada.\"",
                        "El caso de uso vuelve al paso 1."]},
             {"id": "7c", "nombre": "El reemplazo excede el presupuesto o no cumple RN-06",
-             "pasos": ["El sistema muestra \"El vino de reemplazo excede el presupuesto disponible de la caja.\" o \"El vino de reemplazo no está disponible.\", según corresponda.",
+             "pasos": ["El sistema muestra \"El reemplazo supera el presupuesto de la caja.\" o \"El vino de reemplazo no está disponible para este socio.\", según corresponda.",
                        "El caso de uso vuelve al paso 5."]},
+            {
+                "id": "7d", "nombre": "Datos incompletos en la interfaz",
+                "pasos": [
+                    "El sistema muestra \"Seleccioná una línea de la composición.\", \"Seleccioná el vino de reemplazo.\" o \"Ingresá un motivo para la sustitución.\", según corresponda.",
+                    "El caso de uso vuelve al paso 4.",
+                ],
+            },
+            {
+                "id": "7e", "nombre": "La línea no pertenece a la caja o la caja cambió durante la operación",
+                "pasos": [
+                    "El sistema muestra \"La línea seleccionada no pertenece a esta caja.\" o \"No se pudo registrar la sustitución (la caja pudo haber cambiado de estado).\", según corresponda.",
+                    "El caso de uso vuelve al paso 1.",
+                ],
+            },
         ],
-        "excepciones": [
-            {"codigo": "EX-01", "descripcion": "Error de conexión con la base de datos durante el registro.",
-             "manejo": "Mensaje genérico al Usuario; no se persiste ninguna fila parcial."},
-        ],
+        "excepciones": [],
         "reglas_negocio": [
             {"codigo": "RN-07", "regla": "Toda sustitución es una fila append-only en SUSTITUCION; no existen SP de UPDATE/DELETE sobre esa tabla. La composición efectiva de la caja se deriva, nunca se edita una línea existente."},
             {"codigo": "RN-08", "regla": "Solo se pueden registrar sustituciones sobre cajas en estado Armada."},
@@ -2129,9 +2258,10 @@ CUS = [
         "prototipo_interfaz": (
             "frmPickingCaja (WinForms — MaterialForm)\n"
             "+-----------------------------------------------------+\n"
-            "|  Picking de Caja #128 — Socio: Juana Pérez     [x]    |\n"
+            "|  Picking y Sustituciones                       [x]    |\n"
             "+-------------------------------------------------------+\n"
-            "| [DataGridView: Vino | Cantidad | Stock | Faltante]     |\n"
+            "| [Cajas armadas] [Composición efectiva] [Historial]     |\n"
+            "| Reemplazar por: [ComboBox v]  Motivo: [__________]      |\n"
             "|                                                        |\n"
             "|          [ Registrar sustitución ]  [ Cerrar ]         |\n"
             "+----------------------------------------------------------+"
@@ -2162,27 +2292,41 @@ CUS = [
             "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar socios\".",
         ],
         "postcondiciones_exito": [
-            "El SOCIO queda registrado o actualizado (nombre, contacto, presupuesto mensual, varietales preferidos), sin vínculo a ningún USUARIO.",
+            "El SOCIO queda registrado o actualizado (nombre, apellido, domicilio, contacto, presupuesto mensual, varietales preferidos), sin vínculo a ningún USUARIO.",
         ],
         "postcondiciones_fallo": [
             "Si el presupuesto mensual es menor o igual a cero: no se persiste ningún cambio.",
-            "Si el nombre está vacío: no se persiste ningún cambio.",
+            "Si el nombre, el apellido o el domicilio están vacíos: no se persiste ningún cambio.",
         ],
-        "disparador": "El Usuario abre frmSocios y presiona \"Nuevo socio\" o selecciona un socio existente para editarlo.",
+        "disparador": "El Usuario abre frmSocios y presiona \"Nuevo\" o selecciona un socio existente para editarlo.",
         "flujo_principal": [
             "El Usuario abre frmSocios.",
-            "El Usuario ingresa o edita nombre, apellido, contacto, presupuesto mensual y varietales preferidos del socio.",
-            "El sistema valida que el nombre esté completo y que el presupuesto mensual sea mayor a cero.",
-            "El sistema guarda el socio y, si cambiaron, reemplaza la lista de varietales preferidos.",
-            "El sistema informa que el perfil quedó guardado.",
+            "El Usuario ingresa o edita nombre, apellido, domicilio, contacto (email y teléfono), presupuesto mensual, estado activo y varietales preferidos del socio, y presiona \"Guardar\".",
+            "El sistema valida que el nombre, el apellido y el domicilio estén completos y que el presupuesto mensual sea mayor a cero.",
+            "El sistema guarda el socio, reemplaza la lista de varietales preferidos por la selección actual y registra el evento en la bitácora.",
+            "El sistema informa que el perfil quedó guardado (\"Socio guardado correctamente.\") y recarga la grilla de socios.",
         ],
         "flujos_alternativos": [
             {"id": "3a", "nombre": "Nombre vacío",
-             "pasos": ["El sistema muestra \"El nombre del socio es obligatorio.\"",
+             "pasos": ["El sistema muestra \"El nombre es obligatorio.\"",
                        "El caso de uso vuelve al paso 2."]},
             {"id": "3b", "nombre": "Presupuesto mensual inválido",
              "pasos": ["El sistema muestra \"El presupuesto mensual debe ser mayor a cero.\"",
                        "El caso de uso vuelve al paso 2."]},
+            {
+                "id": "3c", "nombre": "Apellido vacío",
+                "pasos": [
+                    "El sistema muestra \"El apellido es obligatorio.\"",
+                    "El caso de uso vuelve al paso 2.",
+                ],
+            },
+            {
+                "id": "3d", "nombre": "Domicilio vacío",
+                "pasos": [
+                    "El sistema muestra \"El domicilio es obligatorio.\"",
+                    "El caso de uso vuelve al paso 2.",
+                ],
+            },
         ],
         "excepciones": [],
         "reglas_negocio": [
@@ -2192,7 +2336,8 @@ CUS = [
             {"tipo": "relacionado con", "destino": "CU-28 Armar Caja Mensual",
              "condicion": "El presupuesto mensual y los varietales preferidos del socio son la entrada para el armado de sus futuras cajas."},
         ],
-        "observaciones": "Especificación simple — no requiere diagrama de secuencia dedicado (ver diseño: solo los CU principales de N02 llevan modelado completo).",
+        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU30_ActualizarPerfilSocio.png",
+        "observaciones": "Especificación simple, con diagrama de secuencia propio. Los varietales ofrecidos al editar son los de vinos Activos (VARIETAL_LISTAR_CATALOGO).",
     },
     # ───── CU-31 ─────────────────────────────────────────────────────
     {
@@ -2222,31 +2367,38 @@ CUS = [
             "Si el Usuario es quien armó la caja (RN-10): se rechaza.",
             "Si alguna línea no tiene stock suficiente al momento del despacho (RN-03): toda la operación se revierte, sin movimientos parciales.",
         ],
-        "disparador": "El Usuario presiona \"Despachar\" sobre una caja en estado Armada.",
+        "disparador": "El Usuario presiona \"Despachar caja\" sobre una caja en estado Armada.",
         "flujo_principal": [
             "El Usuario abre la lista de cajas en estado Armada.",
-            "El Usuario selecciona una caja y presiona \"Despachar\".",
-            "El sistema valida que el Usuario no sea quien armó la caja (RN-10) y que la caja siga en estado Armada (RN-08).",
+            "El Usuario selecciona una caja y presiona \"Despachar caja\".",
+            "El sistema solicita la confirmación del despacho (\"¿Confirma el despacho de esta caja? La acción no se puede deshacer.\"); el Usuario confirma. Luego valida que la caja siga en estado Armada (RN-08) y que el Usuario no sea quien la armó (RN-10).",
             "El sistema verifica el stock disponible de cada línea efectiva de la caja (RN-03).",
             "El sistema inserta un MOVIMIENTO_STOCK de tipo Salida por cada línea y actualiza la caja a estado Despachada, en una única transacción.",
             "El sistema genera el Remito de Despacho en PDF y lo abre (RN-11).",
-            "El sistema informa que la caja fue despachada.",
+            "El sistema informa que la caja fue despachada (\"Caja despachada correctamente.\") y actualiza la lista de cajas armadas.",
         ],
         "flujos_alternativos": [
             {"id": "3a", "nombre": "El usuario armó la caja (RN-10)",
-             "pasos": ["El sistema muestra \"No puede despachar una caja que usted mismo armó.\"",
+             "pasos": ["El sistema muestra \"Quien armó la caja no puede despacharla.\"",
                        "El caso de uso vuelve al paso 1."]},
             {"id": "3b", "nombre": "La caja no está en estado Armada (RN-08)",
-             "pasos": ["El sistema muestra \"Solo se pueden despachar cajas en estado Armada.\"",
+             "pasos": ["El sistema muestra \"Solo se puede despachar una caja Armada.\"",
                        "El caso de uso vuelve al paso 1."]},
             {"id": "4a", "nombre": "Stock insuficiente en alguna línea (RN-03)",
-             "pasos": ["El sistema muestra \"No hay stock suficiente para despachar la línea del vino.\"",
-                       "La transacción se revierte por completo; no se genera ningún movimiento.",
+             "pasos": ["El sistema muestra \"No hay stock suficiente de \"<vino>\" para despachar la caja.\"",
+                       "El sistema no registra ningún movimiento: el pre-chequeo de la capa de negocio corta antes de tocar la base de datos.",
                        "El caso de uso vuelve al paso 1."]},
             {"id": "6a", "nombre": "Falla la generación del remito de despacho (RN-11)",
              "pasos": ["El sistema muestra \"No se pudo generar el remito de despacho; la caja fue despachada igualmente.\"",
                        "El despacho ya confirmado no se revierte.",
-                       "El caso de uso continúa al paso 7."]},
+                       "El caso de uso continúa al paso 7 (el sistema igualmente informa \"Caja despachada correctamente.\")."]},
+            {
+                "id": "4b", "nombre": "La caja no existe o cambió durante la operación",
+                "pasos": [
+                    "El sistema muestra \"La caja no existe.\" o, si la transacción del procedimiento almacenado no afectó ninguna fila (la caja cambió de estado o el stock cambió por una carrera), \"No se pudo despachar la caja (verificar estado o permisos).\"; la transacción se revierte por completo.",
+                    "El caso de uso vuelve al paso 1.",
+                ],
+            },
         ],
         "excepciones": [],
         "reglas_negocio": [
@@ -2262,12 +2414,12 @@ CUS = [
             {"tipo": "relacionado con", "destino": "CU-29 Registrar Sustitución por Falta de Stock",
              "condicion": "Las sustituciones registradas antes del despacho determinan la composición efectiva que se despacha."},
         ],
+        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU31_DespacharCaja.png",
         "observaciones": (
             "REFERENCIA_TIPO/REFERENCIA_ID de MOVIMIENTO_STOCK fueron creados en N01 y dejados en "
             "null en esa entrega; el despacho de una caja es su primer consumidor real, vinculando "
             "cada Salida a su CAJA_MENSUAL por una referencia blanda (soft link, sin FK física). "
-            "Especificación simple — no requiere diagrama de secuencia dedicado en esta entrega "
-            "(ver diseño: solo CU-28 y CU-29 llevan modelado completo con diagrama de secuencia)."
+            "Especificación simple, con diagrama de secuencia propio (DiagramaSecuencia_CU31_DespacharCaja)."
         ),
     },
     # ───── CU-32 ─────────────────────────────────────────────────────
@@ -2305,7 +2457,7 @@ CUS = [
         ],
         "flujos_alternativos": [],
         "excepciones": [
-            {"codigo": "EX-01", "descripcion": "Falla la generación del remito (RN-11): permisos, disco lleno, lector de PDF ausente, etc.",
+            {"codigo": "EX-01", "descripcion": "Falla la generación del remito (RN-11): permisos de escritura, disco lleno, caja inexistente, etc. (si falta un lector de PDF el archivo se genera pero no se abre, sin mensaje).",
              "manejo": "El sistema muestra \"No se pudo generar el remito de despacho; la caja fue despachada igualmente.\"; no abre ningún archivo; el historial sigue navegable."},
         ],
         "reglas_negocio": [
@@ -2317,9 +2469,9 @@ CUS = [
             {"tipo": "relacionado con", "destino": "CU-31 Despachar Caja",
              "condicion": "Ambos comparten el renderer RemitoDespachoPdf como detalle de implementación; no existe relación «include»/«extend» entre los dos casos de uso."},
         ],
+        "diagrama_secuencia_imagen": "DiagramaSecuencia_CU32_ConsultarHistorialDespachos.png",
         "observaciones": (
-            "Especificación simple — no requiere diagrama de secuencia dedicado en esta entrega "
-            "(ver diseño: solo CU-28 y CU-29 llevan modelado completo con diagrama de secuencia). "
+            "Especificación simple, con diagrama de secuencia propio (DiagramaSecuencia_CU32_ConsultarHistorialDespachos). "
             "Reutiliza el mismo permiso \"Despachar cajas\" que CU-31 — no se creó ningún permiso nuevo."
         ),
     },
