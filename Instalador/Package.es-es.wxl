@@ -6,9 +6,25 @@
   <String Id="SqlInstanceDlg_Title" Value="Instalación de [ProductName]" />
   <String Id="SqlInstanceDlg_Heading" Value="{\WixUI_Font_Title}Instancia de SQL Server" />
   <String Id="SqlInstanceDlg_Description" Value="Seleccione la instancia de SQL Server donde se creará la base de datos." />
-  <String Id="SqlInstanceDlg_InstanceLabel" Value="Seleccione la instancia de este equipo que se utilizará para la base de datos de [ProductName]:" />
-  <String Id="SqlInstanceDlg_NoInstance" Value="No se encontró ninguna instancia de SQL Server en este equipo. Es necesario instalar SQL Server antes de instalar [ProductName]. Instale SQL Server y luego vuelva a ejecutar este programa de instalación." />
+  <String Id="SqlInstanceDlg_InstanceLabel" Value="Se detectaron instancias de SQL Server en este equipo. Seleccione una de la lista (o escriba otra) para la base de datos de [ProductName]:" />
+  <String Id="SqlInstanceDlg_NoEngine" Value="No se encontró el motor de base de datos SQL Server en este equipo. [ProductName] lo necesita para guardar sus datos. Descargue e instale SQL Server Express (gratuito, en microsoft.com/sql-server/sql-server-downloads) y presione &quot;Reintentar detección&quot;. También puede escribir abajo un servidor de red (servidor\instancia) o instalar solo la aplicación." />
+  <String Id="SqlInstanceDlg_NoList" Value="No se pudo obtener la lista de instancias de SQL Server de este equipo. Escriba el servidor y la instancia manualmente (por ejemplo .\SQLEXPRESS) y presione Siguiente, o presione &quot;Reintentar detección&quot;." />
+  <String Id="SqlInstanceDlg_ManualLabel" Value="Servidor\instancia (puede escribirlo; use . para la instancia predeterminada):" />
+  <String Id="SqlInstanceDlg_SkipDb" Value="Instalar solo la aplicación, sin crear la base de datos ahora. Después deberé ejecutar el script (carpeta BaseDeDatos dentro de la carpeta de instalación)." />
+  <String Id="SqlInstanceDlg_Retry" Value="&amp;Reintentar detección" />
   <String Id="SqlInstanceDlg_Back" Value="&amp;Atrás" />
   <String Id="SqlInstanceDlg_Next" Value="&amp;Siguiente" />
   <String Id="SqlInstanceDlg_Cancel" Value="Cancelar" />
+
+  <String Id="SqlErrorDlg_Title" Value="Instalación de [ProductName]" />
+  <String Id="SqlErrorDlg_Heading" Value="{\WixUI_Font_Title}No se puede continuar" />
+  <String Id="SqlErrorDlg_Ok" Value="Aceptar" />
+
+  <!-- Mensajes de las acciones personalizadas. {0}, {1}: marcadores que completa el código. -->
+  <String Id="SqlMsg_Empty" Value="Escriba o seleccione una instancia de SQL Server (por ejemplo .\SQLEXPRESS), o marque la casilla para instalar solo la aplicación. Luego presione Siguiente." />
+  <String Id="SqlMsg_StartFail" Value="El servicio de SQL Server {0} está detenido y no se pudo iniciar en {1} segundos. Inícielo manualmente: abra services.msc, busque el servicio {0} y presione Iniciar, o ejecute en una consola de administrador: net start &quot;{0}&quot;. Luego presione Aceptar y Siguiente para reintentar." />
+  <String Id="SqlMsg_NoService" Value="No se encontró el servicio de SQL Server {0} en este equipo. Verifique que SQL Server esté instalado y que el nombre de la instancia sea correcto. Presione Reintentar para volver a comprobar o Cancelar para revertir la instalación." />
+  <String Id="SqlMsg_StartFailRetry" Value="El servicio de SQL Server {0} está detenido y no se pudo iniciar en {1} segundos. Inícielo manualmente: abra services.msc, busque el servicio {0} y presione Iniciar, o ejecute en una consola de administrador: net start &quot;{0}&quot;. Presione Reintentar para volver a comprobar o Cancelar para revertir la instalación (no quedará nada instalado)." />
+  <String Id="SqlMsg_ConnFail" Value="No se pudo conectar a la instancia de SQL Server {0}. Detalle: {1} Verifique el nombre (servidor\instancia), que el servicio esté iniciado y que su usuario de Windows tenga permiso para crear bases de datos. Corrija el problema y presione Siguiente para reintentar, o marque la casilla para instalar solo la aplicación." />
+  <String Id="SqlMsg_ConnFailRetry" Value="No se pudo iniciar sesión en SQL Server {0} con la cuenta con la que se instala la base de datos (cuenta del sistema; en un servidor remoto, la cuenta del equipo). Detalle: {1} Verifique el nombre (servidor\instancia) y que esa cuenta pueda iniciar sesión y crear bases de datos. Presione Reintentar para volver a comprobar o Cancelar para revertir la instalación (no quedará nada instalado)." />
 </WixLocalization>

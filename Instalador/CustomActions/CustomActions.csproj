@@ -10,6 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Reference Include="System.Data" />
+    <Reference Include="System.ServiceProcess" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Incluye WixToolset.Dtf.WindowsInstaller de forma transitiva y genera CustomActions.CA.dll. -->
     <PackageReference Include="WixToolset.Dtf.CustomAction" Version="7.0.0" />
   </ItemGroup>

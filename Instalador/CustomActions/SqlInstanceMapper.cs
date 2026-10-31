@@ -50,5 +50,74 @@ namespace ClubDeVinos.Installer.CustomActions
                 .Select(Map)
                 .ToList();
         }
+
+        /// <summary>
+        /// Devuelve el nombre del servicio de Windows de una instancia LOCAL ("." -> MSSQLSERVER,
+        /// ".\N" -> MSSQL$N). Devuelve null si el servidor es remoto o lleva puerto
+        /// (no hay un servicio local que controlar).
+        /// </summary>
+        public static string ServiceNameFor(string server)
+        {
+            if (string.IsNullOrWhiteSpace(server))
+            {
+                return null;
+            }
+
+            string text = server.Trim();
+            if (text.IndexOf(',') >= 0)
+            {
+                return null;
+            }
+
+            int slash = text.IndexOf('\\');
+            string host = slash < 0 ? text : text.Substring(0, slash);
+            string instance = slash < 0 ? DefaultInstanceName : text.Substring(slash + 1).Trim();
+
+            bool local = host == "." ||
+                string.Equals(host, "(local)", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(host, Environment.MachineName, StringComparison.OrdinalIgnoreCase);
+            if (!local || instance.Length == 0)
+            {
+                return null;
+            }
+
+            return string.Equals(instance, DefaultInstanceName, StringComparison.OrdinalIgnoreCase)
+                ? DefaultInstanceName
+                : "MSSQL$" + instance;
+        }
+
+        /// <summary>
+        /// Extrae nombres de instancia a partir de nombres de servicio de Windows
+        /// (MSSQLSERVER -> MSSQLSERVER, MSSQL$X -> X). Ignora otros servicios y la base interna de Windows (WID).
+        /// </summary>
+        public static IList<string> InstanceNamesFromServices(IEnumerable<string> serviceNames)
+        {
+            var result = new List<string>();
+            if (serviceNames == null)
+            {
+                return result;
+            }
+
+            foreach (string name in serviceNames)
+            {
+                if (name == null)
+                {
+                    continue;
+                }
+
+                if (string.Equals(name, DefaultInstanceName, StringComparison.OrdinalIgnoreCase))
+                {
+                    result.Add(DefaultInstanceName);
+                }
+                else if (name.StartsWith("MSSQL$", StringComparison.OrdinalIgnoreCase) &&
+                         name.Length > 6 && name.IndexOf("##", StringComparison.Ordinal) < 0)
+                {
+                    result.Add(name.Substring(6));
+                }
+            }
+
+            return result;
+        }
     }
 }

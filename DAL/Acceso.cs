@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
+using Microsoft.Win32;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -16,9 +17,67 @@ namespace DAL
         public void Abrir()
         {
             conexion = new SqlConnection();
-            conexion.ConnectionString = "initial catalog=BDCAPAS; Data Source=.; Integrated Security=SSPI";
-            //conexion.ConnectionString = "Server=localhost\\SQLEXPRESS01; Database=BDCAPAS; Trusted_Connection=True";
+            conexion.ConnectionString = CadenaConexion;
             conexion.Open();
+        }
+
+        // Servidor SQL: variable de entorno CLUBVINOS_SQL (soporte), luego el registro que
+        // escribe el instalador (HKLM\SOFTWARE\Club de Vinos\SqlInstance) y por último "." (predeterminada).
+        // Se resuelve una sola vez y nunca lanza: si el registro no se puede leer, se usa ".".
+        private static readonly Lazy<string> _cadenaConexion = new Lazy<string>(ConstruirCadenaConexion);
+
+        private static string CadenaConexion
+        {
+            get { return _cadenaConexion.Value; }
+        }
+
+        private static string ConstruirCadenaConexion()
+        {
+            string servidor = LeerEntorno() ?? LeerRegistro(RegistryView.Registry64)
+                              ?? LeerRegistro(RegistryView.Registry32) ?? ".";
+            try
+            {
+                return new SqlConnectionStringBuilder
+                {
+                    DataSource = servidor,
+                    InitialCatalog = "BDCAPAS",
+                    IntegratedSecurity = true
+                }.ConnectionString;
+            }
+            catch (Exception)
+            {
+                return "initial catalog=BDCAPAS; Data Source=.; Integrated Security=SSPI";
+            }
+        }
+
+        private static string LeerEntorno()
+        {
+            try
+            {
+                string v = Environment.GetEnvironmentVariable("CLUBVINOS_SQL");
+                return string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private static string LeerRegistro(RegistryView vista)
+        {
+            try
+            {
+                using (RegistryKey baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, vista))
+                using (RegistryKey clave = baseKey.OpenSubKey(@"SOFTWARE\Club de Vinos"))
+                {
+                    string v = clave == null ? null : clave.GetValue("SqlInstance") as string;
+                    return string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+                }
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         public void Cerrar()

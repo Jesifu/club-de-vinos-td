@@ -17,6 +17,8 @@
     <SqlScriptSource>$(MSBuildThisFileDirectory)..\DAL\script.sql</SqlScriptSource>
     <SqlScriptUtf16>$(MSBuildThisFileDirectory)obj\script.utf16.sql</SqlScriptUtf16>
     <DefineConstants>$(DefineConstants);SqlScriptUtf16=$(SqlScriptUtf16)</DefineConstants>
+    <!-- Copia original (UTF-8) del script y el .cmd que se instalan en BaseDeDatos\ para el modo "solo aplicación". -->
+    <DefineConstants>$(DefineConstants);SqlScriptSource=$(SqlScriptSource);ScriptCmdSource=$(MSBuildThisFileDirectory)EjecutarScript.cmd</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

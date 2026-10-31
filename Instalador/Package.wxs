@@ -4,7 +4,7 @@
 
   <Package Name="Club de Vinos"
            Manufacturer="Club de Vinos"
-           Version="1.4.0.0"
+           Version="1.5.0.0"
            UpgradeCode="7C1F3A52-9B0E-4D6A-8E21-5A4D0C9B7E13"
            Language="3082"
            Codepage="1252"
@@ -22,20 +22,64 @@
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
 
     <!-- SQL Server instance chosen in SqlInstanceDlg ("." = default local instance, ".\NAME" = named instance). -->
-    <Property Id="SQLINSTANCE" Value="." Secure="yes" />
+    <!--
+      No static default on purpose: a static Value="." would be indistinguishable from a user choice and would
+      overwrite the instance stored by a previous install on silent upgrade/repair. The effective default is
+      resolved by the SetProperty actions below (command line / dialog > stored registry value > ".").
+    -->
+    <Property Id="SQLINSTANCE" Secure="yes" />
+
+    <!-- Instance stored by a previous install (64-bit view), loaded by AppSearch. -->
+    <Property Id="SQLINSTANCE_PREV" Secure="yes">
+      <RegistrySearch Id="SqlInstancePrevSearch" Root="HKLM" Key="Software\Club de Vinos"
+                      Name="SqlInstance" Type="raw" Bitness="always64" />
+    </Property>
+
+    <!-- Applied only while SQLINSTANCE is still empty (not on the command line, not typed in the dialog). -->
+    <SetProperty Id="SQLINSTANCE" Action="SetSqlInstancePrevUI" Value="[SQLINSTANCE_PREV]" Sequence="ui"
+                 After="AppSearch" Condition="NOT SQLINSTANCE AND SQLINSTANCE_PREV" />
+    <SetProperty Id="SQLINSTANCE" Action="SetSqlInstanceDefaultUI" Value="." Sequence="ui"
+                 After="SetSqlInstancePrevUI" Condition="NOT SQLINSTANCE" />
+    <SetProperty Id="SQLINSTANCE" Action="SetSqlInstancePrevExec" Value="[SQLINSTANCE_PREV]" Sequence="execute"
+                 After="AppSearch" Condition="NOT SQLINSTANCE AND SQLINSTANCE_PREV" />
+    <SetProperty Id="SQLINSTANCE" Action="SetSqlInstanceDefaultExec" Value="." Sequence="execute"
+                 After="SetSqlInstancePrevExec" Condition="NOT SQLINSTANCE" />
 
     <!-- The ComboBox table is not part of WixUI_InstallDir; the custom action inserts temporary rows into it. -->
     <EnsureTable Id="ComboBox" />
 
-    <!-- Managed (DTF) custom action: reads the local instance names from the registry. -->
+    <!-- "1" when the user chose to install only the application files (no database now). -->
+    <Property Id="SQLSKIPDB" Secure="yes" />
+
+    <!-- Localized messages used by the custom actions ({0}, {1} are filled in by the C# code). -->
+    <Property Id="SQLMSG_EMPTY" Value="!(loc.SqlMsg_Empty)" />
+    <Property Id="SQLMSG_STARTFAIL" Value="!(loc.SqlMsg_StartFail)" />
+    <Property Id="SQLMSG_STARTFAILRETRY" Value="!(loc.SqlMsg_StartFailRetry)" />
+    <Property Id="SQLMSG_NOSERVICE" Value="!(loc.SqlMsg_NoService)" />
+    <Property Id="SQLMSG_CONNFAIL" Value="!(loc.SqlMsg_ConnFail)" />
+    <Property Id="SQLMSG_CONNFAILRETRY" Value="!(loc.SqlMsg_ConnFailRetry)" />
+
+    <!-- Managed (DTF) custom actions: SQL Server detection, service start and connection check. -->
     <Binary Id="CustomActionsDll" SourceFile="$(var.CustomActions.TargetDir)CustomActions.CA.dll" />
     <CustomAction Id="DetectSqlInstances" BinaryRef="CustomActionsDll"
                   DllEntry="DetectSqlInstances" Execute="immediate" Return="check" />
+    <CustomAction Id="ValidateSqlInstance" BinaryRef="CustomActionsDll"
+                  DllEntry="ValidateSqlInstance" Execute="immediate" Return="check" />
+    <CustomAction Id="PrepareSqlService" BinaryRef="CustomActionsDll"
+                  DllEntry="PrepareSqlService" Execute="immediate" Return="check" />
+    <!-- Elevated: starts the local SQL service (retry/cancel prompt on failure) before any file is copied. -->
+    <CustomAction Id="EnsureSqlService" BinaryRef="CustomActionsDll"
+                  DllEntry="EnsureSqlService" Execute="deferred" Impersonate="no" Return="check" />
 
     <!-- Runs before the dialogs are shown (WelcomeDlg is scheduled after MigrateFeatureStates). -->
     <InstallUISequence>
       <Custom Action="DetectSqlInstances" Before="CostInitialize" Condition="NOT Installed" />
     </InstallUISequence>
+
+    <InstallExecuteSequence>
+      <Custom Action="PrepareSqlService" Before="InstallInitialize" Condition="NOT Installed AND NOT SQLSKIPDB" />
+      <Custom Action="EnsureSqlService" Before="InstallFiles" Condition="NOT Installed AND NOT SQLSKIPDB" />
+    </InstallExecuteSequence>
 
     <UI>
       <ui:WixUI Id="WixUI_InstallDir" />
@@ -66,45 +110,113 @@
                  Transparent="yes" NoPrefix="yes"
                  Text="!(loc.SqlInstanceDlg_Description)" />
 
-        <!-- Shown when at least one instance was detected. -->
-        <Control Id="InstanceLabel" Type="Text" X="20" Y="60" Width="330" Height="30"
+        <!-- Exactly one of these three messages is visible. -->
+        <Control Id="InstanceLabel" Type="Text" X="20" Y="52" Width="330" Height="40"
                  Transparent="yes" NoPrefix="yes"
                  Text="!(loc.SqlInstanceDlg_InstanceLabel)"
                  HideCondition="NOT SQLINSTANCEFOUND" />
-        <Control Id="InstanceCombo" Type="ComboBox" X="20" Y="95" Width="320" Height="16"
-                 Property="SQLINSTANCE" ComboList="yes" Sorted="no"
-                 HideCondition="NOT SQLINSTANCEFOUND" />
-
-        <!-- Shown when no instance was found: the only options are Back or Cancel. -->
-        <Control Id="NoInstanceMessage" Type="Text" X="20" Y="60" Width="330" Height="60"
+        <Control Id="NoEngineMessage" Type="Text" X="20" Y="52" Width="330" Height="72"
                  Transparent="yes" NoPrefix="yes"
-                 Text="!(loc.SqlInstanceDlg_NoInstance)"
-                 HideCondition="SQLINSTANCEFOUND" />
+                 Text="!(loc.SqlInstanceDlg_NoEngine)"
+                 HideCondition="NOT SQLENGINEMISSING" />
+        <Control Id="NoListMessage" Type="Text" X="20" Y="52" Width="330" Height="40"
+                 Transparent="yes" NoPrefix="yes"
+                 Text="!(loc.SqlInstanceDlg_NoList)"
+                 HideCondition="SQLINSTANCEFOUND OR SQLENGINEMISSING" />
+
+        <!-- Editable combo (ComboList="no"): detected instances in the list, anything else can be typed. -->
+        <Control Id="ManualLabel" Type="Text" X="20" Y="128" Width="330" Height="12"
+                 Transparent="yes" NoPrefix="yes" Text="!(loc.SqlInstanceDlg_ManualLabel)" />
+        <Control Id="InstanceCombo" Type="ComboBox" X="20" Y="143" Width="320" Height="16"
+                 Property="SQLINSTANCE" ComboList="no" Sorted="no" />
+
+        <Control Id="SkipDbCheck" Type="CheckBox" X="20" Y="168" Width="330" Height="30"
+                 Property="SQLSKIPDB" CheckBoxValue="1" Text="!(loc.SqlInstanceDlg_SkipDb)" />
+
+        <Control Id="Retry" Type="PushButton" X="20" Y="205" Width="110" Height="17"
+                 Text="!(loc.SqlInstanceDlg_Retry)">
+          <!-- Re-detect, then rebuild the dialog so the combo list is reloaded. -->
+          <Publish Event="DoAction" Value="DetectSqlInstances" Order="1" />
+          <Publish Event="NewDialog" Value="SqlInstanceDlg" Order="2" />
+        </Control>
+
+        <!-- Interim status while ValidateSqlInstance runs (worst case about 35 s). -->
+        <Control Id="ValidationStatus" Type="Text" X="140" Y="205" Width="210" Height="24"
+                 Transparent="yes" NoPrefix="yes" Text=" ">
+          <Subscribe Event="ActionText" Attribute="Text" />
+        </Control>
 
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="373" Height="0" />
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.SqlInstanceDlg_Back)">
           <Publish Event="NewDialog" Value="InstallDirDlg" />
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17"
-                 Default="yes" Text="!(loc.SqlInstanceDlg_Next)" DisableCondition="NOT SQLINSTANCEFOUND">
-          <Publish Event="NewDialog" Value="VerifyReadyDlg" />
+                 Default="yes" Text="!(loc.SqlInstanceDlg_Next)">
+          <!-- Validate (service state + connection); only advance if valid, otherwise explain why. -->
+          <Publish Event="DoAction" Value="ValidateSqlInstance" Order="1" />
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" Order="2" Condition="SQLVALID = &quot;1&quot;" />
+          <Publish Event="SpawnDialog" Value="SqlErrorDlg" Order="3" Condition="NOT (SQLVALID = &quot;1&quot;)" />
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17"
                  Cancel="yes" Text="!(loc.SqlInstanceDlg_Cancel)">
           <Publish Event="SpawnDialog" Value="CancelDlg" />
         </Control>
       </Dialog>
+
+      <!-- Modal dialog that shows the readable reason (SQLERRORMSG) when validation fails. -->
+      <Dialog Id="SqlErrorDlg" Width="300" Height="170" Title="!(loc.SqlErrorDlg_Title)">
+        <Control Id="ErrTitle" Type="Text" X="15" Y="8" Width="270" Height="15"
+                 Transparent="yes" NoPrefix="yes" Text="!(loc.SqlErrorDlg_Heading)" />
+        <Control Id="ErrText" Type="Text" X="15" Y="26" Width="270" Height="110"
+                 Transparent="yes" NoPrefix="yes" Text="[SQLERRORMSG]" />
+        <Control Id="ErrOk" Type="PushButton" X="229" Y="146" Width="56" Height="17"
+                 Default="yes" Cancel="yes" Text="!(loc.SqlErrorDlg_Ok)">
+          <Publish Event="EndDialog" Value="Return" />
+        </Control>
+      </Dialog>
     </UI>
 
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="Club de Vinos" />
+      <Directory Id="INSTALLFOLDER" Name="Club de Vinos">
+        <Directory Id="DBSCRIPTDIR" Name="BaseDeDatos" />
+      </Directory>
     </StandardDirectory>
 
     <Feature Id="Main" Title="Club de Vinos" Level="1" AllowAbsent="no">
       <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="DbScriptFiles" />
+      <ComponentRef Id="SqlInstanceSetting" />
+    </Feature>
+
+    <!-- Database creation + script. Disabled (Level 0) when the user chose "install only the application". -->
+    <Feature Id="Database" Title="Base de datos" Level="1" AllowAbsent="no">
+      <Level Value="0" Condition="SQLSKIPDB" />
       <ComponentRef Id="DatabaseComponent" />
     </Feature>
   </Package>
+
+  <Fragment>
+    <!-- Original script + helper .cmd: lets the user create the database later (mode "only the application"). -->
+    <Component Id="DbScriptFiles" Directory="DBSCRIPTDIR" Bitness="always64"
+               Guid="A41D7C20-6E3B-4F58-9C12-0B7E5D83A164">
+      <File Id="DbScriptSql" Source="$(SqlScriptSource)" Name="script.sql" KeyPath="yes" />
+      <File Id="DbScriptCmd" Source="$(ScriptCmdSource)" Name="EjecutarScript.cmd" />
+    </Component>
+  </Fragment>
+
+  <Fragment>
+    <!--
+      Tells the app (DAL\Acceso.cs) which SQL Server instance to use. It lives in the Main feature on
+      purpose: it is written even when the user chose "only the application", because the script will
+      be run later against that same instance. 64-bit view, consistent with the x64 package; the app
+      reads both views. Removed on uninstall; the database itself is never dropped.
+    -->
+    <Component Id="SqlInstanceSetting" Directory="INSTALLFOLDER" Bitness="always64"
+               Guid="B7D2E5A9-4C18-4F63-A0E7-9D15C3F82B46">
+      <RegistryValue Root="HKLM" Key="Software\Club de Vinos" Name="SqlInstance"
+                     Type="string" Value="[SQLINSTANCE]" KeyPath="yes" />
+    </Component>
+  </Fragment>
 
   <Fragment>
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
