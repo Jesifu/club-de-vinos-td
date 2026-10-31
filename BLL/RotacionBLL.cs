@@ -48,6 +48,10 @@ namespace BLL
                 throw new InvalidOperationException("La cobertura de reposición debe ser mayor a la de reposición urgente.");
             if (c.MesesCoberturaSobrestock <= c.MesesCoberturaReposicion)
                 throw new InvalidOperationException("La cobertura de sobrestock debe ser mayor a la de reposición.");
+            if (c.MesesCoberturaObjetivo <= c.MesesCoberturaReposicion)
+                throw new InvalidOperationException("La cobertura objetivo debe ser mayor a la de reposición.");
+            if (c.MesesCoberturaObjetivo > c.MesesCoberturaSobrestock)
+                throw new InvalidOperationException("La cobertura objetivo no puede superar la de sobrestock.");
         }
 
         // Días del período, ambos extremos inclusive (mínimo 1).
@@ -94,6 +98,31 @@ namespace BLL
                 r.Recomendacion = RecomendacionReposicion.Mantener;
                 r.Prioridad = 2;
             }
+
+            r.CantidadSugerida = CalcularCantidadSugerida(r, c);
+        }
+
+        // Cantidad sugerida a reponer, solo para Urgente o Reponer (Mantener y Sobrestock = 0):
+        //   ceil( max(ConsumoMensual * MesesCoberturaObjetivo, StockMinimo) - StockActual ),
+        // con mínimo 0 para Reponer y mínimo 1 para Urgente (una reposición urgente nunca
+        // muestra 0). Es decir, lo que falta para cubrir el objetivo de meses de consumo sin
+        // quedar nunca por debajo del stock mínimo.
+        private static int CalcularCantidadSugerida(ResultadoRotacion r, ConfiguracionRotacion c)
+        {
+            if (r.Recomendacion != RecomendacionReposicion.Urgente
+                && r.Recomendacion != RecomendacionReposicion.Reponer)
+                return 0;
+
+            decimal objetivo = Math.Max(r.ConsumoMensual * c.MesesCoberturaObjetivo, r.StockMinimo);
+            decimal faltante = Math.Ceiling(objetivo - r.StockActual);
+            int minimo = r.Recomendacion == RecomendacionReposicion.Urgente ? 1 : 0;
+            return faltante > minimo ? (int)faltante : minimo;
+        }
+
+        // Total de unidades sugeridas a reponer de todos los vinos analizados.
+        public static int TotalUnidadesSugeridas(IEnumerable<ResultadoRotacion> filas)
+        {
+            return filas.Sum(f => f.CantidadSugerida);
         }
 
         // Cantidad de vinos por recomendación, en orden de urgencia (incluye las que tienen 0).

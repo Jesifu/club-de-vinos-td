@@ -32,7 +32,7 @@ namespace CAPAS
             Document documento = new Document();
             Section seccion = documento.AddSection();
             seccion.PageSetup.PageFormat = PageFormat.A4;
-            // Apaisado: la tabla tiene 10 columnas.
+            // Apaisado: la tabla tiene 11 columnas.
             seccion.PageSetup.Orientation = Orientation.Landscape;
             seccion.PageSetup.TopMargin = Unit.FromCentimeter(1.5);
             seccion.PageSetup.BottomMargin = Unit.FromCentimeter(1.5);
@@ -52,7 +52,9 @@ namespace CAPAS
 
             Paragraph nota = seccion.AddParagraph(
                 "Consumo mensual = unidades vendidas por cajas / (días del período / 30). " +
-                "Cobertura = stock actual / consumo mensual. Las pérdidas son salidas por ajustes de inventario.");
+                "Cobertura = stock actual / consumo mensual. Las pérdidas son salidas por ajustes de inventario. " +
+                "A reponer (solo vinos a reponer o a reponer con urgencia) = máx(consumo mensual × cobertura objetivo; stock mínimo) − stock actual, " +
+                "redondeado hacia arriba.");
             nota.Format.Font.Size = 8;
             nota.Format.SpaceBefore = Unit.FromCentimeter(0.4);
 
@@ -84,7 +86,8 @@ namespace CAPAS
             fila2.Cells[1].AddParagraph("Cobertura (meses): urgente < "
                 + config.MesesCoberturaUrgente.ToString("0.##", _cultura) + "; reponer < "
                 + config.MesesCoberturaReposicion.ToString("0.##", _cultura) + "; sobrestock > "
-                + config.MesesCoberturaSobrestock.ToString("0.##", _cultura));
+                + config.MesesCoberturaSobrestock.ToString("0.##", _cultura) + "; objetivo = "
+                + config.MesesCoberturaObjetivo.ToString("0.##", _cultura));
 
             // Stock actual vs. rango pasado: la cobertura puede no ser representativa.
             if (hasta.Date < generado.Date)
@@ -112,8 +115,10 @@ namespace CAPAS
             Table tabla = seccion.AddTable();
             tabla.Borders.Width = 0.75;
             tabla.Shading.Color = Color.FromRgb(245, 245, 245);
-            foreach (KeyValuePair<string, int> _ in resumen)
-                tabla.AddColumn(Unit.FromCentimeter(6.2));
+            // Una columna por recomendación más una para el total de unidades sugeridas
+            // (5 x 5.2 cm = 26 cm de 26.7 útiles).
+            for (int i = 0; i <= resumen.Count; i++)
+                tabla.AddColumn(Unit.FromCentimeter(5.2));
 
             Row encabezado = tabla.AddRow();
             encabezado.Format.Font.Bold = true;
@@ -126,6 +131,11 @@ namespace CAPAS
                 p.Format.Font.Bold = true;
                 encabezado.Cells[i].Shading.Color = ColorDeRecomendacion(resumen[i].Key);
             }
+            encabezado.Cells[resumen.Count].AddParagraph("Unidades sugeridas a reponer");
+            Paragraph total = valores.Cells[resumen.Count].AddParagraph(
+                BLL.RotacionBLL.TotalUnidadesSugeridas(filas).ToString(_cultura));
+            total.Format.Font.Size = 14;
+            total.Format.Font.Bold = true;
 
             seccion.AddParagraph().Format.SpaceAfter = Unit.FromCentimeter(0.3);
         }
@@ -137,22 +147,23 @@ namespace CAPAS
             tabla.Borders.Width = 0.5;
             tabla.Format.Font.Size = 8.5;
             tabla.AddColumn(Unit.FromCentimeter(2.0));   // SKU
-            tabla.AddColumn(Unit.FromCentimeter(5.4));   // Vino
+            tabla.AddColumn(Unit.FromCentimeter(4.6));   // Vino
             tabla.AddColumn(Unit.FromCentimeter(1.6));   // Stock
             tabla.AddColumn(Unit.FromCentimeter(1.8));   // Vendidas
             tabla.AddColumn(Unit.FromCentimeter(1.8));   // Pérdidas
             tabla.AddColumn(Unit.FromCentimeter(2.0));   // Consumo mensual
             tabla.AddColumn(Unit.FromCentimeter(2.2));   // Cobertura
-            tabla.AddColumn(Unit.FromCentimeter(1.6));   // Socios
-            tabla.AddColumn(Unit.FromCentimeter(3.4));   // Clasificación
-            tabla.AddColumn(Unit.FromCentimeter(3.8));   // Recomendación (total 25.6 cm de 26.7 útiles)
+            tabla.AddColumn(Unit.FromCentimeter(1.4));   // Socios
+            tabla.AddColumn(Unit.FromCentimeter(3.0));   // Clasificación
+            tabla.AddColumn(Unit.FromCentimeter(3.6));   // Recomendación
+            tabla.AddColumn(Unit.FromCentimeter(1.9));   // A reponer (total 25.9 cm de 26.7 útiles)
 
             Row encabezado = tabla.AddRow();
             encabezado.HeadingFormat = true;
             encabezado.Shading.Color = Colors.LightGray;
             encabezado.Format.Font.Bold = true;
             string[] titulos = { "SKU", "Vino", "Stock", "Vendidas", "Pérdidas", "Cons./mes", "Cobertura (meses)",
-                                 "Socios", "Clasificación", "Recomendación" };
+                                 "Socios", "Clasificación", "Recomendación", "A reponer" };
             for (int i = 0; i < titulos.Length; i++)
                 encabezado.Cells[i].AddParagraph(titulos[i]);
 
@@ -171,6 +182,8 @@ namespace CAPAS
                 fila.Cells[9].AddParagraph(f.Recomendacion);
                 fila.Cells[9].Shading.Color = ColorDeRecomendacion(f.Recomendacion);
                 fila.Cells[9].Format.Font.Bold = true;
+                fila.Cells[10].AddParagraph(f.CantidadSugerida.ToString(_cultura));
+                fila.Cells[10].Format.Font.Bold = f.CantidadSugerida > 0;
             }
         }
 

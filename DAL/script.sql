@@ -5917,3 +5917,30 @@ EXEC TRADUCCION_GUARDAR @espIdAy, @cidAy, 'El contenido de la ayuda está dispon
 EXEC TRADUCCION_GUARDAR @ingIdAy, @cidAy, 'Help content is available in Spanish only.'
 EXEC TRADUCCION_GUARDAR @ptIdAy, @cidAy, 'O conteúdo da ajuda está disponível apenas em espanhol.'
 GO
+
+-- ============================================================
+-- i18n — N03 cantidad sugerida de reposición: cobertura objetivo (configuración), columna
+-- de la grilla y total del resumen. Idempotente: CONTROL_REGISTRAR y TRADUCCION_GUARDAR son upserts.
+-- ============================================================
+EXEC CONTROL_REGISTRAR 'lblCoberturaObjetivo', 'Cobertura objetivo (meses):'
+EXEC CONTROL_REGISTRAR 'colhdr_CantidadSugerida', 'Cantidad sugerida'
+EXEC CONTROL_REGISTRAR 'rot_UnidadesSugeridas', 'Unidades sugeridas a reponer'
+GO
+
+DECLARE @espIdRot3 INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @ingIdRot3 INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @ptIdRot3  INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cidRot3   INT
+SET @cidRot3 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'lblCoberturaObjetivo')
+EXEC TRADUCCION_GUARDAR @espIdRot3, @cidRot3, 'Cobertura objetivo (meses):'
+EXEC TRADUCCION_GUARDAR @ingIdRot3, @cidRot3, 'Target coverage (months):'
+EXEC TRADUCCION_GUARDAR @ptIdRot3, @cidRot3, 'Cobertura alvo (meses):'
+SET @cidRot3 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'colhdr_CantidadSugerida')
+EXEC TRADUCCION_GUARDAR @espIdRot3, @cidRot3, 'Cantidad sugerida'
+EXEC TRADUCCION_GUARDAR @ingIdRot3, @cidRot3, 'Suggested quantity'
+EXEC TRADUCCION_GUARDAR @ptIdRot3, @cidRot3, 'Quantidade sugerida'
+SET @cidRot3 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_UnidadesSugeridas')
+EXEC TRADUCCION_GUARDAR @espIdRot3, @cidRot3, 'Unidades sugeridas a reponer'
+EXEC TRADUCCION_GUARDAR @ingIdRot3, @cidRot3, 'Suggested units to replenish'
+EXEC TRADUCCION_GUARDAR @ptIdRot3, @cidRot3, 'Unidades sugeridas para repor'
+GO

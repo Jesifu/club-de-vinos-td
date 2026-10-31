@@ -34,6 +34,8 @@ namespace CAPAS
             this.nudCoberturaReposicion = new System.Windows.Forms.NumericUpDown();
             this.lblCoberturaSobrestock = new System.Windows.Forms.Label();
             this.nudCoberturaSobrestock = new System.Windows.Forms.NumericUpDown();
+            this.lblCoberturaObjetivo = new System.Windows.Forms.Label();
+            this.nudCoberturaObjetivo = new System.Windows.Forms.NumericUpDown();
             this.btnGuardarConfiguracion = new System.Windows.Forms.Button();
             this.lblResumen = new System.Windows.Forms.Label();
             this.dgvRotacion = new System.Windows.Forms.DataGridView();
@@ -48,6 +50,7 @@ namespace CAPAS
             ((System.ComponentModel.ISupportInitialize)(this.nudCoberturaUrgente)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.nudCoberturaReposicion)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.nudCoberturaSobrestock)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.nudCoberturaObjetivo)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.dgvRotacion)).BeginInit();
             this.panelInferior.SuspendLayout();
             this.SuspendLayout();
@@ -149,7 +152,9 @@ namespace CAPAS
             this.tlpConfiguracion.Controls.Add(this.nudCoberturaReposicion, 1, 2);
             this.tlpConfiguracion.Controls.Add(this.lblCoberturaSobrestock, 2, 2);
             this.tlpConfiguracion.Controls.Add(this.nudCoberturaSobrestock, 3, 2);
-            this.tlpConfiguracion.Controls.Add(this.btnGuardarConfiguracion, 0, 3);
+            this.tlpConfiguracion.Controls.Add(this.lblCoberturaObjetivo, 0, 3);
+            this.tlpConfiguracion.Controls.Add(this.nudCoberturaObjetivo, 1, 3);
+            this.tlpConfiguracion.Controls.Add(this.btnGuardarConfiguracion, 2, 3);
             this.tlpConfiguracion.Location = new System.Drawing.Point(10, 30);
             this.tlpConfiguracion.Name = "tlpConfiguracion";
             this.tlpConfiguracion.RowCount = 4;
@@ -285,13 +290,34 @@ namespace CAPAS
             this.nudCoberturaSobrestock.TabIndex = 11;
             this.nudCoberturaSobrestock.Value = new decimal(new int[] { 60, 0, 0, 65536 });
             //
+            // lblCoberturaObjetivo
+            //
+            this.lblCoberturaObjetivo.AutoSize = true;
+            this.lblCoberturaObjetivo.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.lblCoberturaObjetivo.Margin = new System.Windows.Forms.Padding(3, 3, 24, 3);
+            this.lblCoberturaObjetivo.Name = "lblCoberturaObjetivo";
+            this.lblCoberturaObjetivo.Size = new System.Drawing.Size(250, 20);
+            this.lblCoberturaObjetivo.TabIndex = 12;
+            this.lblCoberturaObjetivo.Text = "Cobertura objetivo (meses):";
+            //
+            // nudCoberturaObjetivo
+            //
+            this.nudCoberturaObjetivo.DecimalPlaces = 1;
+            this.nudCoberturaObjetivo.Increment = new decimal(new int[] { 5, 0, 0, 65536 });
+            this.nudCoberturaObjetivo.Anchor = System.Windows.Forms.AnchorStyles.Left;
+            this.nudCoberturaObjetivo.Maximum = new decimal(new int[] { 120, 0, 0, 0 });
+            this.nudCoberturaObjetivo.Name = "nudCoberturaObjetivo";
+            this.nudCoberturaObjetivo.Size = new System.Drawing.Size(80, 26);
+            this.nudCoberturaObjetivo.TabIndex = 13;
+            this.nudCoberturaObjetivo.Value = new decimal(new int[] { 30, 0, 0, 65536 });
+            //
             // btnGuardarConfiguracion
             //
             this.btnGuardarConfiguracion.Anchor = System.Windows.Forms.AnchorStyles.Left;
-            this.tlpConfiguracion.SetColumnSpan(this.btnGuardarConfiguracion, 4);
+            this.tlpConfiguracion.SetColumnSpan(this.btnGuardarConfiguracion, 2);
             this.btnGuardarConfiguracion.Name = "btnGuardarConfiguracion";
             this.btnGuardarConfiguracion.Size = new System.Drawing.Size(240, 38);
-            this.btnGuardarConfiguracion.TabIndex = 12;
+            this.btnGuardarConfiguracion.TabIndex = 14;
             this.btnGuardarConfiguracion.Text = "Guardar configuración";
             this.btnGuardarConfiguracion.UseVisualStyleBackColor = true;
             this.btnGuardarConfiguracion.Click += new System.EventHandler(this.btnGuardarConfiguracion_Click);
@@ -390,6 +416,7 @@ namespace CAPAS
             ((System.ComponentModel.ISupportInitialize)(this.nudCoberturaUrgente)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.nudCoberturaReposicion)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.nudCoberturaSobrestock)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.nudCoberturaObjetivo)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.dgvRotacion)).EndInit();
             this.panelInferior.ResumeLayout(false);
             this.ResumeLayout(false);
@@ -418,6 +445,8 @@ namespace CAPAS
         private System.Windows.Forms.NumericUpDown nudCoberturaReposicion;
         private System.Windows.Forms.Label lblCoberturaSobrestock;
         private System.Windows.Forms.NumericUpDown nudCoberturaSobrestock;
+        private System.Windows.Forms.Label lblCoberturaObjetivo;
+        private System.Windows.Forms.NumericUpDown nudCoberturaObjetivo;
         private System.Windows.Forms.Button btnGuardarConfiguracion;
         private System.Windows.Forms.Label lblResumen;
         private System.Windows.Forms.DataGridView dgvRotacion;

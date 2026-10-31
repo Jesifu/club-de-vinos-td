@@ -48,6 +48,10 @@ namespace BE
         public string Clasificacion { get; set; }
         public string Recomendacion { get; set; }
 
+        // Unidades sugeridas a reponer (0 salvo recomendación Urgente o Reponer). La calcula
+        // RotacionBLL.Evaluar.
+        public int CantidadSugerida { get; set; }
+
         // 0 = más urgente. Sirve para ordenar el informe.
         public int Prioridad { get; set; }
     }

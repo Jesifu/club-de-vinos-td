@@ -44,12 +44,25 @@ namespace CAPAS
                 }
 
                 XmlSerializer serializador = new XmlSerializer(typeof(BE.ConfiguracionRotacion));
+                XmlDocument documento = new XmlDocument();
                 using (FileStream fs = new FileStream(Ruta, FileMode.Open, FileAccess.Read, FileShare.Read))
                 {
-                    BE.ConfiguracionRotacion config = serializador.Deserialize(fs) as BE.ConfiguracionRotacion;
-                    BLL.RotacionBLL.Validar(config);
-                    return config;
+                    documento.Load(fs);
                 }
+
+                BE.ConfiguracionRotacion config;
+                using (XmlNodeReader lector = new XmlNodeReader(documento))
+                {
+                    config = serializador.Deserialize(lector) as BE.ConfiguracionRotacion;
+                }
+
+                // Archivo anterior sin MesesCoberturaObjetivo: se deriva de los umbrales guardados
+                // (antes de validar) para no descartar una configuración personalizada que era válida.
+                if (config != null && documento.SelectSingleNode("/ConfiguracionRotacion/MesesCoberturaObjetivo") == null)
+                    config.MesesCoberturaObjetivo = DerivarCoberturaObjetivo(config);
+
+                BLL.RotacionBLL.Validar(config);
+                return config;
             }
             catch (Exception)
             {
@@ -57,6 +70,16 @@ namespace CAPAS
                 archivoInvalido = File.Exists(Ruta);
                 return BE.ConfiguracionRotacion.PorDefecto();
             }
+        }
+
+        // Objetivo = min(Sobrestock, max(3, Reposición + 1)): queda mayor a Reposición y no
+        // supera Sobrestock. Si Sobrestock <= Reposición el archivo es inválido de verdad y se
+        // deja el valor tal cual para que Validar lo rechace.
+        private static decimal DerivarCoberturaObjetivo(BE.ConfiguracionRotacion c)
+        {
+            if (c.MesesCoberturaSobrestock <= c.MesesCoberturaReposicion)
+                return c.MesesCoberturaObjetivo;
+            return Math.Min(c.MesesCoberturaSobrestock, Math.Max(3m, c.MesesCoberturaReposicion + 1m));
         }
 
         // Guardado atómico: serializa a un archivo temporal y luego lo reemplaza de una sola vez

@@ -28,6 +28,11 @@ namespace BE
         // Cobertura (meses) por encima de la cual hay sobrestock (>).
         public decimal MesesCoberturaSobrestock { get; set; } = 6m;
 
+        // Meses de consumo que se quiere tener en stock después de reponer (base de la cantidad
+        // sugerida). Debe ser mayor a MesesCoberturaReposicion y no superar MesesCoberturaSobrestock.
+        // Un XML anterior que no trae este elemento conserva este valor inicial al deserializarse.
+        public decimal MesesCoberturaObjetivo { get; set; } = 3m;
+
         public static ConfiguracionRotacion PorDefecto()
         {
             return new ConfiguracionRotacion();

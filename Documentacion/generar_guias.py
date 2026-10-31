@@ -1006,6 +1006,8 @@ def guia_usuario():
         ["Consumo mensual", "Vendidas dividido por (días del período / 30)."],
         ["Cobertura (meses)", "Stock actual dividido por el consumo mensual. Se muestra “—” si no hubo consumo."],
         ["Stock actual", "Stock del día de hoy, no el del final del período analizado."],
+        ["Cantidad sugerida", "Solo para vinos con recomendación Reponer urgente o Reponer: lo que falta para llegar a la cobertura objetivo sin quedar bajo el stock mínimo. "
+                              "Fórmula: máx(consumo mensual × cobertura objetivo; stock mínimo) − stock actual, redondeado hacia arriba, nunca menor a 0 en Reponer y nunca menor a 1 en Reponer urgente. Para Mantener y Sobrestock es 0."],
     ], [4.0, 12.6])
     g.h3("Clasificación de la rotación")
     g.tabla(["Clasificación", "Condición", "Umbral inicial"], [
@@ -1032,6 +1034,7 @@ def guia_usuario():
         ["Reposición urgente bajo (meses)", "1", "Mayor que cero."],
         ["Reponer bajo (meses)", "2", "Mayor que el de reposición urgente."],
         ["Sobrestock sobre (meses)", "6", "Mayor que el de reponer."],
+        ["Cobertura objetivo (meses)", "3", "Mayor que el de reponer y no mayor que el de sobrestock."],
     ], [6.4, 3.0, 7.2])
     g.p("Presione **Guardar configuración** para conservar los valores. Si alguna condición no se cumple, el sistema lo informa, por ejemplo: "
         "“El umbral de alta rotación debe ser mayor al de baja rotación.” o “La cobertura de sobrestock debe ser mayor a la de reposición.”")
@@ -1054,7 +1057,7 @@ def guia_usuario():
         "Lea el resumen sobre la tabla (cantidad de vinos por recomendación) y la tabla de resultados. Las filas se colorean según la recomendación: rojo, Reponer urgente; ámbar, Reponer; verde, Mantener; azul, Sobrestock / no reponer.",
     ])
     g.p("La tabla muestra SKU, nombre, bodega, stock actual, stock mínimo, vendidas, pérdidas, consumo mensual, cobertura, socios atendidos, "
-        "clasificación y recomendación. Se ordena de la recomendación más urgente a la menos urgente y, dentro de cada una, por menor cobertura. "
+        "clasificación, recomendación y cantidad sugerida a reponer; el resumen sobre la tabla agrega el total de unidades sugeridas a reponer. Se ordena de la recomendación más urgente a la menos urgente y, dentro de cada una, por menor cobertura. "
         "Solo se incluyen vinos Activos.")
     g.nota("Si la fecha **Hasta** es anterior a hoy, aparece un aviso: el stock considerado es el de hoy, por lo que la cobertura puede no ser representativa "
            "para períodos pasados. El aviso no impide el análisis.", tipo="Importante")
@@ -1071,8 +1074,8 @@ def guia_usuario():
     ])
     g.p("El informe se guarda en **Documentos\\ClubDeVinos\\Informes** con el nombre `Rotacion_AAAAMMDD_HHMMSS_mmm.pdf` (fecha y hora de generación, con milisegundos), "
         "de modo que cada exportación crea un archivo nuevo. Es un documento A4 apaisado, siempre en español, y contiene: el título “INFORME DE ROTACIÓN Y REPOSICIÓN DE STOCK”, "
-        "el período analizado, la fecha de generación, los umbrales usados, un resumen con la cantidad de vinos por recomendación, la tabla completa con color por recomendación "
-        "y una nota con las fórmulas. Refleja el **último análisis realizado**, no los cambios que haya hecho después en pantalla. "
+        "el período analizado, la fecha de generación, los umbrales usados, un resumen con la cantidad de vinos por recomendación y el total de unidades sugeridas a reponer, la tabla completa con color por recomendación "
+        "(incluye la columna “A reponer”) y una nota con las fórmulas. Refleja el **último análisis realizado**, no los cambios que haya hecho después en pantalla. "
         "Si no puede generarse, el sistema indica “No se pudo generar el informe en PDF. Verifique que la carpeta Documentos sea escribible.”")
 
     # ---------------- 7 ----------------
@@ -1900,6 +1903,7 @@ def guia_mantenimiento():
              "  <MesesCoberturaUrgente>1</MesesCoberturaUrgente>\n"
              "  <MesesCoberturaReposicion>2</MesesCoberturaReposicion>\n"
              "  <MesesCoberturaSobrestock>6</MesesCoberturaSobrestock>\n"
+             "  <MesesCoberturaObjetivo>3</MesesCoberturaObjetivo>\n"
              "</ConfiguracionRotacion>")
     g.p("Para agregar un parámetro: (1) agregue la propiedad a `ConfiguracionRotacion` con su valor inicial (un archivo antiguo sin el elemento conserva ese valor); (2) agregue su validación en `RotacionBLL.Validar`; "
         "(3) agregue el control en `frmAnalisisRotacion`, y en `LeerConfiguracionDePantalla` y `AplicarConfiguracionEnPantalla`; (4) úselo en `RotacionBLL.Evaluar` y, si corresponde, en el encabezado de `RotacionReposicionPdf`; "

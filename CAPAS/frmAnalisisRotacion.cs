@@ -105,8 +105,11 @@ namespace CAPAS
 
         private void ActualizarResumen(List<BE.ResultadoRotacion> filas)
         {
+            string unidades = SeguridadYServicios.IdiomaManager.getInstance().Traducir("rot_UnidadesSugeridas")
+                              ?? "Unidades sugeridas a reponer";
             lblResumen.Text = string.Join("   |   ",
-                BLL.RotacionBLL.ResumirPorRecomendacion(filas).Select(p => TraducirValor(p.Key) + ": " + p.Value));
+                    BLL.RotacionBLL.ResumirPorRecomendacion(filas).Select(p => TraducirValor(p.Key) + ": " + p.Value))
+                + "   |   " + unidades + ": " + BLL.RotacionBLL.TotalUnidadesSugeridas(filas);
         }
 
         // Aviso no bloqueante: el stock es el actual, así que la cobertura de un rango pasado
@@ -159,6 +162,7 @@ namespace CAPAS
             AsignarEncabezado("MesesCobertura", mgr.Traducir("colhdr_Cobertura") ?? "Cobertura (meses)");
             AsignarEncabezado("Clasificacion", mgr.Traducir("colhdr_Clasificacion") ?? "Clasificación");
             AsignarEncabezado("Recomendacion", mgr.Traducir("colhdr_Recomendacion") ?? "Recomendación");
+            AsignarEncabezado("CantidadSugerida", mgr.Traducir("colhdr_CantidadSugerida") ?? "Cantidad sugerida");
         }
 
         private void AsignarEncabezado(string columna, string texto)
@@ -188,7 +192,8 @@ namespace CAPAS
         private void EstilizarNumericos()
         {
             foreach (NumericUpDown n in new[] { nudDiasAnalisis, nudUmbralAlta, nudUmbralBaja,
-                                                nudCoberturaUrgente, nudCoberturaReposicion, nudCoberturaSobrestock })
+                                                nudCoberturaUrgente, nudCoberturaReposicion, nudCoberturaSobrestock,
+                                                nudCoberturaObjetivo })
             {
                 n.BackColor = AppTheme.FondoControl;
                 n.ForeColor = AppTheme.TextoPrincipal;
@@ -228,6 +233,7 @@ namespace CAPAS
             nudCoberturaUrgente.Value = Acotar(c.MesesCoberturaUrgente, nudCoberturaUrgente);
             nudCoberturaReposicion.Value = Acotar(c.MesesCoberturaReposicion, nudCoberturaReposicion);
             nudCoberturaSobrestock.Value = Acotar(c.MesesCoberturaSobrestock, nudCoberturaSobrestock);
+            nudCoberturaObjetivo.Value = Acotar(c.MesesCoberturaObjetivo, nudCoberturaObjetivo);
         }
 
         private static decimal Acotar(decimal valor, NumericUpDown nud)
@@ -251,7 +257,8 @@ namespace CAPAS
                 UmbralBajaRotacion = nudUmbralBaja.Value,
                 MesesCoberturaUrgente = nudCoberturaUrgente.Value,
                 MesesCoberturaReposicion = nudCoberturaReposicion.Value,
-                MesesCoberturaSobrestock = nudCoberturaSobrestock.Value
+                MesesCoberturaSobrestock = nudCoberturaSobrestock.Value,
+                MesesCoberturaObjetivo = nudCoberturaObjetivo.Value
             };
         }
 
@@ -359,7 +366,7 @@ namespace CAPAS
 
                 string[] orden = { "Codigo", "Nombre", "BodegaNombre", "StockActual", "StockMinimo", "UnidadesVendidas",
                                    "UnidadesPerdidas", "ConsumoMensual", "MesesCobertura", "SociosAtendidos",
-                                   "Clasificacion", "Recomendacion" };
+                                   "Clasificacion", "Recomendacion", "CantidadSugerida" };
                 for (int i = 0; i < orden.Length; i++)
                     dgvRotacion.Columns[orden[i]].DisplayIndex = i;
 

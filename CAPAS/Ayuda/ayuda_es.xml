@@ -534,19 +534,19 @@
       <Resumen>Los umbrales con que se clasifica y se recomienda se guardan en un archivo XML y el análisis siempre los lee de ahí. Se editan en el grupo Configuración del análisis.</Resumen>
       <Permiso>Analizar rotación de stock.</Permiso>
       <Pasos>
-        <Paso>Edite los valores del grupo Configuración del análisis: Días de análisis, Alta rotación desde (u/mes), Baja rotación bajo (u/mes), Reposición urgente bajo (meses), Reponer bajo (meses) y Sobrestock sobre (meses).</Paso>
+        <Paso>Edite los valores del grupo Configuración del análisis: Días de análisis, Alta rotación desde (u/mes), Baja rotación bajo (u/mes), Reposición urgente bajo (meses), Reponer bajo (meses), Sobrestock sobre (meses) y Cobertura objetivo (meses).</Paso>
         <Paso>Presione Guardar configuración para guardarlos sin analizar, o Analizar: valida lo que hay en pantalla, lo guarda en el archivo y analiza con la configuración releída del archivo.</Paso>
         <Paso>El archivo es configuracion_rotacion.xml, en la carpeta %LocalAppData%\ClubDeVinos del usuario de Windows. Si no existe, se crea con los valores por defecto; si está dañado o incoherente, se usan los valores por defecto sin interrumpir.</Paso>
       </Pasos>
       <Reglas>
-        <Regla>Valores por defecto: 90 días de análisis, alta rotación desde 4 u/mes, baja rotación bajo 1,5 u/mes, reposición urgente bajo 1 mes, reponer bajo 2 meses, sobrestock sobre 6 meses.</Regla>
-        <Regla>Coherencia exigida: días entre 1 y 3650; umbral bajo mayor a cero; umbral alto mayor al bajo; cobertura urgente mayor a cero; cobertura de reposición mayor a la urgente; cobertura de sobrestock mayor a la de reposición.</Regla>
+        <Regla>Valores por defecto: 90 días de análisis, alta rotación desde 4 u/mes, baja rotación bajo 1,5 u/mes, reposición urgente bajo 1 mes, reponer bajo 2 meses, sobrestock sobre 6 meses, cobertura objetivo 3 meses.</Regla>
+        <Regla>Coherencia exigida: días entre 1 y 3650; umbral bajo mayor a cero; umbral alto mayor al bajo; cobertura urgente mayor a cero; cobertura de reposición mayor a la urgente; cobertura de sobrestock mayor a la de reposición; cobertura objetivo mayor a la de reposición y no mayor a la de sobrestock. Un archivo anterior sin la cobertura objetivo la calcula a partir de sus umbrales: el menor entre la cobertura de sobrestock y el mayor entre 3 y la cobertura de reposición más 1.</Regla>
         <Regla>Si no puede guardar o releer el archivo, el análisis no se realiza.</Regla>
       </Reglas>
       <Mensajes>
         <Mensaje>"Los días de análisis deben estar entre 1 y 3650."</Mensaje>
         <Mensaje>"El umbral de baja rotación debe ser mayor a cero." / "El umbral de alta rotación debe ser mayor al de baja rotación."</Mensaje>
-        <Mensaje>"La cobertura de reposición urgente debe ser mayor a cero." / "La cobertura de reposición debe ser mayor a la de reposición urgente." / "La cobertura de sobrestock debe ser mayor a la de reposición."</Mensaje>
+        <Mensaje>"La cobertura de reposición urgente debe ser mayor a cero." / "La cobertura de reposición debe ser mayor a la de reposición urgente." / "La cobertura de sobrestock debe ser mayor a la de reposición." / "La cobertura objetivo debe ser mayor a la de reposición." / "La cobertura objetivo no puede superar la de sobrestock."</Mensaje>
       </Mensajes>
     </Tema>
 
@@ -565,6 +565,7 @@
       </Pasos>
       <Reglas>
         <Regla>El orden de la grilla es por urgencia: Reponer urgente, Reponer, Mantener, Sobrestock; dentro de cada grupo, de menor a mayor cobertura.</Regla>
+        <Regla>Cantidad sugerida: solo para Reponer urgente y Reponer. Es lo que falta para tener, después de reponer, la cobertura objetivo de consumo sin quedar bajo el stock mínimo: máx(consumo mensual × cobertura objetivo; stock mínimo) − stock actual, redondeado hacia arriba, nunca menor a 0 en Reponer y nunca menor a 1 en Reponer urgente. Para Mantener y Sobrestock es 0. El resumen muestra el total de unidades sugeridas a reponer; es una sugerencia para decidir la compra, no genera ningún pedido.</Regla>
         <Regla>Un vino sin consumo no tiene cobertura calculable (se muestra una raya).</Regla>
         <Regla>Un vino de alta rotación con poca cobertura es el caso típico de reposición urgente.</Regla>
       </Reglas>
