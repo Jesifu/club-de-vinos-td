@@ -89,14 +89,15 @@
                Order="2" />
 
       <!--
-        SqlInstanceDlg goes between InstallDirDlg and VerifyReadyDlg. WixUI_InstallDir publishes, on
-        InstallDirDlg.Next: SetTargetPath (1), path validation (2), SpawnDialog InvalidDirDlg (3) and
-        NewDialog VerifyReadyDlg (4), the last one guarded by a valid-path condition. A later NewDialog
-        (Order 5) overrides the destination dialog, so it must repeat that guard; otherwise an invalid
-        path would still advance after InvalidDirDlg is dismissed.
+        SqlInstanceDlg goes between InstallDirDlg and VerifyReadyDlg. WiX 7's WixUI_InstallDir
+        publishes, on InstallDirDlg.Next: CheckTargetPath (1), SetTargetPath (3) and an unconditional
+        NewDialog VerifyReadyDlg (4). Path validation is done by the CheckTargetPath event itself; the
+        old WIXUI_INSTALLDIR_VALID property is never set, so a guard on it is always false and the
+        dialog would never show. A later NewDialog (Order 5) overrides the destination dialog and
+        mirrors the stock one, so it only needs NOT Installed.
       -->
       <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="SqlInstanceDlg"
-               Order="5" Condition="NOT Installed AND (WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID=&quot;1&quot;)" />
+               Order="5" Condition="NOT Installed" />
       <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="SqlInstanceDlg"
                Order="3" Condition="NOT Installed" />
 
