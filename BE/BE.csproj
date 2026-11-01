@@ -54,6 +54,7 @@
     <Compile Include="EstadoVino.cs" />
     <Compile Include="IDIOMA.cs" />
     <Compile Include="LoginResultado.cs" />
+    <Compile Include="ResultadoConexion.cs" />
     <Compile Include="MovimientoStock.cs" />
     <Compile Include="NodoPermiso.cs" />
     <Compile Include="PaginaResultado.cs" />

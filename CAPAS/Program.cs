@@ -29,6 +29,11 @@ namespace CAPAS
                 MaterialTextShade.WHITE
             );
 
+            ErrorInicio.Instalar();
+            // Sin base de datos alcanzable no tiene sentido seguir: se informa y se sale (o se reintenta).
+            if (!ErrorInicio.VerificarConexion())
+                return;
+
             InicializarIntegridad();
             Application.Run(new LogIn());
         }

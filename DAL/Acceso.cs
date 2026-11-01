@@ -31,10 +31,28 @@ namespace DAL
             get { return _cadenaConexion.Value; }
         }
 
+        private static readonly Lazy<string> _servidor = new Lazy<string>(ResolverServidor);
+
+        // Servidor/instancia efectivo (para la prueba de conexión y los mensajes al usuario).
+        internal static string Servidor
+        {
+            get { return _servidor.Value; }
+        }
+
+        internal static string CadenaConexionPublica
+        {
+            get { return CadenaConexion; }
+        }
+
+        private static string ResolverServidor()
+        {
+            return LeerEntorno() ?? LeerRegistro(RegistryView.Registry64)
+                   ?? LeerRegistro(RegistryView.Registry32) ?? ".";
+        }
+
         private static string ConstruirCadenaConexion()
         {
-            string servidor = LeerEntorno() ?? LeerRegistro(RegistryView.Registry64)
-                              ?? LeerRegistro(RegistryView.Registry32) ?? ".";
+            string servidor = Servidor;
             try
             {
                 return new SqlConnectionStringBuilder

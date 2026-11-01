@@ -210,6 +210,7 @@
     <Compile Include="RotacionReposicionPdf.cs" />
     <Compile Include="ConfiguracionRotacionStore.cs" />
     <Compile Include="Program.cs" />
+    <Compile Include="ErrorInicio.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Ayuda\ayuda_es.xml">
       <LogicalName>CAPAS.Ayuda.ayuda_es.xml</LogicalName>
