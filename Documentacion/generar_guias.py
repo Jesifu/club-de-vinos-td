@@ -1061,6 +1061,15 @@ def guia_usuario():
         "Solo se incluyen vinos Activos.")
     g.nota("Si la fecha **Hasta** es anterior a hoy, aparece un aviso: el stock considerado es el de hoy, por lo que la cobertura puede no ser representativa "
            "para períodos pasados. El aviso no impide el análisis.", tipo="Importante")
+
+    g.h3("Pestañas Detalle y Gráficos")
+    g.p("Los resultados se muestran en dos pestañas: **Detalle** (la tabla) y **Gráficos**. Los gráficos se actualizan cada vez que presiona **Analizar** y cambian de idioma junto con la interfaz. "
+        "Si no entran todos en la ventana, use la barra de desplazamiento. Los colores son siempre los mismos: rojo, Reponer urgente; naranja, Reponer; verde, Mantener; azul grisáceo, Sobrestock / no reponer.")
+    g.tabla(["Gráfico", "Qué muestra"], [
+        ["Consumo mensual vs stock actual", "Barras por vino (los más urgentes, hasta 10; el título indica cuántos se muestran) con el consumo mensual y el stock actual, y un rombo negro con el stock mínimo. Un stock por debajo del rombo indica reposición."],
+        ["Distribución por recomendación", "Dona con la cantidad de vinos de cada recomendación y su porcentaje."],
+        ["Unidades sugeridas a reponer", "Barras con la cantidad sugerida de los vinos a reponer (hasta 10), coloreadas por recomendación. Si ningún vino necesita reposición, muestra “Sin datos para graficar”."],
+    ], [5.6, 11.0])
     g.tabla(["Mensaje", "Causa"], [
         ["“La fecha desde no puede ser posterior a la fecha hasta.”", "El rango de fechas está invertido."],
         ["“No se pudo guardar o leer el archivo de configuración, por lo que no se realizó el análisis. Verifique los permisos de la carpeta …”", "No se puede escribir o leer en %LocalAppData%\\ClubDeVinos."],
@@ -1074,8 +1083,9 @@ def guia_usuario():
     ])
     g.p("El informe se guarda en **Documentos\\ClubDeVinos\\Informes** con el nombre `Rotacion_AAAAMMDD_HHMMSS_mmm.pdf` (fecha y hora de generación, con milisegundos), "
         "de modo que cada exportación crea un archivo nuevo. Es un documento A4 apaisado, siempre en español, y contiene: el título “INFORME DE ROTACIÓN Y REPOSICIÓN DE STOCK”, "
-        "el período analizado, la fecha de generación, los umbrales usados, un resumen con la cantidad de vinos por recomendación y el total de unidades sugeridas a reponer, la tabla completa con color por recomendación "
-        "(incluye la columna “A reponer”) y una nota con las fórmulas. Refleja el **último análisis realizado**, no los cambios que haya hecho después en pantalla. "
+        "el período analizado, la fecha de generación, los umbrales usados, un resumen con la cantidad de vinos por recomendación y el total de unidades sugeridas a reponer, "
+        "los gráficos (la primera página reúne el encabezado, el resumen y los gráficos de consumo vs stock y de distribución por recomendación; la segunda abre con las unidades sugeridas a reponer), "
+        "la tabla completa con color por recomendación (incluye la columna “A reponer”) y una nota con las fórmulas. Refleja el **último análisis realizado**, no los cambios que haya hecho después en pantalla. "
         "Si no puede generarse, el sistema indica “No se pudo generar el informe en PDF. Verifique que la carpeta Documentos sea escribible.”")
 
     # ---------------- 7 ----------------
@@ -1686,6 +1696,7 @@ def guia_mantenimiento():
         ["Interfaz", "Windows Forms con ReaLTaiizor 3.8.1.8 (`MaterialForm`), tema oscuro con paleta “Bordó”. `Microsoft.VisualBasic` para los cuadros de entrada de texto (`InputBox`)."],
         ["Base de datos", "SQL Server (autenticación de Windows), base `BDCAPAS`, acceso con `System.Data.SqlClient` y solo procedimientos almacenados."],
         ["PDF", "PDFsharp-MigraDoc 1.50.5147."],
+        ["Gráficos", "`System.Windows.Forms.DataVisualization.Charting.Chart` (referencia de framework incluida en .NET Framework 4.x; el instalador no agrega nada). Los arma `CAPAS\\RotacionGraficos`, usada por la pantalla de rotación y por el informe PDF."],
         ["Instalador", "WiX Toolset 7.0.0 (SDK, `WixToolset.UI.wixext` y `WixToolset.Sql.wixext`) y acciones personalizadas DTF (`WixToolset.Dtf.CustomAction` 7.0.0, net472)."],
         ["Documentación", "PlantUML (kroki.io), Python 3.12 con `python-docx`, `reportlab` y `Pillow`."],
     ], [4.4, 12.2], tam=9)
@@ -1917,7 +1928,7 @@ def guia_mantenimiento():
         "`PdfDocumentRenderer(true)` (Unicode) y `renderer.PdfDocument.Save(ruta)`.")
     g.tabla(["Clase (en `CAPAS`)", "Documento", "Formato y destino"], [
         ["`RemitoDespachoPdf`", "Remito de despacho de una caja", "A4 vertical. `Documentos\\ClubDeVinos\\Remitos\\Remito_Caja{id}.pdf` (se sobrescribe al regenerar)."],
-        ["`RotacionReposicionPdf`", "Informe de rotación y reposición", "A4 apaisado. `Documentos\\ClubDeVinos\\Informes\\Rotacion_{yyyyMMdd_HHmmss_fff}.pdf` (nombre único)."],
+        ["`RotacionReposicionPdf`", "Informe de rotación y reposición", "A4 apaisado. `Documentos\\ClubDeVinos\\Informes\\Rotacion_{yyyyMMdd_HHmmss_fff}.pdf` (nombre único). Incluye tres gráficos de `RotacionGraficos`, incrustados como PNG en memoria (`base64:`), sin archivos temporales."],
     ], [4.4, 5.0, 7.2], tam=9)
     g.bullets([
         "Son clases estáticas **independientes del idioma de sesión**: texto y formato siempre en español y cultura es-AR (documentos comerciales). No implementan `IObservadorIdioma`.",

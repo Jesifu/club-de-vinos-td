@@ -5944,3 +5944,72 @@ EXEC TRADUCCION_GUARDAR @espIdRot3, @cidRot3, 'Unidades sugeridas a reponer'
 EXEC TRADUCCION_GUARDAR @ingIdRot3, @cidRot3, 'Suggested units to replenish'
 EXEC TRADUCCION_GUARDAR @ptIdRot3, @cidRot3, 'Unidades sugeridas para repor'
 GO
+
+-- ============================================================
+-- i18n — N03 gráficos del análisis de rotación: pestañas Detalle/Gráficos (botones creados
+-- en código, claves = nombre del control) y textos de los tres gráficos (títulos, ejes, series,
+-- mensaje sin datos). Los nombres de recomendación reutilizan rot_rec_*. Idempotente:
+-- CONTROL_REGISTRAR y TRADUCCION_GUARDAR son upserts.
+-- ============================================================
+EXEC CONTROL_REGISTRAR 'btnTabDetalle', 'Detalle'
+EXEC CONTROL_REGISTRAR 'btnTabGraficos', 'Gráficos'
+EXEC CONTROL_REGISTRAR 'rot_gra_Titulo1', 'Consumo mensual vs stock actual ({0} de {1} vinos)'
+EXEC CONTROL_REGISTRAR 'rot_gra_Titulo2', 'Distribución por recomendación'
+EXEC CONTROL_REGISTRAR 'rot_gra_Titulo3', 'Unidades sugeridas a reponer ({0} de {1} vinos)'
+EXEC CONTROL_REGISTRAR 'rot_gra_EjeUnidades', 'Unidades'
+EXEC CONTROL_REGISTRAR 'rot_gra_EjeVino', 'Vino'
+EXEC CONTROL_REGISTRAR 'rot_gra_SerieConsumo', 'Consumo mensual (u/mes)'
+EXEC CONTROL_REGISTRAR 'rot_gra_SerieStock', 'Stock actual'
+EXEC CONTROL_REGISTRAR 'rot_gra_SerieMinimo', 'Stock mínimo'
+EXEC CONTROL_REGISTRAR 'rot_gra_SinDatos', 'Sin datos para graficar'
+GO
+
+DECLARE @espIdRot4 INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @ingIdRot4 INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @ptIdRot4  INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cidRot4   INT
+SET @cidRot4 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnTabDetalle')
+EXEC TRADUCCION_GUARDAR @espIdRot4, @cidRot4, 'Detalle'
+EXEC TRADUCCION_GUARDAR @ingIdRot4, @cidRot4, 'Details'
+EXEC TRADUCCION_GUARDAR @ptIdRot4, @cidRot4, 'Detalhe'
+SET @cidRot4 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'btnTabGraficos')
+EXEC TRADUCCION_GUARDAR @espIdRot4, @cidRot4, 'Gráficos'
+EXEC TRADUCCION_GUARDAR @ingIdRot4, @cidRot4, 'Charts'
+EXEC TRADUCCION_GUARDAR @ptIdRot4, @cidRot4, 'Gráficos'
+SET @cidRot4 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_gra_Titulo1')
+EXEC TRADUCCION_GUARDAR @espIdRot4, @cidRot4, 'Consumo mensual vs stock actual ({0} de {1} vinos)'
+EXEC TRADUCCION_GUARDAR @ingIdRot4, @cidRot4, 'Monthly consumption vs current stock ({0} of {1} wines)'
+EXEC TRADUCCION_GUARDAR @ptIdRot4, @cidRot4, 'Consumo mensal vs estoque atual ({0} de {1} vinhos)'
+SET @cidRot4 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_gra_Titulo2')
+EXEC TRADUCCION_GUARDAR @espIdRot4, @cidRot4, 'Distribución por recomendación'
+EXEC TRADUCCION_GUARDAR @ingIdRot4, @cidRot4, 'Distribution by recommendation'
+EXEC TRADUCCION_GUARDAR @ptIdRot4, @cidRot4, 'Distribuição por recomendação'
+SET @cidRot4 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_gra_Titulo3')
+EXEC TRADUCCION_GUARDAR @espIdRot4, @cidRot4, 'Unidades sugeridas a reponer ({0} de {1} vinos)'
+EXEC TRADUCCION_GUARDAR @ingIdRot4, @cidRot4, 'Suggested units to replenish ({0} of {1} wines)'
+EXEC TRADUCCION_GUARDAR @ptIdRot4, @cidRot4, 'Unidades sugeridas para repor ({0} de {1} vinhos)'
+SET @cidRot4 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_gra_EjeUnidades')
+EXEC TRADUCCION_GUARDAR @espIdRot4, @cidRot4, 'Unidades'
+EXEC TRADUCCION_GUARDAR @ingIdRot4, @cidRot4, 'Units'
+EXEC TRADUCCION_GUARDAR @ptIdRot4, @cidRot4, 'Unidades'
+SET @cidRot4 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_gra_EjeVino')
+EXEC TRADUCCION_GUARDAR @espIdRot4, @cidRot4, 'Vino'
+EXEC TRADUCCION_GUARDAR @ingIdRot4, @cidRot4, 'Wine'
+EXEC TRADUCCION_GUARDAR @ptIdRot4, @cidRot4, 'Vinho'
+SET @cidRot4 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_gra_SerieConsumo')
+EXEC TRADUCCION_GUARDAR @espIdRot4, @cidRot4, 'Consumo mensual (u/mes)'
+EXEC TRADUCCION_GUARDAR @ingIdRot4, @cidRot4, 'Monthly consumption (units/month)'
+EXEC TRADUCCION_GUARDAR @ptIdRot4, @cidRot4, 'Consumo mensal (un./mês)'
+SET @cidRot4 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_gra_SerieStock')
+EXEC TRADUCCION_GUARDAR @espIdRot4, @cidRot4, 'Stock actual'
+EXEC TRADUCCION_GUARDAR @ingIdRot4, @cidRot4, 'Current stock'
+EXEC TRADUCCION_GUARDAR @ptIdRot4, @cidRot4, 'Estoque atual'
+SET @cidRot4 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_gra_SerieMinimo')
+EXEC TRADUCCION_GUARDAR @espIdRot4, @cidRot4, 'Stock mínimo'
+EXEC TRADUCCION_GUARDAR @ingIdRot4, @cidRot4, 'Minimum stock'
+EXEC TRADUCCION_GUARDAR @ptIdRot4, @cidRot4, 'Estoque mínimo'
+SET @cidRot4 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_gra_SinDatos')
+EXEC TRADUCCION_GUARDAR @espIdRot4, @cidRot4, 'Sin datos para graficar'
+EXEC TRADUCCION_GUARDAR @ingIdRot4, @cidRot4, 'No data to chart'
+EXEC TRADUCCION_GUARDAR @ptIdRot4, @cidRot4, 'Sem dados para o gráfico'
+GO

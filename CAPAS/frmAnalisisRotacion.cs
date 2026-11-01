@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using System.Windows.Forms.DataVisualization.Charting;
 using ReaLTaiizor.Forms;
 using ReaLTaiizor.Manager;
 
@@ -29,6 +30,15 @@ namespace CAPAS
         // Evita que los cambios de código sobre los controles disparen la lógica de los eventos.
         private bool _cargando;
 
+        // Área de resultados armada en código: pestañas "Detalle" (grilla) y "Gráficos".
+        private Panel _pnlResultados;
+        private Panel _pnlDetalle;
+        private Panel _pnlGraficos;
+        private TableLayoutPanel _tlpGraficos;
+        private Button _btnTabDetalle;
+        private Button _btnTabGraficos;
+        private readonly Chart[] _graficos = new Chart[3];
+
         public frmAnalisisRotacion()
         {
             InitializeComponent();
@@ -36,6 +46,7 @@ namespace CAPAS
 
         private void frmAnalisisRotacion_Load(object sender, EventArgs e)
         {
+            ConstruirPestanas();
             GuardarDefaults(this.Controls);
             _controles.Remove("lblTitulo");
             _defaults.Remove("lblTitulo");
@@ -49,10 +60,17 @@ namespace CAPAS
             CargarConfiguracion();
 
             IdiomaUIHelper.AgregarSelector(this);
+
+            // El selector de idioma agrega una franja abajo: el área de resultados se acota a lo
+            // que queda libre sobre la botonera, para no pisar Exportar a PDF y Cerrar.
+            PerformLayout();
+            _pnlResultados.Height = panelInferior.Top - _pnlResultados.Top - LogicalToDeviceUnits(4);
+
             MaterialSkinManager.Instance.AddFormToManage(this);
             AppTheme.AplicarTema(this);
             EstilizarNumericos();
             lblAdvertenciaFecha.ForeColor = AppTheme.Acento;
+            MostrarPestana(false);
 
             // Se enganchan al final para que la carga inicial no los dispare.
             nudDiasAnalisis.ValueChanged += nudDiasAnalisis_ValueChanged;
@@ -80,6 +98,166 @@ namespace CAPAS
                 ActualizarResumen(_ultimoResultado);
                 dgvRotacion.Invalidate();
             }
+            ActualizarGraficos();
+        }
+
+        // Mueve la grilla y el resumen a una pestaña "Detalle" y agrega la pestaña "Gráficos". Se
+        // arma en código (no en el Designer) con dos botones y dos paneles: así las pestañas
+        // toman el tema de la aplicación, que un TabControl nativo no respeta. También agranda un
+        // poco la ventana, si la pantalla lo permite, para que los gráficos tengan lugar.
+        private void ConstruirPestanas()
+        {
+            SuspendLayout();
+
+            Rectangle trabajo = Screen.FromControl(this).WorkingArea;
+            int alto = Math.Min(Height + LogicalToDeviceUnits(190), trabajo.Height - 20);
+            if (alto > Height)
+            {
+                Height = alto;
+                Top = trabajo.Top + (trabajo.Height - Height) / 2;
+            }
+
+            Panel resultados = new Panel
+            {
+                Name = "pnlResultados",
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
+                Location = new Point(dgvRotacion.Left, lblResumen.Top),
+                Size = new Size(dgvRotacion.Width,
+                                ClientSize.Height - panelInferior.Height - lblResumen.Top - LogicalToDeviceUnits(4))
+            };
+
+            // Se agregan primero los paneles que llenan y al final la franja de pestañas (dock Top).
+            _pnlDetalle = new Panel { Name = "pnlDetalle", Dock = DockStyle.Fill };
+            _pnlGraficos = new Panel { Name = "pnlGraficos", Dock = DockStyle.Fill, AutoScroll = true, Visible = false };
+            Panel franja = new Panel { Name = "pnlPestanas", Dock = DockStyle.Top, Height = LogicalToDeviceUnits(42) };
+            resultados.Controls.Add(_pnlDetalle);
+            resultados.Controls.Add(_pnlGraficos);
+            resultados.Controls.Add(franja);
+
+            _btnTabDetalle = CrearBotonPestana("btnTabDetalle", "Detalle", 0);
+            _btnTabGraficos = CrearBotonPestana("btnTabGraficos", "Gráficos", 1);
+            _btnTabDetalle.Click += (s, e) => MostrarPestana(false);
+            _btnTabGraficos.Click += (s, e) => MostrarPestana(true);
+            franja.Controls.Add(_btnTabDetalle);
+            franja.Controls.Add(_btnTabGraficos);
+
+            // Detalle: el resumen y la grilla que ya existían. Se acoplan (Dock) en vez de usar
+            // anclas: el panel nace de 200x100 y las anclas se calculan contra ese tamaño, no contra
+            // el real. Con Dock el diseño se resuelve solo al dimensionar y al redimensionar.
+            // La grilla se agrega primero (Fill) y el resumen después (Top), que se acopla antes.
+            Controls.Remove(lblResumen);
+            Controls.Remove(dgvRotacion);
+            _pnlDetalle.SuspendLayout();
+            dgvRotacion.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            dgvRotacion.Dock = DockStyle.Fill;
+            lblResumen.Dock = DockStyle.Top;
+            lblResumen.Padding = new Padding(0, LogicalToDeviceUnits(2), 0, LogicalToDeviceUnits(10));
+            _pnlDetalle.Controls.Add(dgvRotacion);
+            _pnlDetalle.Controls.Add(lblResumen);
+            _pnlDetalle.ResumeLayout(true);
+
+            // Gráficos: el principal ocupa todo el ancho y los otros dos van lado a lado. La alturas
+            // de las filas se ajustan en AjustarAlturasGraficos para que el primero entre completo
+            // en el área visible.
+            _tlpGraficos = new TableLayoutPanel
+            {
+                Name = "tlpGraficos",
+                Dock = DockStyle.Top,
+                ColumnCount = 2,
+                RowCount = 2
+            };
+            _tlpGraficos.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            _tlpGraficos.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            _tlpGraficos.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(300)));
+            _tlpGraficos.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(320)));
+            _pnlGraficos.Controls.Add(_tlpGraficos);
+            _pnlGraficos.Resize += (s, e) => AjustarAlturasGraficos();
+
+            _pnlResultados = resultados;
+            Controls.Add(resultados);
+            ResumeLayout(true);
+            AjustarAlturasGraficos();
+        }
+
+        // El primer gráfico ocupa justo el área visible de la pestaña (con un mínimo legible);
+        // los otros dos quedan debajo y se alcanzan con el scroll del panel.
+        private void AjustarAlturasGraficos()
+        {
+            if (_tlpGraficos == null || _pnlGraficos == null) return;
+            int primero = Math.Max(LogicalToDeviceUnits(260), _pnlGraficos.ClientSize.Height);
+            int segundo = LogicalToDeviceUnits(320);
+            _tlpGraficos.SuspendLayout();
+            _tlpGraficos.RowStyles[0].Height = primero;
+            _tlpGraficos.RowStyles[1].Height = segundo;
+            _tlpGraficos.Height = primero + segundo;
+            _tlpGraficos.ResumeLayout(true);
+        }
+
+        private Button CrearBotonPestana(string nombre, string texto, int indice)
+        {
+            return new Button
+            {
+                Name = nombre,
+                Text = texto,
+                Size = new Size(LogicalToDeviceUnits(150), LogicalToDeviceUnits(36)),
+                Location = new Point(indice * LogicalToDeviceUnits(156), LogicalToDeviceUnits(3)),
+                FlatStyle = FlatStyle.Flat,
+                TabStop = true
+            };
+        }
+
+        private void MostrarPestana(bool graficos)
+        {
+            _pnlDetalle.Visible = !graficos;
+            _pnlGraficos.Visible = graficos;
+            EstilizarPestana(_btnTabDetalle, !graficos);
+            EstilizarPestana(_btnTabGraficos, graficos);
+        }
+
+        private static void EstilizarPestana(Button boton, bool activa)
+        {
+            boton.FlatStyle = FlatStyle.Flat;
+            boton.BackColor = activa ? AppTheme.Seleccion : AppTheme.FondoHeader;
+            boton.ForeColor = activa ? AppTheme.SeleccionTexto : AppTheme.TextoEncabezado;
+            boton.FlatAppearance.BorderColor = activa ? AppTheme.Acento : AppTheme.Borde;
+            boton.FlatAppearance.BorderSize = activa ? 2 : 1;
+            boton.FlatAppearance.MouseOverBackColor = AppTheme.AcentoHover;
+            boton.FlatAppearance.MouseDownBackColor = AppTheme.Seleccion;
+        }
+
+        // Reconstruye los tres gráficos con el último análisis (o vacíos si todavía no hay) y con
+        // los textos del idioma activo. Se llama al analizar y al cambiar de idioma.
+        private void ActualizarGraficos()
+        {
+            if (_tlpGraficos == null) return;
+
+            List<BE.ResultadoRotacion> filas = _ultimoResultado ?? new List<BE.ResultadoRotacion>();
+            RotacionGraficos.Opciones opciones = new RotacionGraficos.Opciones
+            {
+                Traducir = clave => SeguridadYServicios.IdiomaManager.getInstance().Traducir(clave),
+                Cultura = System.Globalization.CultureInfo.CurrentCulture
+            };
+
+            _tlpGraficos.SuspendLayout();
+            ColocarGrafico(0, RotacionGraficos.ConsumoVsStock(filas, opciones), 0, 0, 2);
+            ColocarGrafico(1, RotacionGraficos.Distribucion(filas, opciones), 0, 1, 1);
+            ColocarGrafico(2, RotacionGraficos.UnidadesSugeridas(filas, opciones), 1, 1, 1);
+            _tlpGraficos.ResumeLayout(true);
+        }
+
+        private void ColocarGrafico(int indice, Chart nuevo, int columna, int fila, int columnas)
+        {
+            Chart anterior = _graficos[indice];
+            if (anterior != null)
+            {
+                _tlpGraficos.Controls.Remove(anterior);
+                anterior.Dispose();
+            }
+            nuevo.Dock = DockStyle.Fill;
+            nuevo.Margin = new Padding(4);
+            _tlpGraficos.Controls.Add(nuevo, columna, fila);
+            _tlpGraficos.SetColumnSpan(nuevo, columnas);
+            _graficos[indice] = nuevo;
         }
 
         // Traducción para mostrar de los valores de clasificación y recomendación. Los valores
@@ -363,6 +541,9 @@ namespace CAPAS
                 dgvRotacion.Columns["MesesCobertura"].DefaultCellStyle.NullValue = "—";
                 dgvRotacion.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells;
                 dgvRotacion.Columns["Nombre"].AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+                // Sin mínimo, en una ventana angosta la columna Fill se achica a unos pocos píxeles
+                // y el nombre del vino deja de verse.
+                dgvRotacion.Columns["Nombre"].MinimumWidth = LogicalToDeviceUnits(170);
 
                 string[] orden = { "Codigo", "Nombre", "BodegaNombre", "StockActual", "StockMinimo", "UnidadesVendidas",
                                    "UnidadesPerdidas", "ConsumoMensual", "MesesCobertura", "SociosAtendidos",
@@ -374,6 +555,7 @@ namespace CAPAS
             }
 
             ActualizarResumen(filas);
+            ActualizarGraficos();
             btnExportarPdf.Enabled = filas.Count > 0;
         }
 

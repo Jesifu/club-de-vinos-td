@@ -6,6 +6,7 @@ using System.Linq;
 using MigraDoc.DocumentObjectModel;
 using MigraDoc.DocumentObjectModel.Tables;
 using MigraDoc.Rendering;
+using System.Windows.Forms.DataVisualization.Charting;
 
 namespace CAPAS
 {
@@ -48,6 +49,7 @@ namespace CAPAS
 
             AgregarEncabezado(seccion, filas, desde, hasta, generado, config);
             AgregarResumen(seccion, filas);
+            AgregarGraficos(seccion, filas);
             AgregarTabla(seccion, filas);
 
             Paragraph nota = seccion.AddParagraph(
@@ -138,6 +140,70 @@ namespace CAPAS
             total.Format.Font.Bold = true;
 
             seccion.AddParagraph().Format.SpaceAfter = Unit.FromCentimeter(0.3);
+        }
+
+        // Resolución con que se renderizan los gráficos para el papel.
+        private const double DpiGraficos = 200.0;
+
+        // Resumen visual: la primera página termina con dos gráficos lado a lado (consumo vs stock
+        // y distribución por recomendación); la segunda abre con las unidades sugeridas, si las hay,
+        // y sigue con la tabla. Las imágenes van en memoria (base64), sin archivos temporales.
+        private static void AgregarGraficos(Section seccion, List<BE.ResultadoRotacion> filas)
+        {
+            // Anchos y alto en cm: dos columnas de 15.6 y 11.0 cm entran en los 26.7 cm útiles.
+            const double anchoConsumo = 15.3, anchoDistribucion = 10.3, altoFila = 9.6;
+            const double anchoSugeridas = 26.4, altoSugeridas = 6.8;
+
+            byte[] pngConsumo, pngDistribucion, pngSugeridas = null;
+            using (Chart c = RotacionGraficos.ConsumoVsStock(filas, OpcionesPdf(anchoConsumo, altoFila)))
+                pngConsumo = RotacionGraficos.APng(c);
+            using (Chart c = RotacionGraficos.Distribucion(filas, OpcionesPdf(anchoDistribucion, altoFila)))
+                pngDistribucion = RotacionGraficos.APng(c);
+            if (filas.Any(f => f.CantidadSugerida > 0))
+            {
+                using (Chart c = RotacionGraficos.UnidadesSugeridas(filas, OpcionesPdf(anchoSugeridas, altoSugeridas)))
+                    pngSugeridas = RotacionGraficos.APng(c);
+            }
+
+            Table tabla = seccion.AddTable();
+            tabla.Borders.Visible = false;
+            tabla.AddColumn(Unit.FromCentimeter(15.6));
+            tabla.AddColumn(Unit.FromCentimeter(11.0));
+            Row fila = tabla.AddRow();
+            AgregarImagen(fila.Cells[0].AddImage(ComoBase64(pngConsumo)), anchoConsumo);
+            AgregarImagen(fila.Cells[1].AddImage(ComoBase64(pngDistribucion)), anchoDistribucion);
+
+            // La tabla de detalle arranca en la página siguiente.
+            seccion.AddPageBreak();
+            if (pngSugeridas != null)
+            {
+                AgregarImagen(seccion.AddImage(ComoBase64(pngSugeridas)), anchoSugeridas);
+                seccion.AddParagraph().Format.SpaceAfter = Unit.FromCentimeter(0.2);
+            }
+        }
+
+        private static RotacionGraficos.Opciones OpcionesPdf(double anchoCm, double altoCm)
+        {
+            double pxPorCm = DpiGraficos / 2.54;
+            return new RotacionGraficos.Opciones
+            {
+                Traducir = null,   // el informe es siempre en español
+                Cultura = _cultura,
+                Escala = (float)(DpiGraficos / 96.0),
+                Ancho = (int)Math.Round(anchoCm * pxPorCm),
+                Alto = (int)Math.Round(altoCm * pxPorCm)
+            };
+        }
+
+        private static string ComoBase64(byte[] png)
+        {
+            return "base64:" + Convert.ToBase64String(png);
+        }
+
+        private static void AgregarImagen(MigraDoc.DocumentObjectModel.Shapes.Image imagen, double anchoCm)
+        {
+            imagen.LockAspectRatio = true;
+            imagen.Width = Unit.FromCentimeter(anchoCm);
         }
 
         // Una sola tabla, ordenada de la recomendación más urgente a la menos urgente.

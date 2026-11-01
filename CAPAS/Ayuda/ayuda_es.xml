@@ -515,7 +515,7 @@
       <Paso>Abra Catálogo > Analizar rotación de stock. El período propuesto son los últimos días configurados, con hoy incluido.</Paso>
       <Paso>Ajuste el rango con Desde y Hasta si lo necesita. Al cambiar Días de análisis en la configuración, Desde se recalcula; las fechas que edite a mano se respetan.</Paso>
       <Paso>Revise la configuración de umbrales (tema siguiente) y presione Analizar.</Paso>
-      <Paso>Lea la grilla de resultados: los vinos más urgentes aparecen primero.</Paso>
+      <Paso>Lea la grilla de resultados (pestaña Detalle): los vinos más urgentes aparecen primero. La pestaña Gráficos los resume visualmente (tema "Gráficos del análisis").</Paso>
       <Paso>Presione Exportar a PDF para obtener el informe (tema "Informe PDF de rotación").</Paso>
     </Pasos>
     <Reglas>
@@ -571,8 +571,24 @@
       </Reglas>
     </Tema>
 
+    <Tema id="rotacion-graficos" titulo="Gráficos del análisis">
+      <Resumen>La pestaña Gráficos resume el análisis en tres gráficos que se actualizan cada vez que presiona Analizar. La pestaña Detalle conserva la grilla de resultados.</Resumen>
+      <Permiso>Analizar rotación de stock.</Permiso>
+      <Pasos>
+        <Paso>Presione Analizar y luego la pestaña Gráficos (se desplaza hacia abajo si no entran todos).</Paso>
+        <Paso>Consumo mensual vs stock actual: barras por vino (los más urgentes, hasta 10; el título indica cuántos se muestran) con el consumo mensual, el stock actual y el stock mínimo como marcador. Si el stock está bajo el marcador, hay que reponer.</Paso>
+        <Paso>Distribución por recomendación: cuántos vinos hay en cada recomendación, con cantidad y porcentaje.</Paso>
+        <Paso>Unidades sugeridas a reponer: las cantidades sugeridas de los vinos a reponer (hasta 10), coloreadas por recomendación.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>Los colores son los mismos en todos los gráficos: rojo, Reponer urgente; naranja, Reponer; verde, Mantener; azul grisáceo, Sobrestock / no reponer.</Regla>
+        <Regla>Si no hay datos para un gráfico (por ejemplo, ningún vino necesita reposición), se muestra "Sin datos para graficar".</Regla>
+        <Regla>Los textos de los gráficos siguen el idioma de la interfaz; los del informe PDF son siempre en español.</Regla>
+      </Reglas>
+    </Tema>
+
     <Tema id="rotacion-pdf" titulo="Informe PDF de rotación">
-      <Resumen>Exporta el resultado del último análisis a un informe PDF en hoja A4 apaisada, siempre en español.</Resumen>
+      <Resumen>Exporta el resultado del último análisis a un informe PDF en hoja A4 apaisada, siempre en español. Incluye los gráficos del análisis: la primera página reúne el encabezado, el resumen y dos gráficos; la segunda, las unidades sugeridas y la tabla.</Resumen>
       <Permiso>Analizar rotación de stock.</Permiso>
       <Pasos>
         <Paso>Presione Analizar para obtener resultados (Exportar a PDF se habilita solo si hay resultados).</Paso>
