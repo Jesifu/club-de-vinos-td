@@ -175,7 +175,13 @@ namespace ClubDeVinos.Installer.CustomActions
             return win != null && win.NativeErrorCode == 5;
         }
 
-        /// <summary>Quita corchetes y saltos de línea (rompen el formato de Windows Installer) y acota el largo.</summary>
+        private const int MaxDetailLength = 260;
+
+        /// <summary>
+        /// Quita corchetes y saltos de línea (rompen el formato de Windows Installer), descarta el sufijo técnico
+        /// "(provider: ..., error: ...)" y acota el largo cortando en el último punto completo (nunca a mitad de
+        /// frase). El resultado siempre termina en punto, así que las plantillas no deben agregar otro.
+        /// </summary>
         public static string Clean(string text)
         {
             if (text == null)
@@ -184,7 +190,38 @@ namespace ClubDeVinos.Installer.CustomActions
             }
 
             text = text.Replace('[', '(').Replace(']', ')').Replace("\r", " ").Replace("\n", " ").Trim();
-            return text.Length > 220 ? text.Substring(0, 220) + "..." : text;
+            while (text.Contains("  "))
+            {
+                text = text.Replace("  ", " ");
+            }
+
+            int provider = text.IndexOf("(provider:", StringComparison.OrdinalIgnoreCase);
+            if (provider > 0)
+            {
+                text = text.Substring(0, provider).Trim();
+            }
+
+            if (text.Length > MaxDetailLength)
+            {
+                string head = text.Substring(0, MaxDetailLength);
+                int stop = head.LastIndexOf(". ", StringComparison.Ordinal);
+                if (stop > 40)
+                {
+                    text = head.Substring(0, stop + 1);
+                }
+                else
+                {
+                    int space = head.LastIndexOf(' ');
+                    text = (space > 40 ? head.Substring(0, space) : head).TrimEnd(' ', ',', ';', ':') + "...";
+                }
+            }
+
+            if (text.Length > 0 && !text.EndsWith(".", StringComparison.Ordinal))
+            {
+                text += ".";
+            }
+
+            return text;
         }
     }
 }

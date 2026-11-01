@@ -73,6 +73,12 @@ namespace ClubDeVinos.Installer.CustomActions
                 if (!SqlServiceHelper.TryConnect(server, justStarted ? SqlServiceHelper.ConnectAttempts : 1, out error))
                 {
                     session.Log("ValidateSqlInstance: connect failed: " + error);
+                    // Sin motor detectado en este equipo, el mensaje técnico no ayuda: se explica qué hacer.
+                    if (session["SQLENGINEMISSING"] == "1")
+                    {
+                        return Fail(session, "SQLMSG_NOENGINE");
+                    }
+
                     return Fail(session, "SQLMSG_CONNFAIL", server, error);
                 }
 

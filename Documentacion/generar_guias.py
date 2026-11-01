@@ -1264,7 +1264,7 @@ def guia_operacion():
          "El texto “No se pudo obtener la lista de instancias de SQL Server de este equipo. Escriba el servidor y la instancia manualmente (por ejemplo .\\SQLEXPRESS) y presione Siguiente, o presione “Reintentar detección”.”",
          "No aborta. Valida el valor escrito al presionar Siguiente (prueba de conexión). **Reintentar detección** vuelve a buscar y reconstruye el diálogo."],
         ["2. El motor de SQL Server no está instalado",
-         "Un mensaje que indica que el motor es necesario y sugiere descargar SQL Server Express (gratuito), con la casilla **Instalar solo la aplicación** y el botón **Reintentar detección**.",
+         "Un mensaje que indica que el motor es necesario y sugiere descargar SQL Server Express (gratuito), con la casilla **Instalar solo la aplicación** y el botón **Reintentar detección**. Si presiona Siguiente con un servidor que no responde, el aviso dice: “No hay un motor de SQL Server instalado en este equipo (no se detectó ninguno). Instale SQL Server Express y presione Reintentar detección, o marque la casilla para instalar solo la aplicación.”",
          "Por seguridad, bloquea el avance mientras no haya un servidor válido (al cancelar no queda nada instalado). Con la casilla marcada, instala la aplicación y la carpeta `BaseDeDatos` sin crear la base."],
         ["3. SQL Server instalado pero el servicio está detenido",
          "Si logra iniciarlo, nada: la instalación continúa. Si no, “El servicio de SQL Server … está detenido y no se pudo iniciar…” con instrucciones (`services.msc` o `net start`) o, en la fase de ejecución, un cuadro con **Reintentar** y **Cancelar**.",
@@ -1283,6 +1283,8 @@ def guia_operacion():
         "**Recomendado.** Cancele o deje abierto el asistente, instale SQL Server Express (instancia predeterminada), presione **Reintentar detección** y continúe.",
         "**Instalar solo la aplicación.** Marque la casilla y finalice la instalación. Más tarde, cuando haya un SQL Server, cree la base con `EjecutarScript.cmd` (sección 2.7).",
     ])
+    g.p("Si abre la aplicación antes de crear la base, **Club de Vinos** no muestra la ventana de error de .NET: al iniciar prueba la conexión (espera unos segundos como máximo) y muestra el aviso "
+        "“No se pudo conectar con la base de datos de Club de Vinos”, con el servidor o instancia probado, el motivo y los pasos a seguir. Elija **Reintentar** una vez creada la base o **Cancelar** para salir.")
     g.h3("Caso 3: el servicio de SQL Server está detenido")
     g.pasos([
         "Si el instalador no logra iniciarlo, abra `services.msc`, busque el servicio indicado en el mensaje (por ejemplo `SQL Server (MSSQLSERVER)`) y presione **Iniciar**; o bien, en una consola de administrador, ejecute `net start \"MSSQLSERVER\"` (para una instancia con nombre, `net start \"MSSQL$NOMBRE\"`).",
@@ -1615,9 +1617,9 @@ def guia_operacion():
     # ---------------- 9 ----------------
     g.h1("Resolución de problemas")
     g.tabla(["Síntoma", "Causa probable", "Qué hacer"], [
-        ["Al presionar **Ingresar** aparece la ventana estándar de excepción no controlada de .NET (error de conexión a SQL Server).",
-         "El servicio de SQL Server está detenido, la base `BDCAPAS` no existe o no está en la instancia predeterminada (`.`).",
-         "Inicie el servicio; verifique con `sqlcmd -S . -E -Q \"SELECT DB_ID('BDCAPAS')\"` (un resultado vacío o NULL indica que no existe); si se creó en otra instancia, consulte con Mantenimiento (la cadena de conexión es fija)."],
+        ["Al abrir la aplicación aparece “No se pudo conectar con la base de datos de Club de Vinos” (con **Reintentar** y **Cancelar**).",
+         "El servicio de SQL Server está detenido o no está instalado, la base `BDCAPAS` no existe (por ejemplo tras instalar “solo la aplicación”) o está en otra instancia distinta de la indicada en el aviso.",
+         "Inicie el servicio; cree la base con `EjecutarScript.cmd` (sección 2.7); verifique con `sqlcmd -S . -E -Q \"SELECT DB_ID('BDCAPAS')\"` (un resultado vacío o NULL indica que no existe). Si la base está en otra instancia, defina la variable de entorno `CLUBVINOS_SQL` (`servidor\\instancia`) y vuelva a abrir la aplicación (la variable no se aplica al **Reintentar** de una sesión ya abierta)."],
         ["“Usuario bloqueado por intentos fallidos…”", "Tres contraseñas incorrectas consecutivas.", "Un administrador lo desbloquea desde Gestión de usuarios (sección 5.2)."],
         ["“El sistema no puede iniciarse debido a un problema interno…”", "Alerta de integridad y el usuario no puede resolverla.", "Un administrador íntegro debe iniciar sesión y resolverla (sección 7)."],
         ["Textos con caracteres extraños o errores al guardar traducciones tras ejecutar el script a mano.", "Se ejecutó sin `-f 65001`.", "Reejecute el script con `-I -f 65001`."],

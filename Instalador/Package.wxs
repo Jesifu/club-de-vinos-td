@@ -4,7 +4,7 @@
 
   <Package Name="Club de Vinos"
            Manufacturer="Club de Vinos"
-           Version="1.5.0.0"
+           Version="1.5.1.0"
            UpgradeCode="7C1F3A52-9B0E-4D6A-8E21-5A4D0C9B7E13"
            Language="3082"
            Codepage="1252"
@@ -56,6 +56,7 @@
     <Property Id="SQLMSG_STARTFAIL" Value="!(loc.SqlMsg_StartFail)" />
     <Property Id="SQLMSG_STARTFAILRETRY" Value="!(loc.SqlMsg_StartFailRetry)" />
     <Property Id="SQLMSG_NOSERVICE" Value="!(loc.SqlMsg_NoService)" />
+    <Property Id="SQLMSG_NOENGINE" Value="!(loc.SqlMsg_NoEngine)" />
     <Property Id="SQLMSG_CONNFAIL" Value="!(loc.SqlMsg_ConnFail)" />
     <Property Id="SQLMSG_CONNFAILRETRY" Value="!(loc.SqlMsg_ConnFailRetry)" />
 
@@ -165,12 +166,12 @@
       </Dialog>
 
       <!-- Modal dialog that shows the readable reason (SQLERRORMSG) when validation fails. -->
-      <Dialog Id="SqlErrorDlg" Width="300" Height="170" Title="!(loc.SqlErrorDlg_Title)">
+      <Dialog Id="SqlErrorDlg" Width="300" Height="190" Title="!(loc.SqlErrorDlg_Title)">
         <Control Id="ErrTitle" Type="Text" X="15" Y="8" Width="270" Height="15"
                  Transparent="yes" NoPrefix="yes" Text="!(loc.SqlErrorDlg_Heading)" />
-        <Control Id="ErrText" Type="Text" X="15" Y="26" Width="270" Height="110"
+        <Control Id="ErrText" Type="Text" X="15" Y="26" Width="270" Height="130"
                  Transparent="yes" NoPrefix="yes" Text="[SQLERRORMSG]" />
-        <Control Id="ErrOk" Type="PushButton" X="229" Y="146" Width="56" Height="17"
+        <Control Id="ErrOk" Type="PushButton" X="229" Y="166" Width="56" Height="17"
                  Default="yes" Cancel="yes" Text="!(loc.SqlErrorDlg_Ok)">
           <Publish Event="EndDialog" Value="Return" />
         </Control>
