@@ -384,7 +384,7 @@ class Guia:
             ("Versión del documento", "%s (versión final)" % VERSION_DOC),
             ("Fecha de entrega", FECHA_ENTREGA),
             ("Producto", "Club de Vinos, versión %s (instalador MSI)" % VERSION_PRODUCTO),
-            ("Instalador", "El MSI vigente aún no incluye el Pedido de Reposición"),
+            ("Instalador", "El MSI vigente incluye el Pedido de Reposición (prueba en VM pendiente)"),
             ("Idioma", "Español (neutro)"),
         ]
         for k, v in meta:
@@ -1405,9 +1405,9 @@ def guia_operacion():
     ], [4.4, 12.2])
     g.nota("La base de datos **nunca se elimina** al desinstalar o actualizar. La carpeta de instalación es de solo lectura para los usuarios comunes, por lo que "
            "la aplicación escribe sus archivos propios en la carpeta del usuario (sección 8).")
-    g.nota("El paquete MSI vigente (versión %s) **no incluye todavía** el ciclo de Pedido de Reposición (CU-37 a CU-40), el permiso `Gestionar stock de vinos` ni los pedidos de demostración: "
-           "el instalador está pendiente de recompilar una vez aprobado el cambio. Esas funciones se describen en estas guías porque ya están en el código fuente; hasta que exista el nuevo paquete, "
-           "para usarlas hay que compilar la solución y ejecutar el `script.sql` actual (Guía de Mantenimiento, secciones 3 y 4). No se anticipa el número de versión del nuevo paquete." % VERSION_PRODUCTO, tipo="Importante")
+    g.nota("El paquete MSI vigente (versión %s) **incluye** el ciclo de Pedido de Reposición (CU-37 a CU-40), el permiso `Gestionar stock de vinos`, los datos de prueba y los usuarios de prueba, "
+           "porque lleva el `script.sql` actualizado. La versión anterior, 1.5.1.0, no los incluía. El paquete 1.6.0.0 fue generado y verificado de forma estática (el script se ejecutó dos veces sobre una base limpia sin errores), "
+           "pero su instalación en una máquina virtual todavía no se probó: está pendiente de ejecución. Los pasos del asistente son los mismos que en la versión 1.5.1.0." % VERSION_PRODUCTO, tipo="Importante")
 
     g.h2("Antes de instalar")
     g.bullets([
@@ -1835,6 +1835,7 @@ def guia_operacion():
         "Abra la aplicación con una cuenta Administrador y verifique el ingreso, el menú y las funciones principales. Si se agregaron usuarios de prueba, la aplicación recalcula la integridad sola.",
         "Revise lo que el script pudo reponer: asignaciones de permisos de los roles de fábrica, traducciones personalizadas y cuentas de demostración (sección 4).",
     ])
+    g.p("**De la versión 1.5.1.0 a la 1.6.0.0:** instale el nuevo MSI sobre el anterior, sin desinstalar. La base `BDCAPAS` se conserva y, como el script es idempotente, al detectar que la base ya existe vuelve a ejecutar sus bloques idempotentes: agrega el ciclo de Pedido de Reposición, el permiso `Gestionar stock de vinos` y los datos de prueba que falten, sin borrar ni duplicar lo que el club ya cargó. Esta actualización todavía no se probó en una máquina virtual (pendiente de ejecución).", mantener=True)
     g.p("**Para volver atrás:** desinstale la versión nueva, instale la anterior y restaure el respaldo de la base hecho en el paso 1 (sección 6). Una versión anterior no puede instalarse encima de una más nueva.")
     g.nota("Los permisos de los roles que trae el sistema (Administrador, Usuario y los de Compras, Depósito, Curador, Atención y Logística) se **reponen** si el script los encuentra faltantes; "
            "si quitó adrede un permiso a uno de esos roles, se volverá a asignar al actualizar. Al pasar a una versión con el ciclo de pedidos, el script también crea las tablas de pedidos, "
@@ -2057,7 +2058,7 @@ def guia_mantenimiento():
         "La base de datos nunca se elimina al desinstalar (`DropOnUninstall=\"no\"`) y el script se ejecuta de nuevo en cada instalación o actualización.",
         "El instalador incluye todo el contenido de `CAPAS\\bin\\Release` excepto `.pdb`, `app.publish` y `Remitos`. Si agrega un archivo de datos a la aplicación, verifique que llegue a esa carpeta.",
         "Las acciones personalizadas esperan hasta 20 s por el servicio de SQL Server y hacen 2 intentos de conexión de 5 s; el peor caso en el asistente ronda los 35 s.",
-        "**Estado del instalador.** El MSI vigente (versión %s) fue compilado antes del ciclo de Pedido de Reposición y del permiso `Gestionar stock de vinos`: su `script.sql` embebido no los crea. Está pendiente de recompilar tras la aprobación del cambio; al hacerlo, incremente `Version` en `Package.wxs` y verifique que el nuevo paquete ejecute el `script.sql` actual. No se adelanta aquí el número de la versión nueva." % VERSION_PRODUCTO,
+        "**Estado del instalador.** El MSI vigente (versión %s) incluye el ciclo de Pedido de Reposición, el permiso `Gestionar stock de vinos`, los datos de prueba y los usuarios de prueba, porque embebe el `script.sql` actual. Conserva el `UpgradeCode` de la versión 1.5.1.0 y `MajorUpgrade` detecta las versiones anteriores a la 1.6.0.0, de modo que se instala sobre la 1.5.1.0 sin desinstalarla; el `script.sql` pasa a UTF-16 LE al compilar y no hay dependencias NuGet nuevas. El ensamblado del ejecutable conserva la versión interna 1.5.1.0 (`AssemblyInfo.cs`). Fue generado y verificado de forma estática; su prueba en máquina virtual (actualización desde la 1.5.1.0, pantalla de instancia, ciclo de pedidos, desinstalación e instalación en máquina limpia) está pendiente de ejecución." % VERSION_PRODUCTO,
         "Pruebe siempre el MSI en una **máquina virtual**, no en el equipo de desarrollo (casos: sin SQL Server, servicio detenido, lista de instancias ilegible; ver `Instalador\\README.md`).",
     ])
 
