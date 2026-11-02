@@ -1,0 +1,191 @@
+@startuml DiagramaClases_PedidoReposicion
+
+title Diagrama de Clases — Pedido de Reposición (CU-37 a CU-40)
+
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam linetype ortho
+hide empty members
+scale 0.8
+
+' ─────────────────────────────────────────
+' CAPA BE
+' ─────────────────────────────────────────
+package "BE" #FEFECE {
+
+  enum EstadoPedidoReposicion {
+    Pendiente
+    Aprobado
+    Rechazado
+    Recibido
+  }
+
+  class PedidoReposicion {
+    + Id : int
+    + BodegaId : int
+    + BodegaNombre : string
+    + Estado : EstadoPedidoReposicion
+    + FechaCreacion : DateTime
+    + CreadoPor : int
+    + CreadoPorLogin : string
+    + ResolutorId : int?
+    + ResolutorLogin : string
+    + FechaResolucion : DateTime?
+    + MotivoRechazo : string
+    + RecibidoPor : int?
+    + RecibidoPorLogin : string
+    + FechaRecepcion : DateTime?
+    + Observacion : string
+    + CantidadLineas : int
+    + UnidadesPedidas : int
+    + Lineas : List<PedidoReposicionLinea>
+  }
+
+  class PedidoReposicionLinea {
+    + Id : int
+    + PedidoId : int
+    + VinoId : int
+    + VinoCodigo : string
+    + VinoNombre : string
+    + CantidadSugerida : int
+    + CantidadPedida : int
+    + CantidadRecibida : int?
+  }
+
+  class ResultadoRotacion <<existente>> {
+    + VinoId : int
+    + BodegaId : int
+    + EnCamino : int
+    + PedidoAbiertoEstado : string
+    + CantidadSugeridaBruta : int
+    + CantidadSugerida : int
+  }
+
+  PedidoReposicion "1" *-- "1..*" PedidoReposicionLinea
+  PedidoReposicion --> EstadoPedidoReposicion
+}
+
+' ─────────────────────────────────────────
+' CAPA DAL
+' ─────────────────────────────────────────
+package "DAL" #E8E8F4 {
+
+  class Acceso <<existente>> {
+    + Leer(sql : string, parametros : List<SqlParameter> = null) : DataTable
+  }
+
+  class VinoDAL <<existente>> {
+    + ObtenerPorId(id : int) : Vino
+  }
+
+  class PedidoReposicionDAL {
+    - _acceso : Acceso
+    + Insertar(bodegaId : int, creadoPor : int, observacion : string, lineas : IEnumerable<PedidoReposicionLinea>) : int
+    + Listar(estado : EstadoPedidoReposicion?) : List<PedidoReposicion>
+    + ObtenerPorId(id : int) : PedidoReposicion
+    + ObtenerLineas(pedidoId : int) : List<PedidoReposicionLinea>
+    + Autorizar(pedidoId : int, resolutorId : int) : int
+    + Rechazar(pedidoId : int, resolutorId : int, motivo : string) : int
+    + Recibir(pedidoId : int, recibidoPor : int, responsableLogin : string, cantidadesPorLinea : IDictionary<int,int>) : int
+  }
+
+  PedidoReposicionDAL --> Acceso
+}
+
+' ─────────────────────────────────────────
+' CAPA BLL
+' ─────────────────────────────────────────
+package "BLL" #E8F4E8 {
+
+  class BitacoraBLL <<existente>> {
+    + RegistrarAccion(usuario : string, accion : string) : void
+  }
+
+  class PedidoReposicionBLL {
+    - _dal : PedidoReposicionDAL
+    - _vinoDal : VinoDAL
+    - _bitacora : BitacoraBLL
+    + Generar(filas : IEnumerable<ResultadoRotacion>, sesion : USUARIO) : List<PedidoReposicion>
+    + Generar(filas : IEnumerable<ResultadoRotacion>, cantidadesPorVino : IDictionary<int,int>, sesion : USUARIO) : List<PedidoReposicion>
+    + GenerarPedido(bodegaId : int, lineas : IList<PedidoReposicionLinea>, observacion : string, sesion : USUARIO) : PedidoReposicion
+    + Listar(estado : EstadoPedidoReposicion?) : List<PedidoReposicion>
+    + Obtener(pedidoId : int) : PedidoReposicion
+    + ObtenerLineas(pedidoId : int) : List<PedidoReposicionLinea>
+    + Autorizar(pedidoId : int, sesion : USUARIO) : void
+    + Rechazar(pedidoId : int, motivo : string, sesion : USUARIO) : void
+    + Recibir(pedidoId : int, cantidadesPorLinea : IDictionary<int,int>, sesion : USUARIO) : void
+  }
+
+  PedidoReposicionBLL --> PedidoReposicionDAL
+  PedidoReposicionBLL --> VinoDAL
+  PedidoReposicionBLL --> BitacoraBLL
+}
+
+' ─────────────────────────────────────────
+' CAPA CAPAS (presentación)
+' ─────────────────────────────────────────
+package "CAPAS" #F4E8E8 {
+
+  class FormBase <<existente>> {
+  }
+
+  class frmAnalisisRotacion <<existente>> {
+    + ActualizarIdioma() : void
+  }
+
+  class frmAutorizarPedidoReposicion {
+    + ActualizarIdioma() : void
+  }
+
+  class frmRecibirPedidoReposicion {
+    + ActualizarIdioma() : void
+  }
+
+  class frmConsultarPedidosReposicion {
+    + ActualizarIdioma() : void
+  }
+
+  class FrmMotivoRechazoPedido <<internal>> {
+    ~ Motivo : string
+  }
+
+  class PedidoReposicionUI <<static, internal>> {
+    ~ {static} T(clave : string, porDefecto : string) : string
+    ~ {static} Estado(estado : string) : string
+    ~ {static} Estado(estado : EstadoPedidoReposicion) : string
+    ~ {static} Fecha(fecha : DateTime?) : string
+    ~ {static} ArmarCabecera(p : PedidoReposicion) : string
+    ~ {static} ConfigurarGrillaPedidos(dgv : DataGridView, conEstado : bool) : void
+    ~ {static} ActualizarEncabezadosPedidos(dgv : DataGridView) : void
+    ~ {static} FormatearEstado(dgv : DataGridView, e : DataGridViewCellFormattingEventArgs) : void
+    ~ {static} ConfigurarGrillaLineas(dgv : DataGridView, conRecibida : bool) : void
+    ~ {static} ActualizarEncabezadosLineas(dgv : DataGridView) : void
+  }
+
+  FormBase <|-- frmAutorizarPedidoReposicion
+  FormBase <|-- frmRecibirPedidoReposicion
+  FormBase <|-- frmConsultarPedidosReposicion
+  FormBase <|-- FrmMotivoRechazoPedido
+
+  frmAutorizarPedidoReposicion ..> FrmMotivoRechazoPedido
+  frmAutorizarPedidoReposicion ..> PedidoReposicionUI
+  frmRecibirPedidoReposicion ..> PedidoReposicionUI
+  frmConsultarPedidosReposicion ..> PedidoReposicionUI
+  FrmMotivoRechazoPedido ..> PedidoReposicionUI
+}
+
+' ─────────────────────────────────────────
+' Relaciones entre capas
+' ─────────────────────────────────────────
+frmAnalisisRotacion --> PedidoReposicionBLL
+frmAutorizarPedidoReposicion --> PedidoReposicionBLL
+frmRecibirPedidoReposicion --> PedidoReposicionBLL
+frmConsultarPedidosReposicion --> PedidoReposicionBLL
+PedidoReposicionBLL ..> PedidoReposicion
+PedidoReposicionBLL ..> ResultadoRotacion
+PedidoReposicionDAL ..> PedidoReposicion
+PedidoReposicionDAL ..> PedidoReposicionLinea
+
+@enduml

@@ -21,6 +21,10 @@ rectangle "Analisis de Rotacion y Reposicion de Stock" #FFF0E0 {
   usecase "Analizar Rotacion y\nReposicion de Stock" as CU34
   usecase "Consultar Graficos\ndel Analisis" as CU35
   usecase "Exportar Informe de Rotacion\ny Reposicion en PDF" as CU36
+  usecase "Generar Pedido\nde Reposicion" as CU37
+  usecase "Autorizar o Rechazar\nPedido de Reposicion" as CU38
+  usecase "Registrar Recepcion\nde Pedido de Reposicion" as CU39
+  usecase "Consultar Pedidos\nde Reposicion" as CU40
 }
 
 Usuario -- CU28
@@ -32,4 +36,8 @@ Usuario -- CU33
 Usuario -- CU34
 Usuario -- CU35
 Usuario -- CU36
+Usuario -- CU37
+Administrador -- CU38
+Usuario -- CU39
+Usuario -- CU40
 @enduml

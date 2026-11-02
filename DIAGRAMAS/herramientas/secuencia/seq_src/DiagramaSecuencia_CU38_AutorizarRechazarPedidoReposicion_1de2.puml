@@ -1,0 +1,114 @@
+@startuml DiagramaSecuencia_CU38_AutorizarRechazarPedidoReposicion_1de2
+
+title CU-38 — Autorizar o Rechazar Pedido de Reposición — (1/2) — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.7
+
+actor       ":Administrador"                 as A
+participant ":frmAutorizar\nPedidoReposicion" as FA #FEFECE
+participant ":Pedido\nReposicionUI"          as UI #FEFECE
+participant ":Pedido\nReposicionBLL"         as PB #E8F4E8
+participant ":BitacoraBLL"                   as BB #E8F4E8
+participant ":Pedido\nReposicionDAL"         as PD #E8E8F4
+participant ":BitacoraDAL"                   as TD #E8E8F4
+database    ":DB"                            as DB #EEEEEE
+
+note over FA
+  Precondición: sesión activa; permiso "Autorizar pedidos de reposición" (solo Administrador);
+  existe al menos un pedido Pendiente. sesion = SessionManager.getInstance().getUsuario().
+end note
+
+A -> FA : menú Catálogo > "Autorizar pedidos de reposición"\n(new frmAutorizarPedidoReposicion().ShowDialog())
+activate FA
+note right of FA
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarPendientes() y agrega el selector de idiomas.
+  DataBindingComplete de la grilla y Shown del formulario
+  también reevalúan ActualizarSeleccion().
+end note
+@PQ
+
+FA -> FA : MostrarDetalle()
+FA -> UI : ArmarCabecera(p)
+UI --> FA : texto (Nº, estado, bodega, generado por, observación)
+FA -> PB : ObtenerLineas(p.Id)
+PB -> PD : ObtenerLineas(pedidoId)
+PD -> DB : PEDIDO_REPOSICION_OBTENER_LINEAS(@pedido_id)
+DB --> PD : filas de PEDIDO_REPOSICION_LINEA
+PD --> PB : List<PedidoReposicionLinea>
+PB --> FA : List<PedidoReposicionLinea>
+FA -> UI : ConfigurarGrillaLineas(dgvLineas, false)
+FA -> FA : ActualizarEstadoBotones(): habilitar "Autorizar pedido" y "Rechazar pedido"\nsolo si p.CreadoPor <> sesion.Id (RN-33, capa UI)
+FA --> A : grilla de pedidos pendientes y detalle del pedido (cabecera + líneas)
+
+A -> FA : seleccionar un pedido
+FA -> FA : dgvPedidos_SelectionChanged → ActualizarSeleccion()\n(MostrarDetalle + ActualizarEstadoBotones, como arriba)
+
+opt 38a. el pedido lo generó el propio administrador (CreadoPor == sesion.Id)
+  FA -> FA : btnAutorizarPedido y btnRechazarPedido quedan deshabilitados
+  note right of FA : RN-33: BLL, SP y CHECK CK_PEDREP_RN33 también rechazan\nla resolución de un pedido propio
+end
+
+group Autorizar el pedido ("Autorizar pedido")
+  A -> FA : click "Autorizar pedido" (btnAutorizarPedido)
+
+  break 38b. no hay pedido seleccionado
+    FA --> A : "Seleccione un pedido pendiente."\n(título "Atención")
+  end
+
+  FA -> PB : Autorizar(p.Id, sesion)
+  PB -> PB : ObtenerPendiente(pedidoId)
+  PB -> PD : ObtenerPorId(pedidoId)
+  PD -> DB : PEDIDO_REPOSICION_OBTENER_POR_ID(@id)
+  DB --> PD : fila
+  PD --> PB : PedidoReposicion (o null)
+
+  alt 38c. el pedido no existe o ya fue resuelto (estado distinto de Pendiente)
+    PB --> FA : throw InvalidOperationException\n("El pedido no existe." / "El pedido ya fue resuelto (estado: X).")
+  else pedido Pendiente
+    PB -> PB : ValidarSeparacionDeFunciones(p, sesion, "autorizar")
+
+    alt 38a. el administrador generó el pedido (RN-33, capa BLL)
+      PB --> FA : throw InvalidOperationException\n("RN-33: no puede autorizar un pedido que usted mismo generó.")
+    else el administrador no es quien lo generó
+      PB -> PD : Autorizar(p.Id, sesion.Id)
+      PD -> DB : PEDIDO_REPOSICION_AUTORIZAR(@pedido_id,@resolutor_id)
+      note right of DB : UPDATE ... SET ESTADO = 'Aprobado', RESOLUTOR_ID, FECHA_RESOLUCION\nWHERE ESTADO = 'Pendiente' AND CREADO_POR <> @resolutor_id
+      DB --> PD : FILAS
+      PD --> PB : int filas
+
+      alt 38d. 0 filas (el pedido cambió de estado o lo generó el administrador; RN-33, backstop SP)
+        PB --> FA : throw InvalidOperationException\n("No se pudo autorizar el pedido: cambió de estado o usted lo generó.\nActualice e intente nuevamente.")
+      else 1 fila
+        PB -> BB : RegistrarAccion(sesion.Usuario,\n"PEDIDO_AUTORIZADO:" + p.Id)
+        BB -> TD : Registrar(usuario, accion)
+        TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+        DB --> TD : filas afectadas
+        TD --> BB : void
+        BB --> PB : void
+        PB --> FA : void
+        FA --> A : "Pedido Nº N autorizado correctamente. Queda Aprobado,\na la espera de su recepción." (título "Éxito")
+        @PQ corto
+      end
+    end
+  end
+
+  opt la BLL lanzó InvalidOperationException (catch de btnAutorizarPedido_Click)
+    FA --> A : ex.Message\n(título "Atención")
+    @PQ corto
+    note right of FA : return
+  end
+
+end
+deactivate FA
+
+note over A
+  Continúa en (2/2): rechazo del pedido con motivo.
+end note
+
+@enduml

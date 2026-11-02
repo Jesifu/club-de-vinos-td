@@ -31,6 +31,7 @@ package "BE" #FEFECE {
     + VinoId : int
     + Codigo : string
     + Nombre : string
+    + BodegaId : int
     + BodegaNombre : string
     + StockMinimo : int
     + StockActual : int
@@ -41,6 +42,9 @@ package "BE" #FEFECE {
     + MesesCobertura : decimal?
     + Clasificacion : string
     + Recomendacion : string
+    + EnCamino : int
+    + PedidoAbiertoEstado : string
+    + CantidadSugeridaBruta : int
     + CantidadSugerida : int
     + Prioridad : int
   }
@@ -90,6 +94,10 @@ package "BLL" #E8F4E8 {
     + {static} Evaluar(r : ResultadoRotacion, dias : int, c : ConfiguracionRotacion) : void
     + {static} TotalUnidadesSugeridas(filas : IEnumerable<ResultadoRotacion>) : int
     + {static} ResumirPorRecomendacion(filas : IEnumerable<ResultadoRotacion>) : List<KeyValuePair<string, int>>
+  }
+
+  class PedidoReposicionBLL <<ver DiagramaClases_PedidoReposicion>> {
+    + Generar(filas : IEnumerable<ResultadoRotacion>, cantidadesPorVino : IDictionary<int,int>, sesion : USUARIO) : List<PedidoReposicion>
   }
 
   RotacionBLL --> RotacionDAL
@@ -150,6 +158,7 @@ package "CAPAS" #F4E8E8 {
 ' Relaciones entre capas
 ' ─────────────────────────────────────────
 frmAnalisisRotacion --> RotacionBLL
+frmAnalisisRotacion --> PedidoReposicionBLL
 RotacionDAL ..> ResultadoRotacion
 RotacionBLL ..> ResultadoRotacion
 RotacionBLL ..> ConfiguracionRotacion

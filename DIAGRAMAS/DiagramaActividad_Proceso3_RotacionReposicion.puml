@@ -43,19 +43,48 @@ end note
 :**Informe de Rotación y Reposición**
 [Emitido]; <<doc>>
 -[dashed]->
-
-|Administrador|
-:Recibir Informe de Rotación y Reposición;
-:Decidir Vinos a No Recomprar;
 if (¿Hay vinos a reponer?) then (sí)
-  :Decidir Vinos a Reponer;
+  :Generar Pedido de Reposición;
+  -[dashed]->
+  :**Pedido de Reposición**
+[Pendiente]; <<doc>>
+  -[dashed]->
 
-  |Encargado de Depósito|
-  :Registrar Ingreso de Stock;
-  -[dashed]->
-  :**Movimiento de Stock**
+  |Administrador|
+  :Revisar Informe y Pedido de Reposición;
+  if (¿Autoriza el pedido?) then (sí)
+    :Autorizar Pedido de Reposición;
+    -[dashed]->
+    :**Pedido de Reposición**
+[Aprobado]; <<doc>>
+    -[dashed]->
+
+    |Encargado de Depósito|
+    :Recibir Mercadería del Pedido;
+    :Registrar Recepción del Pedido;
+    -[dashed]->
+    :**Pedido de Reposición**
+[Recibido]; <<doc>>
+    -[dashed]->
+    :**Movimiento de Stock**
 [Entrada registrada]; <<doc>>
-  -[dashed]->
+    note right
+      El siguiente análisis ya ve el stock
+      repuesto y deja de contar lo recibido
+      como "en camino".
+    end note
+  else (no)
+    |Administrador|
+    :Rechazar Pedido de Reposición;
+    -[dashed]->
+    :**Pedido de Reposición**
+[Rechazado]; <<doc>>
+    note right
+      Rechazo con motivo (1 a 200 caracteres).
+      Los vinos del pedido quedan libres:
+      el próximo análisis puede volver a sugerirlos.
+    end note
+  endif
 else (no)
 endif
 stop

@@ -77,13 +77,16 @@ note right of DB
   Solo lectura (RN-29). Por cada vino Activo devuelve: stock actual
   (Σ entradas − Σ salidas), unidades vendidas (salidas CAJA del período),
   unidades perdidas (salidas AJUSTE) y socios atendidos (cajas Despachadas,
-  con la sustitución vigente si existe).
+  con la sustitución vigente si existe). También devuelve la bodega del vino
+  (BODEGA_ID) y lo que ya está pedido (RN-37): EN_CAMINO = unidades de líneas de
+  pedidos de reposición Aprobados sin recibir y PEDIDO_ABIERTO_ESTADO = Pendiente |
+  Aprobado si el vino está en un pedido abierto (RN-32), si no NULL.
 end note
-DB --> RD : filas (ID, CODIGO, NOMBRE, BODEGA_NOMBRE, STOCK_MINIMO, STOCK_ACTUAL,\nUNIDADES_VENDIDAS, UNIDADES_PERDIDAS, SOCIOS_ATENDIDOS)
+DB --> RD : filas (ID, CODIGO, NOMBRE, BODEGA_ID, BODEGA_NOMBRE, STOCK_MINIMO,\nSTOCK_ACTUAL, UNIDADES_VENDIDAS, UNIDADES_PERDIDAS, SOCIOS_ATENDIDOS,\nEN_CAMINO, PEDIDO_ABIERTO_ESTADO)
 RD --> RB : List<ResultadoRotacion>
 RB -> RB : CantidadDias(desde, hasta)
 loop por cada vino (fila)
-  RB -> RB : Evaluar(fila, dias, config)\n(consumo mensual, cobertura, clasificación,\nrecomendación y cantidad sugerida; RN-21 a RN-24)
+  RB -> RB : Evaluar(fila, dias, config)\n(consumo mensual, cobertura, clasificación, recomendación;\nCantidadSugeridaBruta = fórmula de RN-24;\nCantidadSugerida neta = max(0, bruta − EnCamino); RN-21 a RN-24 y RN-37)
 end
 RB -> RB : ordenar por Prioridad, luego MesesCobertura y luego Nombre
 RB --> FA : List<ResultadoRotacion>
@@ -91,12 +94,12 @@ deactivate RB
 
 FA -> FA : _config, _ultimoResultado, _ultimaConfig,\n_ultimoDesde y _ultimoHasta = análisis actual
 FA -> FA : MostrarResultado(filas)
-FA -> FA : dgvRotacion.DataSource = filas; ocultar VinoId y Prioridad;\nordenar columnas; ActualizarEncabezados()
+FA -> FA : dgvRotacion.DataSource = filas; ocultar VinoId, Prioridad, BodegaId y\nCantidadSugeridaBruta; ordenar columnas (incluye EnCamino y PedidoAbiertoEstado);\nPrepararSeleccionPedido(filas); ActualizarEncabezados()
 FA -> RB : ResumirPorRecomendacion(filas)
 RB --> FA : List<KeyValuePair<string,int>>
 FA -> RB : TotalUnidadesSugeridas(filas)
 RB --> FA : int total
-FA -> FA : lblResumen.Text = cantidad de vinos por recomendación\n+ unidades sugeridas a reponer
+FA -> FA : lblResumen.Text = cantidad de vinos por recomendación\n+ unidades sugeridas a reponer (netas de lo en camino)
 FA -> FA : ActualizarGraficos()
 FA -> RG : ConsumoVsStock(filas, opciones)
 RG --> FA : Chart
@@ -105,6 +108,8 @@ RG --> FA : Chart
 FA -> RG : UnidadesSugeridas(filas, opciones)
 RG --> FA : Chart
 FA -> FA : btnExportarPdf.Enabled = (filas.Count > 0)
+FA -> FA : ActualizarSeleccionPedido()
+note right of FA : con el permiso "Gestionar pedidos de reposición" la grilla agrega "Pedir" y\n"Cantidad a pedir" en las filas pedibles (CU-37); sin el permiso no se muestran
 
 alt 34f. no hay vinos Activos (filas.Count == 0)
   FA --> U : grilla vacía, resumen con cantidades en cero\ny "Exportar a PDF" deshabilitado

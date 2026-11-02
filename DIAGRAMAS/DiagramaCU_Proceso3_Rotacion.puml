@@ -13,16 +13,34 @@ rectangle "Analisis de Rotacion y Reposicion de Stock" #E8F4E8 {
   usecase "Analizar Rotacion y\nReposicion de Stock" as CU34
   usecase "Consultar Graficos\ndel Analisis" as CU35
   usecase "Exportar Informe de Rotacion\ny Reposicion en PDF" as CU36
+  usecase "Generar Pedido\nde Reposicion" as CU37
+  usecase "Autorizar o Rechazar\nPedido de Reposicion" as CU38
+  usecase "Registrar Recepcion\nde Pedido de Reposicion" as CU39
+  usecase "Consultar Pedidos\nde Reposicion" as CU40
 }
 
 Usuario -- CU33
 Usuario -- CU34
 Usuario -- CU35
 Usuario -- CU36
+Usuario -- CU37
+Administrador -- CU38
+Usuario -- CU39
+Usuario -- CU40
 
 note bottom of Usuario
-  Requiere el permiso "Analizar rotacion de stock"
-  (por defecto: Encargado de Compras/Bodega
-  y Administrador).
+  CU-33 a CU-36: permiso "Analizar rotacion de stock"
+  (Encargado de Compras/Bodega y Administrador).
+  CU-37: permiso "Gestionar pedidos de reposicion"
+  (Encargado de Compras/Bodega y Administrador).
+  CU-39: permiso "Recibir pedidos de reposicion"
+  (Encargado de Deposito y Administrador).
+  CU-40: cualquiera de los tres permisos del pedido.
+end note
+
+note bottom of Administrador
+  CU-38: permiso "Autorizar pedidos de reposicion"
+  (solo Administrador). Quien autoriza o rechaza
+  no puede ser quien genero el pedido (RN-33).
 end note
 @enduml

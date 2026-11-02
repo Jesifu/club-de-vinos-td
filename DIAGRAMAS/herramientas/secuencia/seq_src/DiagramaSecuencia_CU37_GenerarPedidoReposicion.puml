@@ -1,0 +1,160 @@
+@startuml DiagramaSecuencia_CU37_GenerarPedidoReposicion
+
+title CU-37 — Generar Pedido de Reposición — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.7
+
+actor       ":Usuario"                       as U
+participant ":frmAnalisis\nRotacion"         as FA #FEFECE
+participant ":Pedido\nReposicionBLL"         as PB #E8F4E8
+participant ":RotacionBLL"                   as RB #E8F4E8
+participant ":BitacoraBLL"                   as BB #E8F4E8
+participant ":VinoDAL"                       as VD #E8E8F4
+participant ":Pedido\nReposicionDAL"         as PD #E8E8F4
+participant ":RotacionDAL"                   as RD #E8E8F4
+participant ":BitacoraDAL"                   as TD #E8E8F4
+database    ":DB"                            as DB #EEEEEE
+
+note over FA
+  Precondición: sesión activa; permiso "Gestionar pedidos de reposición"
+  (Encargado de Compras/Bodega o Administrador); el análisis (CU-34) ya se
+  ejecutó y la grilla tiene filas. sesion = SessionManager.getInstance().getUsuario().
+end note
+
+note over FA
+  Solo las filas "pedibles" (recomendación Reponer urgente o Reponer, cantidad sugerida
+  neta > 0 y sin pedido abierto) muestran la casilla "Pedir" y "Cantidad a pedir"
+  (por defecto, la sugerida neta).
+end note
+
+U -> FA : tilda "Pedir" en uno o más vinos
+FA -> FA : dgvRotacion_CurrentCellDirtyStateChanged →\nActualizarSeleccionPedido()
+FA -> FA : btnGenerarPedido.Enabled = (n > 0);\nlblSeleccionPedido = "Vinos seleccionados para el pedido: n"
+
+opt 37a. el usuario edita "Cantidad a pedir" con un valor que no es un entero mayor a cero
+  U -> FA : escribe la cantidad
+  FA -> FA : dgvRotacion_CellEndEdit: restituye la cantidad sugerida
+  FA --> U : "La cantidad a pedir debe ser un número entero mayor a cero."\n(título "Atención")
+end
+
+U -> FA : click "Generar pedido" (btnGenerarPedido)
+activate FA
+FA -> FA : dgvRotacion.EndEdit(); FilasSeleccionadas()
+
+break 37b. no hay ningún vino seleccionado
+  FA --> U : "Seleccione al menos un vino para generar el pedido."\n(título "Atención")
+end
+
+loop por cada fila elegida
+  FA -> FA : filas.Add(f); cantidades[f.VinoId] = cantidad
+  break 37c. la cantidad a pedir de la fila no es un entero mayor a cero
+    FA --> U : "La cantidad a pedir de 'X' debe ser un número entero mayor a cero."\n(título "Atención")
+  end
+end
+
+FA --> U : solicitar confirmación\n("¿Generar el pedido de reposición con N vino(s) y M unidad(es)? Se crea un\npedido por bodega y queda Pendiente de autorización.") (título "Confirmar")
+
+break 37d. el usuario responde "No"
+  U --> FA : No
+  note right of FA : return: no llama a la BLL
+end
+
+U --> FA : Sí
+FA -> PB : Generar(filas, cantidades, sesion)
+activate PB
+
+loop por cada vino elegido
+  PB -> VD : ObtenerPorId(f.VinoId)
+  VD -> DB : VINO_OBTENER_POR_ID(@id)
+  DB --> VD : fila de VINO
+  VD --> PB : Vino (o null)
+  PB -> PB : ValidarLinea(v, nombre, cantidad)
+  break 37e. regla RN-31 incumplida: el vino no existe, no está Activo\no la cantidad pedida no es mayor a cero
+    PB --> FA : throw InvalidOperationException\n("RN-31: el vino 'X' no existe." / "RN-31: solo se pueden pedir vinos\nActivos ('X' no lo está)." / "RN-31: la cantidad pedida de 'X'\ndebe ser mayor a cero.")
+  end
+  PB -> PB : agrupar la línea por v.BodegaId\n(la bodega sale del vino en la base, no de la fila de la UI)
+end
+
+PB -> PB : ValidarSinPedidoAbierto(líneas)
+PB -> PD : Listar(Pendiente) y Listar(Aprobado)
+PD -> DB : PEDIDO_REPOSICION_LISTAR(@estado)
+DB --> PD : filas de PEDIDO_REPOSICION
+PD --> PB : List<PedidoReposicion> (pedidos abiertos)
+loop por cada pedido abierto
+  PB -> PD : ObtenerLineas(abierto.Id)
+  PD -> DB : PEDIDO_REPOSICION_OBTENER_LINEAS(@pedido_id)
+  DB --> PD : filas de PEDIDO_REPOSICION_LINEA
+  PD --> PB : List<PedidoReposicionLinea>
+end
+break 37f. RN-32: algún vino ya está en un pedido abierto (Pendiente o Aprobado)
+  PB --> FA : throw InvalidOperationException\n("RN-32: 'X' ya está en el pedido abierto Nº N (estado).")
+end
+
+note over PB
+  Se valida todo antes de crear el primer pedido, para no dejar pedidos a medias por un dato malo.
+end note
+
+loop por cada bodega (un pedido por bodega)
+  PB -> PB : GenerarPedido(bodegaId, líneas, null, sesion)
+  note right of PB
+    Repite las validaciones por línea (ObtenerPorId + ValidarLinea,
+    misma bodega RN-31) y ValidarSinPedidoAbierto antes de insertar.
+  end note
+  PB -> PD : Insertar(bodegaId, sesion.Id, obs, líneas)
+  PD -> DB : PEDIDO_REPOSICION_INSERTAR(@bodega_id,@creado_por,\n@observacion,@lineas PEDIDO_LINEA_TT)
+  note right of DB
+    En una transacción: verifica RN-31 y RN-32 (con UPDLOCK),
+    inserta la cabecera (estado Pendiente) y sus líneas (ABIERTO = 1).
+    Índice único filtrado UX_PEDREPLIN_VINO_ABIERTO.
+  end note
+  DB --> PD : ID (0 = rechazado)
+  PD --> PB : int id
+
+  alt 37g. SqlException 2601/2627 (carrera: el índice único filtrado rechazó el vino)
+    PB --> FA : throw InvalidOperationException\n("RN-32: un vino del pedido ya está incluido en otro pedido abierto.")
+  else 37h. id == 0 (el SP rechazó el pedido: un vino dejó de estar activo,\ncambió de bodega o ya está en otro pedido abierto)
+    PB --> FA : throw InvalidOperationException\n("RN-31/RN-32: no se pudo generar el pedido (...). Actualice el análisis\ne intente nuevamente.")
+    note right of PB : los pedidos de otras bodegas ya creados se conservan
+  else id > 0
+    PB -> BB : RegistrarAccion(sesion.Usuario,\n"PEDIDO_GENERADO:" + id)
+    BB -> TD : Registrar(usuario, accion)
+    TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+    DB --> TD : filas afectadas
+    TD --> BB : void
+    BB --> PB : void
+    PB -> PD : ObtenerPorId(id)
+    PD -> DB : PEDIDO_REPOSICION_OBTENER_POR_ID(@id)
+    DB --> PD : fila (cabecera + CANTIDAD_LINEAS + UNIDADES_PEDIDAS)
+    PD --> PB : PedidoReposicion
+  end
+end
+PB --> FA : List<PedidoReposicion> creados (estado Pendiente)
+deactivate PB
+
+alt 37i. la BLL lanzó InvalidOperationException (catch de btnGenerarPedido_Click)
+  FA --> U : ex.Message\n(título "Atención")
+  FA -> FA : ReanalizarUltimo()\n(igual que en el flujo principal)
+else 37j. falla inesperada (catch Exception)
+  FA --> U : "No se pudo generar el pedido de reposición."\n(título "Error")
+else se generaron los pedidos
+  FA --> U : "Pedido de reposición generado:" / "Pedidos de reposición generados\n(uno por bodega):" + "Nº N - Bodega (n línea(s), m unidad(es))" por pedido\n+ "Quedan Pendientes de autorización." (título "Éxito")
+  FA -> FA : ReanalizarUltimo()
+  FA -> RB : Analizar(_ultimoDesde, _ultimoHasta, _ultimaConfig)
+  RB -> RD : Analizar(desde, hasta)
+  RD -> DB : ROTACION_ANALIZAR(@desde,@hasta)
+  DB --> RD : filas (incluye EN_CAMINO y PEDIDO_ABIERTO_ESTADO)
+  RD --> RB : List<ResultadoRotacion>
+  RB --> FA : List<ResultadoRotacion> evaluadas
+  FA -> FA : MostrarResultado(filas):\nlos vinos pedidos pasan a mostrar su pedido abierto "Pendiente"
+  opt 37k. falla el reanálisis (catch Exception de ReanalizarUltimo)
+    FA --> U : "No se pudo actualizar el análisis. Presione Analizar\npara verlo actualizado." (título "Atención")
+  end
+end
+deactivate FA
+
+@enduml

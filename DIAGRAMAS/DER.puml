@@ -257,4 +257,53 @@ USUARIO      ||--o{ CAJA_MENSUAL   : "ARMADO_POR / DESPACHADO_POR / CANCELADA_PO
 USUARIO      ..o{ SUSTITUCION    : "RESPONSABLE_ID (referencia logica, sin FK) >"
 CAJA_MENSUAL ..o{ MOVIMIENTO_STOCK : "REFERENCIA_TIPO='CAJA', REFERENCIA_ID (soft link, RN-09)"
 
+' ─────────────────────────────────────────
+' Dominio: Pedido de Reposición (N03)
+' ─────────────────────────────────────────
+
+entity PEDIDO_REPOSICION {
+  * ID : INT <<PK>>
+  --
+  BODEGA_ID : INT <<FK>>
+  ESTADO : VARCHAR(10) <<Pendiente, Aprobado, Rechazado, Recibido>>
+  FECHA_CREACION : DATETIME
+  CREADO_POR : INT <<FK>>
+  RESOLUTOR_ID : INT <<FK, nullable>>
+  FECHA_RESOLUCION : DATETIME <<nullable>>
+  MOTIVO_RECHAZO : VARCHAR(200) <<nullable>>
+  RECIBIDO_POR : INT <<FK, nullable>>
+  FECHA_RECEPCION : DATETIME <<nullable>>
+  OBSERVACION : VARCHAR(200) <<nullable>>
+}
+note bottom of PEDIDO_REPOSICION
+  IX_PEDREP_ESTADO (ESTADO)
+  CK: RESOLUTOR_ID <> CREADO_POR (RN-33)
+  CK: motivo de 1 a 200 solo si Rechazado (RN-34)
+  CK: recepción solo si Recibido (RN-35)
+end note
+
+entity PEDIDO_REPOSICION_LINEA {
+  * ID : INT <<PK>>
+  --
+  PEDIDO_ID : INT <<FK>>
+  VINO_ID : INT <<FK>>
+  CANTIDAD_SUGERIDA : INT
+  CANTIDAD_PEDIDA : INT
+  CANTIDAD_RECIBIDA : INT <<nullable>>
+  ABIERTO : BIT
+}
+note bottom of PEDIDO_REPOSICION_LINEA
+  UQ (PEDIDO_ID, VINO_ID)
+  UX_PEDREPLIN_VINO_ABIERTO: único filtrado (VINO_ID) WHERE ABIERTO = 1 (RN-32)
+  CK: PEDIDA > 0; 0 <= RECIBIDA <= PEDIDA
+end note
+
+BODEGA                   ||--o{ PEDIDO_REPOSICION       : "BODEGA_ID >"
+USUARIO                  ||--o{ PEDIDO_REPOSICION       : "CREADO_POR >"
+USUARIO                  |o--o{ PEDIDO_REPOSICION       : "RESOLUTOR_ID >"
+USUARIO                  |o--o{ PEDIDO_REPOSICION       : "RECIBIDO_POR >"
+PEDIDO_REPOSICION        ||--o{ PEDIDO_REPOSICION_LINEA : "PEDIDO_ID >"
+VINO                     ||--o{ PEDIDO_REPOSICION_LINEA : "VINO_ID >"
+PEDIDO_REPOSICION        ..o{ MOVIMIENTO_STOCK          : "soft link (RN-35)"
+
 @enduml

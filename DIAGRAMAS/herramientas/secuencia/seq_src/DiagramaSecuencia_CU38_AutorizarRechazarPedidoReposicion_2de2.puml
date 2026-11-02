@@ -1,0 +1,110 @@
+@startuml DiagramaSecuencia_CU38_AutorizarRechazarPedidoReposicion_2de2
+
+title CU-38 — Autorizar o Rechazar Pedido de Reposición — (2/2) — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.7
+
+actor       ":Administrador"                 as A
+participant ":frmAutorizar\nPedidoReposicion" as FA #FEFECE
+participant ":FrmMotivo\nRechazoPedido"      as FM #FEFECE
+participant ":Pedido\nReposicionUI"          as UI #FEFECE
+participant ":Pedido\nReposicionBLL"         as PB #E8F4E8
+participant ":BitacoraBLL"                   as BB #E8F4E8
+participant ":Pedido\nReposicionDAL"         as PD #E8E8F4
+participant ":BitacoraDAL"                   as TD #E8E8F4
+database    ":DB"                            as DB #EEEEEE
+
+note over FA
+  Continuación de (1/2). Precondición: sesión activa; permiso "Autorizar pedidos de reposición";
+  el formulario ya está abierto con la lista de pedidos Pendientes y un pedido seleccionado.
+  sesion = SessionManager.getInstance().getUsuario().
+end note
+activate FA
+
+group 38e. Rechazar el pedido ("Rechazar pedido")
+  A -> FA : click "Rechazar pedido" (btnRechazarPedido)
+
+  break 38b. no hay pedido seleccionado
+    FA --> A : "Seleccione un pedido pendiente."\n(título "Atención")
+  end
+
+  FA -> FM : new FrmMotivoRechazoPedido(p.Id).ShowDialog(this)
+  activate FM
+  FM --> A : diálogo "Rechazar pedido Nº N" (motivo, hasta 200 caracteres)
+  A -> FM : escribe el motivo + click "Rechazar pedido"
+
+  opt 38f. el motivo está vacío o solo espacios (RN-34, capa UI)
+    FM --> A : "Debe indicar el motivo del rechazo."\n(título "Atención")
+    FM -> FM : txtMotivo.Focus()
+    note right of FM : el diálogo sigue abierto
+  end
+
+  break 38g. el administrador cancela el diálogo (DialogResult != OK)
+    FM --> FA : DialogResult.Cancel
+    note right of FA : return: no llama a la BLL ni recarga la grilla
+  end
+
+  FM --> FA : DialogResult.OK + Motivo (recortado)
+  deactivate FM
+
+  FA -> PB : Rechazar(p.Id, motivo, sesion)
+  PB -> PB : ValidarMotivo(motivo)\n(recorta; 1 a 200 caracteres)
+
+  alt 38h. motivo inválido (vacío o de más de 200 caracteres; RN-34)
+    PB --> FA : throw InvalidOperationException\n("RN-34: debe indicar el motivo del rechazo." /\n"RN-34: el motivo del rechazo no puede superar los 200 caracteres.")
+  else motivo válido (motivoLimpio)
+    PB -> PB : ObtenerPendiente(pedidoId)
+    PB -> PD : ObtenerPorId(pedidoId)
+    PD -> DB : PEDIDO_REPOSICION_OBTENER_POR_ID(@id)
+    DB --> PD : fila
+    PD --> PB : PedidoReposicion (o null)
+
+    alt 38c. el pedido no existe o ya fue resuelto (estado distinto de Pendiente)
+      PB --> FA : throw InvalidOperationException\n("El pedido no existe." / "El pedido ya fue resuelto (estado: X).")
+    else pedido Pendiente
+      PB -> PB : ValidarSeparacionDeFunciones(p, sesion, "rechazar")
+
+      alt 38a. el administrador generó el pedido (RN-33, capa BLL)
+        PB --> FA : throw InvalidOperationException\n("RN-33: no puede rechazar un pedido que usted mismo generó.")
+      else el administrador no es quien lo generó
+        PB -> PD : Rechazar(p.Id, sesion.Id, motivoLimpio)
+        PD -> DB : PEDIDO_REPOSICION_RECHAZAR(@pedido_id,@resolutor_id,@motivo)
+        note right of DB
+          En una transacción: pedido Rechazado con su motivo
+          (WHERE ESTADO = 'Pendiente' AND CREADO_POR <> @resolutor_id) +
+          líneas con ABIERTO = 0 (los vinos quedan libres, RN-32)
+        end note
+        DB --> PD : FILAS
+        PD --> PB : int filas
+
+        alt 38d. 0 filas (el pedido cambió de estado o lo generó el administrador)
+          PB --> FA : throw InvalidOperationException\n("No se pudo rechazar el pedido: cambió de estado o usted lo generó.\nActualice e intente nuevamente.")
+        else 1 fila
+          PB -> BB : RegistrarAccion(sesion.Usuario,\n"PEDIDO_RECHAZADO:" + p.Id)
+          BB -> TD : Registrar(usuario, accion)
+          TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+          DB --> TD : filas afectadas
+          TD --> BB : void
+          BB --> PB : void
+          PB --> FA : void
+          FA --> A : "Pedido Nº N rechazado. Sus vinos quedan libres para\nun nuevo pedido." (título "Éxito")
+          @PQ corto
+        end
+      end
+    end
+  end
+
+  opt la BLL lanzó InvalidOperationException (catch de btnRechazarPedido_Click)
+    FA --> A : ex.Message\n(título "Atención")
+    @PQ corto
+    note right of FA : return
+  end
+end
+deactivate FA
+
+@enduml

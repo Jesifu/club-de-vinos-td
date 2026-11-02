@@ -366,16 +366,46 @@ end note
 @DS"""
 
 
+def PQ(modo=None):
+    if modo == 'corto':
+        return f"""FA -> FA : CargarPendientes(){NL}(vuelve a listar los pedidos Pendientes: Listar → PEDIDO_REPOSICION_LISTAR,{NL}como en la carga inicial)"""
+    return f"""FA -> FA : CargarPendientes()
+FA -> PB : Listar(EstadoPedidoReposicion.Pendiente)
+PB -> PD : Listar(Pendiente)
+PD -> DB : PEDIDO_REPOSICION_LISTAR(@estado)
+DB --> PD : filas de PEDIDO_REPOSICION{NL}(con CANTIDAD_LINEAS y UNIDADES_PEDIDAS)
+PD --> PB : List<PedidoReposicion>
+PB --> FA : List<PedidoReposicion>
+FA -> FA : dgvPedidos.DataSource = pedidos
+FA -> UI : ConfigurarGrillaPedidos(dgvPedidos, false)
+FA -> FA : ActualizarSeleccion()"""
+
+
+def PW(modo=None):
+    if modo == 'corto':
+        return f"""FA -> FA : CargarAprobados(){NL}(vuelve a listar los pedidos Aprobados: Listar → PEDIDO_REPOSICION_LISTAR,{NL}como en la carga inicial)"""
+    return f"""FA -> FA : CargarAprobados()
+FA -> PB : Listar(EstadoPedidoReposicion.Aprobado)
+PB -> PD : Listar(Aprobado)
+PD -> DB : PEDIDO_REPOSICION_LISTAR(@estado)
+DB --> PD : filas de PEDIDO_REPOSICION{NL}(con CANTIDAD_LINEAS y UNIDADES_PEDIDAS)
+PD --> PB : List<PedidoReposicion>
+PB --> FA : List<PedidoReposicion>
+FA -> FA : dgvPedidos.DataSource = pedidos
+FA -> UI : ConfigurarGrillaPedidos(dgvPedidos, false)
+FA -> FA : ActualizarSeleccion()"""
+
+
 def expand(text):
     out = []
     for line in text.split('\n'):
-        m = re.match(r'^(\s*)@(IR|RC|RB|LU|CA|CI|CT|LC|LP|AV|AT|SS|CC|VS|CS|LS|OC|DS|LA)\s*(.*)$', line.rstrip('\r'))
+        m = re.match(r'^(\s*)@(IR|RC|RB|LU|CA|CI|CT|LC|LP|AV|AT|SS|CC|VS|CS|LS|OC|DS|LA|PQ|PW)\s*(.*)$', line.rstrip('\r'))
         if not m:
             out.append(line)
             continue
         ind, kind, rest = m.groups()
         a = [x.strip() for x in rest.split('|')] if rest.strip() else []
-        blk = {'IR': IR, 'RC': RC, 'RB': RB, 'LU': LU, 'CA': CA, 'CI': CI, 'CT': CT, 'LC': LC, 'LP': LP, 'AV': AV, 'AT': AT, 'SS': SS, 'CC': CC, 'VS': VS, 'CS': CS, 'LS': LS, 'OC': OC, 'DS': DS, 'LA': LA}[kind](*a)
+        blk = {'IR': IR, 'RC': RC, 'RB': RB, 'LU': LU, 'CA': CA, 'CI': CI, 'CT': CT, 'LC': LC, 'LP': LP, 'AV': AV, 'AT': AT, 'SS': SS, 'CC': CC, 'VS': VS, 'CS': CS, 'LS': LS, 'OC': OC, 'DS': DS, 'LA': LA, 'PQ': PQ, 'PW': PW}[kind](*a)
         blk = expand(blk)
         out.extend((ind + l if l else l) for l in blk.split('\n'))
     return '\n'.join(out)

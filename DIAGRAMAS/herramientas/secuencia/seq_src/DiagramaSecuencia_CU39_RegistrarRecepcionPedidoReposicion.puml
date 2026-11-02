@@ -1,0 +1,150 @@
+@startuml DiagramaSecuencia_CU39_RegistrarRecepcionPedidoReposicion
+
+title CU-39 — Registrar Recepción de Pedido de Reposición — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.7
+
+actor       ":Usuario"                       as U
+participant ":frmRecibir\nPedidoReposicion"  as FA #FEFECE
+participant ":Pedido\nReposicionUI"          as UI #FEFECE
+participant ":Pedido\nReposicionBLL"         as PB #E8F4E8
+participant ":BitacoraBLL"                   as BB #E8F4E8
+participant ":VinoDAL"                       as VD #E8E8F4
+participant ":Pedido\nReposicionDAL"         as PD #E8E8F4
+participant ":BitacoraDAL"                   as TD #E8E8F4
+database    ":DB"                            as DB #EEEEEE
+
+note over FA
+  Precondición: sesión activa; permiso "Recibir pedidos de reposición"
+  (Encargado de Depósito o Administrador); existe al menos un pedido Aprobado.
+  sesion = SessionManager.getInstance().getUsuario().
+end note
+
+U -> FA : menú Catálogo > "Registrar recepción de pedido"\n(new frmRecibirPedidoReposicion().ShowDialog())
+activate FA
+note right of FA
+  Load: se registra en IdiomaManager, traduce sus controles,
+  CargarAprobados() y agrega el selector de idiomas.
+  DataBindingComplete de la grilla y Shown del formulario
+  también reevalúan ActualizarSeleccion().
+end note
+@PW
+
+FA -> UI : ArmarCabecera(p)
+UI --> FA : texto (Nº, estado, bodega, generado por, resuelto por)
+FA -> PB : ObtenerLineas(p.Id)
+PB -> PD : ObtenerLineas(pedidoId)
+PD -> DB : PEDIDO_REPOSICION_OBTENER_LINEAS(@pedido_id)
+DB --> PD : filas de PEDIDO_REPOSICION_LINEA
+PD --> PB : List<PedidoReposicionLinea>
+PB --> FA : List<PedidoReposicionLinea>
+FA -> FA : por defecto CantidadRecibida = CantidadPedida en cada línea;\nsolo la columna "Cantidad recibida" es editable
+FA -> UI : ConfigurarGrillaLineas(dgvLineas, true)
+FA --> U : grilla de pedidos aprobados y líneas del pedido seleccionado
+
+U -> FA : seleccionar otro pedido
+FA -> FA : dgvPedidos_SelectionChanged → ActualizarSeleccion()\n(cabecera y líneas, como arriba)
+
+loop por cada línea que difiere de lo pedido
+  U -> FA : edita "Cantidad recibida"
+  opt 39a. el valor no es un número entero (dgvLineas_DataError)
+    FA --> U : "La cantidad recibida debe ser un número entero."\n(título "Atención")
+    note right of FA : la celda se revierte
+  end
+  opt 39b. la cantidad recibida es menor a 0 o mayor a la pedida (RN-35, dgvLineas_CellEndEdit)
+    FA --> U : "La cantidad recibida de 'X' debe estar entre 0 y N."\n(título "Atención")
+    FA -> FA : l.CantidadRecibida = l.CantidadPedida
+  end
+end
+
+U -> FA : click "Registrar recepción" (btnRegistrarRecepcion)
+FA -> FA : dgvLineas.EndEdit(); cantidades[l.Id] = l.CantidadRecibida ?? 0
+
+break 39c. no hay un pedido aprobado seleccionado
+  FA --> U : "Seleccione un pedido aprobado."\n(título "Atención")
+end
+
+break 39d. todas las cantidades recibidas son 0 (RN-35, capa UI)
+  FA --> U : "Al menos una línea debe tener una cantidad recibida mayor a cero."\n(título "Atención")
+end
+
+FA --> U : solicitar confirmación\n("¿Registrar la recepción del pedido Nº N? Se generan entradas de stock por M\nunidad(es) y el pedido queda Recibido; lo no recibido se da por no entregado.")\n(título "Confirmar")
+
+break 39e. el usuario responde "No"
+  U --> FA : No
+  note right of FA : return: no llama a la BLL
+end
+
+U --> FA : Sí
+FA -> PB : Recibir(p.Id, cantidades, sesion)
+activate PB
+PB -> PD : ObtenerPorId(pedidoId)
+PD -> DB : PEDIDO_REPOSICION_OBTENER_POR_ID(@id)
+DB --> PD : fila
+PD --> PB : PedidoReposicion (o null)
+
+break 39f. el pedido no existe o no está Aprobado (RN-35)
+  PB --> FA : throw InvalidOperationException\n("El pedido no existe." / "RN-35: solo se puede recibir un pedido Aprobado.")
+end
+
+PB -> PD : ObtenerLineas(p.Id)
+PD -> DB : PEDIDO_REPOSICION_OBTENER_LINEAS(@pedido_id)
+DB --> PD : filas de PEDIDO_REPOSICION_LINEA
+PD --> PB : List<PedidoReposicionLinea>
+
+loop por cada línea del pedido
+  break 39g. la recepción no cubre todas las líneas, la recibida está fuera de 0..pedida\no todas las cantidades son 0 (RN-35)
+    PB --> FA : throw InvalidOperationException\n("RN-35: debe informar la cantidad recibida de cada línea del pedido." /\n"RN-35: la cantidad recibida de 'X' debe estar entre 0 y N." /\n"RN-35: al menos una línea debe tener cantidad recibida mayor a cero.")
+  end
+  opt recibida > 0
+    PB -> VD : ObtenerPorId(l.VinoId)
+    VD -> DB : VINO_OBTENER_POR_ID(@id)
+    DB --> VD : fila de VINO
+    VD --> PB : Vino (o null)
+    break 39h. el vino no existe o no está Activo
+      PB --> FA : throw InvalidOperationException\n("El vino 'X' no está activo: no admite entradas de stock.")
+    end
+  end
+end
+
+PB -> PD : Recibir(p.Id, sesion.Id, sesion.Usuario, cantidades)
+PD -> DB : PEDIDO_REPOSICION_RECIBIR(@pedido_id,@recibido_por,\n@responsable_login,@recepcion PEDIDO_RECEPCION_TT)
+note right of DB
+  En una transacción (rollback total ante cualquier verificación fallida):
+  pedido Aprobado (UPDLOCK) + una cantidad por cada línea;
+  CANTIDAD_RECIBIDA y ABIERTO = 0 en las líneas;
+  una Entrada de MOVIMIENTO_STOCK por cada línea con recibida > 0
+  (MOTIVO "Recepción de pedido de reposición", REFERENCIA_TIPO "PEDIDO",
+  REFERENCIA_ID = id del pedido); pedido Aprobado → Recibido.
+end note
+DB --> PD : FILAS
+PD --> PB : int filas
+
+alt 39i. 0 filas (el pedido cambió de estado o los datos no son válidos; rollback total)
+  PB --> FA : throw InvalidOperationException\n("No se pudo registrar la recepción: el pedido cambió de estado o los datos\nno son válidos. Actualice e intente nuevamente.")
+else 1 fila
+  PB -> BB : RegistrarAccion(sesion.Usuario,\n"PEDIDO_RECIBIDO:" + p.Id)
+  BB -> TD : Registrar(usuario, accion)
+  TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+  DB --> TD : filas afectadas
+  TD --> BB : void
+  BB --> PB : void
+  PB --> FA : void
+  FA --> U : "Recepción del pedido Nº N registrada. Entradas de stock generadas:\nn línea(s), m unidad(es)." (título "Éxito")
+  @PW corto
+end
+deactivate PB
+
+opt la BLL lanzó InvalidOperationException (catch de btnRegistrarRecepcion_Click)
+  FA --> U : ex.Message\n(título "Atención")
+  @PW corto
+  note right of FA : return
+end
+deactivate FA
+
+@enduml

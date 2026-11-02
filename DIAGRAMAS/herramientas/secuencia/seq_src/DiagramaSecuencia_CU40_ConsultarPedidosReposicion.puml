@@ -1,0 +1,88 @@
+@startuml DiagramaSecuencia_CU40_ConsultarPedidosReposicion
+
+title CU-40 — Consultar Pedidos de Reposición — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.75
+
+actor       ":Usuario"                       as U
+participant ":frmConsultar\nPedidosReposicion" as FA #FEFECE
+participant ":Pedido\nReposicionUI"          as UI #FEFECE
+participant ":Pedido\nReposicionBLL"         as PB #E8F4E8
+participant ":Pedido\nReposicionDAL"         as PD #E8E8F4
+database    ":DB"                            as DB #EEEEEE
+
+note over FA
+  Precondición: sesión activa; el usuario tiene alguno de los permisos "Gestionar",
+  "Autorizar" o "Recibir pedidos de reposición". Es una consulta de solo lectura.
+end note
+
+U -> FA : menú Catálogo > "Consultar pedidos de reposición"\n(new frmConsultarPedidosReposicion().ShowDialog())
+activate FA
+note right of FA
+  Load: se registra en IdiomaManager y traduce sus controles
+  (ActualizarIdioma → ArmarFiltro), CargarPedidos() y agrega el
+  selector de idiomas. DataBindingComplete de la grilla y Shown
+  del formulario también reevalúan MostrarDetalle().
+end note
+FA -> FA : ArmarFiltro(): cboEstado = "Todos" + un ítem por estado\n(Pendiente, Aprobado, Rechazado, Recibido), con el estado traducido
+FA -> UI : Estado(est) (texto traducido de cada estado)
+
+FA -> FA : CargarPedidos()
+FA -> PB : Listar(filtro)
+note right of FA : filtro = null (Todos)
+PB -> PD : Listar(filtro)
+PD -> DB : PEDIDO_REPOSICION_LISTAR(@estado)
+DB --> PD : filas de PEDIDO_REPOSICION (con CANTIDAD_LINEAS y UNIDADES_PEDIDAS)
+PD --> PB : List<PedidoReposicion>
+PB --> FA : List<PedidoReposicion>
+FA -> FA : dgvPedidos.DataSource = pedidos
+FA -> UI : ConfigurarGrillaPedidos(dgvPedidos, true)
+
+FA -> FA : MostrarDetalle()
+alt 40a. no hay pedidos para el filtro elegido (grilla vacía)
+  FA -> FA : txtDetalle.Clear(); dgvLineas.DataSource = null
+  FA --> U : grilla vacía, sin detalle
+else hay un pedido seleccionado (p)
+  FA -> UI : ArmarCabecera(p)
+  UI --> FA : texto (Nº, estado, bodega, generado por, resuelto por,\nmotivo de rechazo, recibido por, observación)
+  FA -> PB : ObtenerLineas(p.Id)
+  PB -> PD : ObtenerLineas(pedidoId)
+  PD -> DB : PEDIDO_REPOSICION_OBTENER_LINEAS(@pedido_id)
+  DB --> PD : filas de PEDIDO_REPOSICION_LINEA
+  PD --> PB : List<PedidoReposicionLinea>
+  PB --> FA : List<PedidoReposicionLinea>
+  FA -> UI : ConfigurarGrillaLineas(dgvLineas, p.Estado == Recibido)
+  note right of FA : la cantidad recibida solo se muestra en pedidos Recibidos
+  FA --> U : lista de pedidos (con su estado traducido) y detalle del pedido seleccionado
+end
+
+opt 40b. el usuario filtra por estado
+  U -> FA : elige un estado en cboEstado
+  FA -> FA : cboEstado_SelectedIndexChanged → CargarPedidos()
+  FA -> PB : Listar(estado)
+  PB -> PD : Listar(estado)
+  PD -> DB : PEDIDO_REPOSICION_LISTAR(@estado)
+  DB --> PD : filas de los pedidos con ese estado
+  PD --> PB : List<PedidoReposicion>
+  PB --> FA : List<PedidoReposicion>
+  FA -> FA : dgvPedidos.DataSource = pedidos;\nConfigurarGrillaPedidos(dgvPedidos, true); MostrarDetalle()
+  FA --> U : pedidos del estado elegido y detalle del primero\n(grilla vacía si no hay ninguno, 40a)
+end
+
+opt 40c. el usuario selecciona otro pedido
+  U -> FA : seleccionar un pedido
+  FA -> FA : dgvPedidos_SelectionChanged → MostrarDetalle()\n(cabecera y líneas, como arriba)
+  FA --> U : detalle del pedido seleccionado
+end
+
+U -> FA : click "Cerrar" (btnCerrar)
+FA -> FA : Close()
+FA -> FA : frmConsultarPedidosReposicion_FormClosed →\nIdiomaManager.Desregistrar(this)
+deactivate FA
+
+@enduml

@@ -5,7 +5,6 @@ title Modelo Conceptual — Análisis de Rotación y Reposición de Stock
 skinparam shadowing false
 skinparam roundcorner 6
 skinparam classAttributeIconSize 0
-skinparam linetype ortho
 skinparam nodesep 120
 skinparam ranksep 60
 hide circle
@@ -66,7 +65,28 @@ class "Resultado de Rotación" as ResultadoRotacion {
   Cobertura en meses
   {field} Clasificación (Alta / Media / Baja / Sin movimiento)
   {field} Recomendación (Reponer urgente / Reponer / Mantener / Sobrestock)
+  En camino
+  {field} Pedido abierto (Pendiente / Aprobado / ninguno)
+  Cantidad sugerida (neta de lo en camino)
+}
+
+class Usuario {
+  Nombre de usuario
+}
+
+class "Pedido de Reposición" as PedidoReposicion {
+  Fecha de generación
+  {field} Estado (Pendiente / Aprobado / Rechazado / Recibido)
+  Fecha de resolución
+  Motivo de rechazo
+  Fecha de recepción
+  Observación
+}
+
+class "Línea de Pedido" as PedidoLinea {
   Cantidad sugerida
+  Cantidad pedida
+  Cantidad recibida
 }
 
 Bodega      "1" -down- "0..*" Vino            : produce >
@@ -77,7 +97,14 @@ Vino        "1" --left-- "0..*" CajaVino        : incluido en >
 CajaVino    "1" -down- "0..*" Sustitución     : reemplazado por >
 Vino        "1" -down- "0..*" Sustitución     : original / reemplazo >
 
-Vino                  "1" -right- "0..*" ResultadoRotacion : es evaluado en >
+Bodega           "1" -right- "0..*" PedidoReposicion : se repone a >
+Usuario          "1" -left-  "0..*" PedidoReposicion : genera / resuelve / recibe >
+PedidoReposicion "1" -down-  "1..*" PedidoLinea      : compone >
+Vino             "1" -[norank]- "0..*" PedidoLinea   : pedido en >
+PedidoReposicion "1" -[norank]- "0..*" MovimientoStock : su recepción genera entradas >
+
+Vino                  "1" -[norank]- "0..*" ResultadoRotacion : es evaluado en >
+PedidoLinea -[hidden]down- ResultadoRotacion
 ConfiguracionRotacion "1" -down-  "0..*" ResultadoRotacion : parametriza >
 
 note right of ResultadoRotacion
@@ -92,6 +119,13 @@ note bottom of ConfiguracionRotacion
   Parámetros vigentes del análisis. Se guardan en un
   archivo (no en la base de datos) y todo análisis
   usa los valores que figuran en ese archivo.
+end note
+
+note bottom of PedidoReposicion
+  Un pedido por bodega. Pendiente → Aprobado o Rechazado;
+  Aprobado → Recibido. Un vino no puede estar en más de un
+  pedido abierto (Pendiente o Aprobado). Lo aprobado y aún no
+  recibido es "en camino" y se descuenta de la sugerencia.
 end note
 
 note bottom of MovimientoStock
