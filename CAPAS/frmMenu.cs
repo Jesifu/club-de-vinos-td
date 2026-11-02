@@ -113,6 +113,7 @@ namespace CAPAS
             bool puedeGestionRoles = sm.TienePermiso("Gestión de roles");
             bool puedeGestionIdiomas = sm.TienePermiso("Gestión de idiomas");
             bool puedeCatalogo = sm.TienePermiso("Gestionar catálogo de vinos");
+            bool puedeStock = sm.TienePermiso("Gestionar stock de vinos");
             bool puedeAutorizarCatalogo = sm.TienePermiso("Autorizar alta de vinos");
             bool puedeSocios = sm.TienePermiso("Gestionar socios");
             bool puedeArmar = sm.TienePermiso("Armar cajas mensuales");
@@ -132,9 +133,11 @@ namespace CAPAS
             bitacoraToolStripMenuItem.Visible = sm.TienePermiso("Ver bitácora");
 
             catalogoVinosToolStripMenuItem.Visible = puedeCatalogo;
-            entradaStockToolStripMenuItem.Visible = puedeCatalogo;
-            ajusteInventarioToolStripMenuItem.Visible = puedeCatalogo;
-            alertaStockToolStripMenuItem.Visible = puedeCatalogo;
+            // Entrada, ajuste y alerta de stock tienen su propio permiso: el Encargado de Depósito
+            // opera el stock sin poder proponer altas ni bajas del catálogo.
+            entradaStockToolStripMenuItem.Visible = puedeStock;
+            ajusteInventarioToolStripMenuItem.Visible = puedeStock;
+            alertaStockToolStripMenuItem.Visible = puedeStock;
             autorizarVinoToolStripMenuItem.Visible = puedeAutorizarCatalogo;
             autorizarBajaVinoToolStripMenuItem.Visible = puedeAutorizarCatalogo;
             rotacionStockToolStripMenuItem.Visible = puedeRotacion;
@@ -145,7 +148,7 @@ namespace CAPAS
             consultarPedidosToolStripMenuItem.Visible = puedeGestionarPedidos || puedeAutorizarPedidos || puedeRecibirPedidos;
             // El padre se oculta solo si ningún hijo es visible. Se usan los permisos y no la propiedad
             // Visible de los hijos: mientras el desplegable no se muestra, esta devuelve false.
-            catalogoToolStripMenuItem.Visible = puedeCatalogo || puedeAutorizarCatalogo || puedeRotacion
+            catalogoToolStripMenuItem.Visible = puedeCatalogo || puedeStock || puedeAutorizarCatalogo || puedeRotacion
                                              || puedeGestionarPedidos || puedeAutorizarPedidos || puedeRecibirPedidos;
 
             // CU-28/29/31: los ítems ya existen y quedan visibles-pero-inertes hasta

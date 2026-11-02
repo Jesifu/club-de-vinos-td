@@ -330,7 +330,7 @@
 
     <Tema id="stock-entrada" titulo="Registrar una entrada de stock">
       <Resumen>Suma botellas al stock de un vino (por ejemplo, por compra a la bodega).</Resumen>
-      <Permiso>Gestionar catálogo de vinos (menú Catálogo > Registrar entrada de stock).</Permiso>
+      <Permiso>Gestionar stock de vinos (menú Catálogo > Registrar entrada de stock). Por defecto lo tienen los roles Encargado de Depósito, Encargado de Compras/Bodega y Administrador.</Permiso>
       <Pasos>
         <Paso>Abra Catálogo > Registrar entrada de stock.</Paso>
         <Paso>Elija el Vino; el stock actual se muestra al lado.</Paso>
@@ -352,7 +352,7 @@
 
     <Tema id="stock-ajuste" titulo="Registrar un ajuste de inventario">
       <Resumen>Corrige el stock por diferencias del conteo físico, roturas o mermas. Puede aumentar o disminuir el stock.</Resumen>
-      <Permiso>Gestionar catálogo de vinos (menú Catálogo > Registrar ajuste de inventario).</Permiso>
+      <Permiso>Gestionar stock de vinos (menú Catálogo > Registrar ajuste de inventario).</Permiso>
       <Pasos>
         <Paso>Abra Catálogo > Registrar ajuste de inventario y elija el Vino.</Paso>
         <Paso>Elija el Sentido: Aumenta el stock o Disminuye el stock.</Paso>
@@ -372,7 +372,7 @@
 
     <Tema id="stock-alerta" titulo="Alerta de stock mínimo">
       <Resumen>Lista los vinos activos cuyo stock actual está por debajo del stock mínimo, con el faltante de cada uno. Es una consulta: no se muestra ningún aviso automático al iniciar sesión.</Resumen>
-      <Permiso>Gestionar catálogo de vinos (menú Catálogo > Consultar alerta de stock mínimo).</Permiso>
+      <Permiso>Gestionar stock de vinos (menú Catálogo > Consultar alerta de stock mínimo).</Permiso>
       <Pasos>
         <Paso>Abra Catálogo > Consultar alerta de stock mínimo.</Paso>
         <Paso>Revise la grilla (SKU, nombre, bodega, stock mínimo, stock actual y faltante).</Paso>

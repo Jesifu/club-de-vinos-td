@@ -5800,6 +5800,30 @@ IF @rolDepositoPedId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE
     INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolDepositoPedId, @permRecibirId)
 GO
 
+-- ------------------------------------------------------------
+-- SEED — permiso 'Gestionar stock de vinos' (idempotente)
+--   Gatea CU-23 entrada de stock, CU-27 ajuste de inventario y CU-26 alerta de stock mínimo.
+--   Se separa de 'Gestionar catálogo de vinos' (altas/bajas, CU-21/CU-24) para que el
+--   Encargado de Depósito registre movimientos de stock sin poder tocar el catálogo.
+--   Roles: Encargado de Depósito, Encargado de Compras/Bodega (lo conserva) y Administrador.
+-- ------------------------------------------------------------
+IF NOT EXISTS (SELECT 1 FROM PERMISO WHERE NOMBRE = 'Gestionar stock de vinos')
+    INSERT INTO PERMISO (NOMBRE) VALUES ('Gestionar stock de vinos')
+GO
+
+DECLARE @permStockId       INT = (SELECT ID FROM PERMISO WHERE NOMBRE = 'Gestionar stock de vinos')
+DECLARE @rolAdminStkId     INT = (SELECT TOP 1 ID FROM ROL WHERE NOMBRE = 'Administrador' AND PADRE_ID IS NULL)
+DECLARE @rolComprasStkId   INT = (SELECT TOP 1 ID FROM ROL WHERE NOMBRE = 'Encargado de Compras/Bodega' AND PADRE_ID IS NULL)
+DECLARE @rolDepositoStkId  INT = (SELECT TOP 1 ID FROM ROL WHERE NOMBRE = 'Encargado de Depósito' AND PADRE_ID IS NULL)
+
+IF @rolAdminStkId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminStkId AND PERMISO_ID = @permStockId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAdminStkId, @permStockId)
+IF @rolComprasStkId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolComprasStkId AND PERMISO_ID = @permStockId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolComprasStkId, @permStockId)
+IF @rolDepositoStkId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolDepositoStkId AND PERMISO_ID = @permStockId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolDepositoStkId, @permStockId)
+GO
+
 -- ============================================================
 -- i18n — N03 frmAnalisisRotacion + ítem de menú
 -- Reutiliza claves ya registradas: lblDesde, lblHasta, btnCerrar, colhdr_Codigo, colhdr_NombreVino,
