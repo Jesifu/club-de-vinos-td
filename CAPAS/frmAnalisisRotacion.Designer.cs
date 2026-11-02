@@ -41,6 +41,8 @@ namespace CAPAS
             this.dgvRotacion = new System.Windows.Forms.DataGridView();
             this.panelInferior = new System.Windows.Forms.Panel();
             this.btnExportarPdf = new System.Windows.Forms.Button();
+            this.btnGenerarPedido = new System.Windows.Forms.Button();
+            this.lblSeleccionPedido = new System.Windows.Forms.Label();
             this.btnCerrar = new System.Windows.Forms.Button();
             this.grpConfiguracion.SuspendLayout();
             this.tlpConfiguracion.SuspendLayout();
@@ -348,9 +350,14 @@ namespace CAPAS
             this.dgvRotacion.Size = new System.Drawing.Size(1115, 222);
             this.dgvRotacion.TabIndex = 8;
             this.dgvRotacion.CellFormatting += new System.Windows.Forms.DataGridViewCellFormattingEventHandler(this.dgvRotacion_CellFormatting);
+            this.dgvRotacion.CellPainting += new System.Windows.Forms.DataGridViewCellPaintingEventHandler(this.dgvRotacion_CellPainting);
+            this.dgvRotacion.CellEndEdit += new System.Windows.Forms.DataGridViewCellEventHandler(this.dgvRotacion_CellEndEdit);
+            this.dgvRotacion.CurrentCellDirtyStateChanged += new System.EventHandler(this.dgvRotacion_CurrentCellDirtyStateChanged);
             //
             // panelInferior
             //
+            this.panelInferior.Controls.Add(this.lblSeleccionPedido);
+            this.panelInferior.Controls.Add(this.btnGenerarPedido);
             this.panelInferior.Controls.Add(this.btnExportarPdf);
             this.panelInferior.Controls.Add(this.btnCerrar);
             this.panelInferior.Dock = System.Windows.Forms.DockStyle.Bottom;
@@ -358,6 +365,26 @@ namespace CAPAS
             this.panelInferior.Name = "panelInferior";
             this.panelInferior.Size = new System.Drawing.Size(1130, 70);
             this.panelInferior.TabIndex = 9;
+            //
+            // lblSeleccionPedido (texto dinámico: se arma en código con ped_Seleccionados)
+            //
+            this.lblSeleccionPedido.AutoSize = true;
+            this.lblSeleccionPedido.Location = new System.Drawing.Point(5, 24);
+            this.lblSeleccionPedido.Name = "lblSeleccionPedido";
+            this.lblSeleccionPedido.Size = new System.Drawing.Size(0, 20);
+            this.lblSeleccionPedido.TabIndex = 2;
+            //
+            // btnGenerarPedido
+            //
+            this.btnGenerarPedido.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnGenerarPedido.Enabled = false;
+            this.btnGenerarPedido.Location = new System.Drawing.Point(640, 16);
+            this.btnGenerarPedido.Name = "btnGenerarPedido";
+            this.btnGenerarPedido.Size = new System.Drawing.Size(190, 38);
+            this.btnGenerarPedido.TabIndex = 3;
+            this.btnGenerarPedido.Text = "Generar pedido";
+            this.btnGenerarPedido.UseVisualStyleBackColor = true;
+            this.btnGenerarPedido.Click += new System.EventHandler(this.btnGenerarPedido_Click);
             //
             // btnExportarPdf
             //
@@ -452,6 +479,8 @@ namespace CAPAS
         private System.Windows.Forms.DataGridView dgvRotacion;
         private System.Windows.Forms.Panel panelInferior;
         private System.Windows.Forms.Button btnExportarPdf;
+        private System.Windows.Forms.Button btnGenerarPedido;
+        private System.Windows.Forms.Label lblSeleccionPedido;
         private System.Windows.Forms.Button btnCerrar;
     }
 }

@@ -180,7 +180,7 @@ namespace CAPAS
                 .ToList();
 
             Chart chart = NuevoGrafico(o, Formatear(o, "rot_gra_Titulo3",
-                "Unidades sugeridas a reponer ({0} de {1} vinos)", top.Count, con.Count));
+                "Unidades sugeridas a reponer, netas de lo en camino ({0} de {1} vinos)", top.Count, con.Count));
             if (top.Count == 0) return SinDatos(chart, o);
 
             ChartArea area = chart.ChartAreas[0];

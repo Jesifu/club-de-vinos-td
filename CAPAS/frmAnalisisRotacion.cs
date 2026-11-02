@@ -12,6 +12,8 @@ namespace CAPAS
     // N03 — Análisis de rotación y reposición de stock. Cruza el kardex (proceso 1) con las
     // cajas despachadas (proceso 2). Los umbrales salen de la configuración serializada en XML
     // (ConfiguracionRotacionStore): el formulario la carga al abrir y permite guardarla de nuevo.
+    // CU-37: con el permiso 'Gestionar pedidos de reposición' el análisis permite elegir vinos y
+    // generar el Pedido de Reposición (uno por bodega) con la cantidad a pedir editable.
     public partial class frmAnalisisRotacion : FormBase, SeguridadYServicios.IObservadorIdioma
     {
         private readonly BLL.RotacionBLL _bll = new BLL.RotacionBLL();
@@ -29,6 +31,12 @@ namespace CAPAS
 
         // Evita que los cambios de código sobre los controles disparen la lógica de los eventos.
         private bool _cargando;
+
+        // Columnas agregadas en código para elegir los vinos del pedido (CU-37).
+        private const string ColSeleccionar = "Seleccionar";
+        private const string ColCantidadAPedir = "CantidadAPedir";
+        private bool _puedeGenerarPedido;
+        private bool _corrigiendoCantidad;
 
         // Área de resultados armada en código: pestañas "Detalle" (grilla) y "Gráficos".
         private Panel _pnlResultados;
@@ -72,6 +80,13 @@ namespace CAPAS
             lblAdvertenciaFecha.ForeColor = AppTheme.Acento;
             MostrarPestana(false);
 
+            // CU-37: el botón solo existe para quien tiene el permiso de gestionar pedidos.
+            _puedeGenerarPedido = SeguridadYServicios.SessionManager.getInstance()
+                .TienePermiso("Gestionar pedidos de reposición");
+            btnGenerarPedido.Visible = _puedeGenerarPedido;
+            lblSeleccionPedido.Visible = _puedeGenerarPedido;
+            ActualizarSeleccionPedido();
+
             // Se enganchan al final para que la carga inicial no los dispare.
             nudDiasAnalisis.ValueChanged += nudDiasAnalisis_ValueChanged;
             dtpHasta.ValueChanged += dtpHasta_ValueChanged;
@@ -99,6 +114,7 @@ namespace CAPAS
                 dgvRotacion.Invalidate();
             }
             ActualizarGraficos();
+            ActualizarSeleccionPedido();
         }
 
         // Mueve la grilla y el resumen a una pestaña "Detalle" y agrega la pestaña "Gráficos". Se
@@ -341,6 +357,10 @@ namespace CAPAS
             AsignarEncabezado("Clasificacion", mgr.Traducir("colhdr_Clasificacion") ?? "Clasificación");
             AsignarEncabezado("Recomendacion", mgr.Traducir("colhdr_Recomendacion") ?? "Recomendación");
             AsignarEncabezado("CantidadSugerida", mgr.Traducir("colhdr_CantidadSugerida") ?? "Cantidad sugerida");
+            AsignarEncabezado("EnCamino", mgr.Traducir("colhdr_EnCamino") ?? "En camino");
+            AsignarEncabezado("PedidoAbiertoEstado", mgr.Traducir("colhdr_PedidoAbierto") ?? "Pedido abierto");
+            AsignarEncabezado(ColSeleccionar, mgr.Traducir("colhdr_Seleccionar") ?? "Pedir");
+            AsignarEncabezado(ColCantidadAPedir, mgr.Traducir("colhdr_CantidadAPedir") ?? "Cantidad a pedir");
         }
 
         private void AsignarEncabezado(string columna, string texto)
@@ -530,12 +550,18 @@ namespace CAPAS
 
         private void MostrarResultado(List<BE.ResultadoRotacion> filas)
         {
+            // Las columnas de selección son propias del formulario: se quitan antes de reenlazar.
+            QuitarColumna(ColSeleccionar);
+            QuitarColumna(ColCantidadAPedir);
             dgvRotacion.DataSource = filas;
 
             if (dgvRotacion.Columns.Count > 0)
             {
                 dgvRotacion.Columns["VinoId"].Visible = false;
                 dgvRotacion.Columns["Prioridad"].Visible = false;
+                dgvRotacion.Columns["BodegaId"].Visible = false;
+                // La bruta (antes de descontar lo en camino) no se muestra: la grilla muestra la neta.
+                dgvRotacion.Columns["CantidadSugeridaBruta"].Visible = false;
                 dgvRotacion.Columns["ConsumoMensual"].DefaultCellStyle.Format = "0.0";
                 dgvRotacion.Columns["MesesCobertura"].DefaultCellStyle.Format = "0.0";
                 dgvRotacion.Columns["MesesCobertura"].DefaultCellStyle.NullValue = "—";
@@ -547,16 +573,233 @@ namespace CAPAS
 
                 string[] orden = { "Codigo", "Nombre", "BodegaNombre", "StockActual", "StockMinimo", "UnidadesVendidas",
                                    "UnidadesPerdidas", "ConsumoMensual", "MesesCobertura", "SociosAtendidos",
-                                   "Clasificacion", "Recomendacion", "CantidadSugerida" };
+                                   "Clasificacion", "Recomendacion", "CantidadSugerida", "EnCamino",
+                                   "PedidoAbiertoEstado" };
                 for (int i = 0; i < orden.Length; i++)
                     dgvRotacion.Columns[orden[i]].DisplayIndex = i;
 
+                PrepararSeleccionPedido(filas);
                 ActualizarEncabezados();
             }
 
             ActualizarResumen(filas);
             ActualizarGraficos();
             btnExportarPdf.Enabled = filas.Count > 0;
+            ActualizarSeleccionPedido();
+        }
+
+        private void QuitarColumna(string nombre)
+        {
+            if (dgvRotacion.Columns[nombre] != null)
+                dgvRotacion.Columns.Remove(nombre);
+        }
+
+        // RN-31/RN-32 en la UI: solo se puede pedir un vino a reponer (urgente o no) con cantidad
+        // sugerida neta mayor a cero y sin pedido abierto. El resto no muestra casilla ni cantidad.
+        private static bool EsPedible(BE.ResultadoRotacion f)
+        {
+            return f != null
+                && (f.Recomendacion == BE.RecomendacionReposicion.Urgente
+                    || f.Recomendacion == BE.RecomendacionReposicion.Reponer)
+                && f.CantidadSugerida > 0
+                && f.PedidoAbiertoEstado == null;
+        }
+
+        // Agrega la casilla y la cantidad a pedir (por defecto, la sugerida neta) y deja editables
+        // solo esas dos columnas, y solo en las filas pedibles.
+        private void PrepararSeleccionPedido(List<BE.ResultadoRotacion> filas)
+        {
+            if (!_puedeGenerarPedido) return;
+
+            var chk = new DataGridViewCheckBoxColumn
+            {
+                Name = ColSeleccionar,
+                HeaderText = "Pedir",
+                Width = LogicalToDeviceUnits(70),
+                SortMode = DataGridViewColumnSortMode.NotSortable
+            };
+            var cant = new DataGridViewTextBoxColumn
+            {
+                Name = ColCantidadAPedir,
+                HeaderText = "Cantidad a pedir",
+                ValueType = typeof(int),
+                SortMode = DataGridViewColumnSortMode.NotSortable
+            };
+            dgvRotacion.Columns.Add(chk);
+            dgvRotacion.Columns.Add(cant);
+            chk.DisplayIndex = 0;
+            cant.DisplayIndex = 1;
+
+            foreach (DataGridViewColumn c in dgvRotacion.Columns)
+                c.ReadOnly = c.Name != ColSeleccionar && c.Name != ColCantidadAPedir;
+            dgvRotacion.ReadOnly = false;
+            dgvRotacion.EditMode = DataGridViewEditMode.EditOnEnter;
+
+            foreach (DataGridViewRow row in dgvRotacion.Rows)
+            {
+                BE.ResultadoRotacion f = row.DataBoundItem as BE.ResultadoRotacion;
+                bool pedible = EsPedible(f);
+                row.Cells[ColSeleccionar].Value = false;
+                row.Cells[ColCantidadAPedir].Value = pedible ? (object)f.CantidadSugerida : null;
+                row.Cells[ColSeleccionar].ReadOnly = !pedible;
+                row.Cells[ColCantidadAPedir].ReadOnly = !pedible;
+            }
+        }
+
+        // Filas con la casilla marcada (solo pueden estarlo las pedibles).
+        private List<DataGridViewRow> FilasSeleccionadas()
+        {
+            var lista = new List<DataGridViewRow>();
+            if (dgvRotacion.Columns[ColSeleccionar] == null) return lista;
+            foreach (DataGridViewRow row in dgvRotacion.Rows)
+            {
+                if (Convert.ToBoolean(row.Cells[ColSeleccionar].Value ?? false))
+                    lista.Add(row);
+            }
+            return lista;
+        }
+
+        private void ActualizarSeleccionPedido()
+        {
+            if (!_puedeGenerarPedido) return;
+            int n = FilasSeleccionadas().Count;
+            btnGenerarPedido.Enabled = n > 0;
+            lblSeleccionPedido.Text = RotacionGraficos.Formatear(
+                new RotacionGraficos.Opciones { Traducir = c => SeguridadYServicios.IdiomaManager.getInstance().Traducir(c) },
+                "ped_Seleccionados", "Vinos seleccionados para el pedido: {0}", n);
+        }
+
+        // La casilla se confirma al hacer clic (sin esperar a salir de la celda) para que el botón
+        // "Generar pedido" se habilite en el momento.
+        private void dgvRotacion_CurrentCellDirtyStateChanged(object sender, EventArgs e)
+        {
+            if (dgvRotacion.IsCurrentCellDirty && dgvRotacion.CurrentCell is DataGridViewCheckBoxCell)
+            {
+                dgvRotacion.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                ActualizarSeleccionPedido();
+            }
+        }
+
+        // La cantidad a pedir debe ser un entero mayor a cero (RN-31); si no, vuelve a la sugerida.
+        private void dgvRotacion_CellEndEdit(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0 || dgvRotacion.Columns[e.ColumnIndex].Name != ColCantidadAPedir) return;
+            DataGridViewCell celda = dgvRotacion.Rows[e.RowIndex].Cells[e.ColumnIndex];
+            BE.ResultadoRotacion f = dgvRotacion.Rows[e.RowIndex].DataBoundItem as BE.ResultadoRotacion;
+            if (f == null) return;
+
+            int valor;
+            if (!int.TryParse(Convert.ToString(celda.Value), out valor) || valor <= 0)
+            {
+                // Se restituye la sugerida antes del aviso y se evita reentrar si el aviso reabre la edición.
+                if (_corrigiendoCantidad) return;
+                _corrigiendoCantidad = true;
+                try
+                {
+                    celda.Value = f.CantidadSugerida;
+                    MsgBox.Show("La cantidad a pedir debe ser un número entero mayor a cero.", "Atención",
+                        MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                }
+                finally
+                {
+                    _corrigiendoCantidad = false;
+                }
+            }
+        }
+
+        // Las filas no pedibles no muestran la casilla.
+        private void dgvRotacion_CellPainting(object sender, DataGridViewCellPaintingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || dgvRotacion.Columns[e.ColumnIndex].Name != ColSeleccionar) return;
+            if (dgvRotacion.Rows[e.RowIndex].Cells[e.ColumnIndex].ReadOnly)
+            {
+                e.Paint(e.ClipBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border);
+                e.Handled = true;
+            }
+        }
+
+        // CU-37: genera un pedido por bodega con los vinos elegidos y la cantidad a pedir de cada uno.
+        private void btnGenerarPedido_Click(object sender, EventArgs e)
+        {
+            dgvRotacion.EndEdit();
+            List<DataGridViewRow> elegidas = FilasSeleccionadas();
+            if (elegidas.Count == 0)
+            {
+                MsgBox.Show("Seleccione al menos un vino para generar el pedido.", "Atención",
+                    MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                return;
+            }
+
+            var filas = new List<BE.ResultadoRotacion>();
+            var cantidades = new Dictionary<int, int>();
+            foreach (DataGridViewRow row in elegidas)
+            {
+                BE.ResultadoRotacion f = (BE.ResultadoRotacion)row.DataBoundItem;
+                int cantidad;
+                if (!int.TryParse(Convert.ToString(row.Cells[ColCantidadAPedir].Value), out cantidad) || cantidad <= 0)
+                {
+                    MsgBox.Show("La cantidad a pedir de \"" + f.Nombre + "\" debe ser un número entero mayor a cero.",
+                        "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                    return;
+                }
+                filas.Add(f);
+                cantidades[f.VinoId] = cantidad;
+            }
+
+            int unidades = cantidades.Values.Sum();
+            if (MsgBox.Show("¿Generar el pedido de reposición con " + filas.Count + " vino(s) y " + unidades +
+                            " unidad(es)? Se crea un pedido por bodega y queda Pendiente de autorización.",
+                    "Confirmar", MsgBox.Botones.SiNo, MsgBox.Icono.Pregunta) != DialogResult.Yes)
+                return;
+
+            BE.USUARIO sesion = SeguridadYServicios.SessionManager.getInstance().getUsuario();
+            List<BE.PedidoReposicion> creados;
+            try
+            {
+                creados = new BLL.PedidoReposicionBLL().Generar(filas, cantidades, sesion);
+            }
+            catch (InvalidOperationException ex)
+            {
+                MsgBox.Show(ex.Message, "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                ReanalizarUltimo();
+                return;
+            }
+            catch (Exception)
+            {
+                MsgBox.Show("No se pudo generar el pedido de reposición.", "Error",
+                    MsgBox.Botones.OK, MsgBox.Icono.Error);
+                return;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine(creados.Count == 1
+                ? "Pedido de reposición generado:"
+                : "Pedidos de reposición generados (uno por bodega):");
+            foreach (BE.PedidoReposicion p in creados)
+                sb.AppendLine("Nº " + p.Id + " - " + p.BodegaNombre + " (" + p.CantidadLineas + " línea(s), " +
+                              p.UnidadesPedidas + " unidad(es))");
+            sb.Append("Quedan Pendientes de autorización.");
+            MsgBox.Show(sb.ToString(), "Éxito", MsgBox.Botones.OK, MsgBox.Icono.Exito);
+
+            // El análisis se actualiza: los vinos pedidos pasan a mostrar su pedido abierto.
+            ReanalizarUltimo();
+        }
+
+        // Repite el último análisis (mismas fechas y configuración) para reflejar los pedidos nuevos.
+        private void ReanalizarUltimo()
+        {
+            if (_ultimaConfig == null) return;
+            try
+            {
+                List<BE.ResultadoRotacion> filas = _bll.Analizar(_ultimoDesde, _ultimoHasta, _ultimaConfig);
+                _ultimoResultado = filas;
+                MostrarResultado(filas);
+            }
+            catch (Exception)
+            {
+                MsgBox.Show("No se pudo actualizar el análisis. Presione Analizar para verlo actualizado.", "Atención",
+                    MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+            }
         }
 
         // Colorea la fila según la recomendación leyendo el objeto enlazado, así el color
@@ -572,6 +815,11 @@ namespace CAPAS
             if (columna == "Clasificacion" || columna == "Recomendacion")
             {
                 e.Value = TraducirValor(e.Value as string);
+                e.FormattingApplied = true;
+            }
+            else if (columna == "PedidoAbiertoEstado" && e.Value is string estado)
+            {
+                e.Value = SeguridadYServicios.IdiomaManager.getInstance().Traducir("valped_" + estado) ?? estado;
                 e.FormattingApplied = true;
             }
 
