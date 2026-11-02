@@ -5288,6 +5288,353 @@ WHERE EXISTS (SELECT 1 FROM USUARIO WHERE USUARIO = 'bloqueado1')
 GO
 
 -- ============================================================
+-- N03 — Pedido de Reposición (ciclo completo: generar -> autorizar/rechazar -> recibir)
+-- Extiende el análisis de rotación: de las filas elegidas se genera un pedido por bodega.
+--   Estados: Pendiente -> Aprobado | Rechazado (terminal); Aprobado -> Recibido (terminal). Sin cancelación.
+--   RN-31  Solo vinos Activo, cantidad pedida entera > 0, todos de la misma bodega, al menos una línea.
+--   RN-32  Un vino no puede estar en más de un pedido abierto (Pendiente o Aprobado):
+--          índice único filtrado UX_PEDREPLIN_VINO_ABIERTO + verificación en el SP y en la BLL.
+--   RN-33  Separación de funciones: quien autoriza o rechaza no puede ser quien generó el pedido
+--          (UI, PedidoReposicionBLL, WHERE de cada SP y CHECK CK_PEDREP_RN33).
+--   RN-34  El rechazo exige motivo de 1 a 200 caracteres (como RN-17; CHECK CK_PEDREP_MOTIVO).
+--   RN-35  La recepción solo aplica a pedidos Aprobados; registra la cantidad recibida de cada línea
+--          (0 <= recibida <= pedida, al menos una > 0) y genera en la misma transacción una Entrada
+--          de MOVIMIENTO_STOCK por cada línea con recibida > 0 (REFERENCIA_TIPO 'PEDIDO').
+--   RN-36  Recibe cualquiera con el permiso de recepción (sin restricción de identidad).
+--   RN-37  "En camino" = unidades de líneas de pedidos Aprobados aún no recibidos; el análisis las
+--          descuenta de la cantidad sugerida (ver ROTACION_ANALIZAR y RotacionBLL).
+-- ============================================================
+SET ANSI_NULLS ON
+SET QUOTED_IDENTIFIER ON
+GO
+
+IF OBJECT_ID('dbo.PEDIDO_REPOSICION', 'U') IS NULL
+CREATE TABLE [dbo].[PEDIDO_REPOSICION] (
+    [ID]               INT          IDENTITY(1,1) NOT NULL,
+    [BODEGA_ID]        INT          NOT NULL,
+    [ESTADO]           VARCHAR(10)  NOT NULL CONSTRAINT DF_PEDREP_ESTADO DEFAULT 'Pendiente',
+    [FECHA_CREACION]   DATETIME     NOT NULL CONSTRAINT DF_PEDREP_FECHA DEFAULT GETDATE(),
+    [CREADO_POR]       INT          NOT NULL,
+    [RESOLUTOR_ID]     INT          NULL,   -- quien autorizó o rechazó
+    [FECHA_RESOLUCION] DATETIME     NULL,
+    [MOTIVO_RECHAZO]   VARCHAR(200) NULL,
+    [RECIBIDO_POR]     INT          NULL,
+    [FECHA_RECEPCION]  DATETIME     NULL,
+    [OBSERVACION]      VARCHAR(200) NULL,
+    CONSTRAINT PK_PEDIDO_REPOSICION PRIMARY KEY ([ID]),
+    CONSTRAINT FK_PEDREP_BODEGA    FOREIGN KEY ([BODEGA_ID])    REFERENCES [dbo].[BODEGA]([ID]),
+    CONSTRAINT FK_PEDREP_CREADOR   FOREIGN KEY ([CREADO_POR])   REFERENCES [dbo].[USUARIO]([ID]),
+    CONSTRAINT FK_PEDREP_RESOLUTOR FOREIGN KEY ([RESOLUTOR_ID]) REFERENCES [dbo].[USUARIO]([ID]),
+    CONSTRAINT FK_PEDREP_RECEPTOR  FOREIGN KEY ([RECIBIDO_POR]) REFERENCES [dbo].[USUARIO]([ID]),
+    CONSTRAINT CK_PEDREP_ESTADO CHECK ([ESTADO] IN ('Pendiente', 'Aprobado', 'Rechazado', 'Recibido')),
+    -- Un pedido Pendiente no tiene resolutor ni fecha; uno resuelto (Aprobado/Rechazado/Recibido) tiene ambos.
+    CONSTRAINT CK_PEDREP_RESOLUCION CHECK (
+        ([ESTADO] = 'Pendiente' AND [RESOLUTOR_ID] IS NULL AND [FECHA_RESOLUCION] IS NULL)
+        OR ([ESTADO] <> 'Pendiente' AND [RESOLUTOR_ID] IS NOT NULL AND [FECHA_RESOLUCION] IS NOT NULL)),
+    -- RN-33
+    CONSTRAINT CK_PEDREP_RN33 CHECK ([RESOLUTOR_ID] IS NULL OR [RESOLUTOR_ID] <> [CREADO_POR]),
+    -- RN-34: motivo de 1 a 200 caracteres solo al rechazar.
+    CONSTRAINT CK_PEDREP_MOTIVO CHECK (
+        ([ESTADO] = 'Rechazado' AND [MOTIVO_RECHAZO] IS NOT NULL AND LEN(LTRIM(RTRIM([MOTIVO_RECHAZO]))) BETWEEN 1 AND 200)
+        OR ([ESTADO] <> 'Rechazado' AND [MOTIVO_RECHAZO] IS NULL)),
+    -- RN-35: la recepción existe solo en estado Recibido.
+    CONSTRAINT CK_PEDREP_RECEPCION CHECK (
+        ([ESTADO] = 'Recibido' AND [RECIBIDO_POR] IS NOT NULL AND [FECHA_RECEPCION] IS NOT NULL)
+        OR ([ESTADO] <> 'Recibido' AND [RECIBIDO_POR] IS NULL AND [FECHA_RECEPCION] IS NULL))
+)
+GO
+
+IF OBJECT_ID('dbo.PEDIDO_REPOSICION_LINEA', 'U') IS NULL
+CREATE TABLE [dbo].[PEDIDO_REPOSICION_LINEA] (
+    [ID]                INT NOT NULL IDENTITY(1,1),
+    [PEDIDO_ID]         INT NOT NULL,
+    [VINO_ID]           INT NOT NULL,
+    [CANTIDAD_SUGERIDA] INT NOT NULL,   -- snapshot de la sugerencia del análisis al generar el pedido
+    [CANTIDAD_PEDIDA]   INT NOT NULL,
+    [CANTIDAD_RECIBIDA] INT NULL,       -- NULL hasta la recepción
+    -- 1 mientras el pedido está abierto (Pendiente o Aprobado); lo apagan RECHAZAR y RECIBIR.
+    -- Existe para sostener el índice único filtrado de RN-32 (el estado vive en la cabecera).
+    [ABIERTO]           BIT NOT NULL CONSTRAINT DF_PEDREPLIN_ABIERTO DEFAULT 1,
+    CONSTRAINT PK_PEDIDO_REPOSICION_LINEA PRIMARY KEY ([ID]),
+    CONSTRAINT FK_PEDREPLIN_PEDIDO FOREIGN KEY ([PEDIDO_ID]) REFERENCES [dbo].[PEDIDO_REPOSICION]([ID]),
+    CONSTRAINT FK_PEDREPLIN_VINO   FOREIGN KEY ([VINO_ID])   REFERENCES [dbo].[VINO]([ID]),
+    CONSTRAINT UQ_PEDREPLIN_PEDIDO_VINO UNIQUE ([PEDIDO_ID], [VINO_ID]),
+    CONSTRAINT CK_PEDREPLIN_SUGERIDA CHECK ([CANTIDAD_SUGERIDA] >= 0),
+    CONSTRAINT CK_PEDREPLIN_PEDIDA   CHECK ([CANTIDAD_PEDIDA] > 0),
+    CONSTRAINT CK_PEDREPLIN_RECIBIDA CHECK ([CANTIDAD_RECIBIDA] IS NULL
+                                            OR ([CANTIDAD_RECIBIDA] >= 0 AND [CANTIDAD_RECIBIDA] <= [CANTIDAD_PEDIDA]))
+)
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_PEDREPLIN_VINO_ABIERTO' AND object_id = OBJECT_ID('dbo.PEDIDO_REPOSICION_LINEA'))
+    CREATE UNIQUE INDEX UX_PEDREPLIN_VINO_ABIERTO ON [dbo].[PEDIDO_REPOSICION_LINEA] ([VINO_ID]) WHERE [ABIERTO] = 1
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PEDREP_ESTADO' AND object_id = OBJECT_ID('dbo.PEDIDO_REPOSICION'))
+    CREATE INDEX IX_PEDREP_ESTADO ON [dbo].[PEDIDO_REPOSICION] ([ESTADO])
+GO
+
+-- Tipos de tabla para pasar las líneas a los SP transaccionales.
+IF TYPE_ID('dbo.PEDIDO_LINEA_TT') IS NULL
+    CREATE TYPE [dbo].[PEDIDO_LINEA_TT] AS TABLE (
+        [VINO_ID] INT NOT NULL, [CANTIDAD_SUGERIDA] INT NOT NULL, [CANTIDAD_PEDIDA] INT NOT NULL)
+GO
+IF TYPE_ID('dbo.PEDIDO_RECEPCION_TT') IS NULL
+    CREATE TYPE [dbo].[PEDIDO_RECEPCION_TT] AS TABLE (
+        [LINEA_ID] INT NOT NULL, [CANTIDAD] INT NOT NULL)
+GO
+
+-- ------------------------------------------------------------
+-- STORED PROCEDURES — PEDIDO_REPOSICION
+-- Los SP de escritura devuelven exactamente un SELECT (se leen con Acceso.Leer): FILAS (0 = rechazado)
+-- o, en INSERTAR, el ID creado (0 = rechazado por RN-31/RN-32).
+-- ------------------------------------------------------------
+
+IF OBJECT_ID('dbo.PEDIDO_REPOSICION_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PEDIDO_REPOSICION_INSERTAR]
+GO
+-- Cabecera + líneas en una sola transacción. Bloquea primero VINO (UPDLOCK, HOLDLOCK), igual que los
+-- SP de solicitudes, y recién después verifica RN-31/RN-32 e inserta.
+CREATE PROCEDURE [dbo].[PEDIDO_REPOSICION_INSERTAR]
+    @bodega_id   INT,
+    @creado_por  INT,
+    @observacion VARCHAR(200) = NULL,
+    @lineas      dbo.PEDIDO_LINEA_TT READONLY
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    DECLARE @n INT = (SELECT COUNT(*) FROM @lineas);
+    DECLARE @id INT;
+
+    -- RN-31: al menos una línea, cantidades > 0, sin vinos repetidos
+    IF @n = 0
+       OR EXISTS (SELECT 1 FROM @lineas WHERE CANTIDAD_PEDIDA <= 0 OR CANTIDAD_SUGERIDA < 0)
+       OR @n <> (SELECT COUNT(DISTINCT VINO_ID) FROM @lineas)
+    BEGIN
+        SELECT 0 AS ID; RETURN;
+    END
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        -- RN-31: todos los vinos existen, están Activos y son de la bodega del pedido
+        IF (SELECT COUNT(*) FROM VINO v WITH (UPDLOCK, HOLDLOCK)
+            JOIN @lineas l ON l.VINO_ID = v.ID
+            WHERE v.ESTADO = 'Activo' AND v.BODEGA_ID = @bodega_id) <> @n
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS ID; RETURN;
+        END
+
+        -- RN-32: ningún vino puede estar en otro pedido abierto
+        IF EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA pl
+                   JOIN PEDIDO_REPOSICION p ON p.ID = pl.PEDIDO_ID
+                   JOIN @lineas l ON l.VINO_ID = pl.VINO_ID
+                   WHERE p.ESTADO IN ('Pendiente', 'Aprobado'))
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS ID; RETURN;
+        END
+
+        INSERT INTO PEDIDO_REPOSICION (BODEGA_ID, ESTADO, FECHA_CREACION, CREADO_POR, OBSERVACION)
+        VALUES (@bodega_id, 'Pendiente', GETDATE(), @creado_por, NULLIF(LTRIM(RTRIM(@observacion)), ''));
+        SET @id = SCOPE_IDENTITY();
+
+        INSERT INTO PEDIDO_REPOSICION_LINEA (PEDIDO_ID, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, ABIERTO)
+        SELECT @id, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, 1 FROM @lineas;
+
+        COMMIT TRAN;
+        SELECT @id AS ID;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END
+GO
+
+IF OBJECT_ID('dbo.PEDIDO_REPOSICION_LISTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PEDIDO_REPOSICION_LISTAR]
+GO
+-- @estado NULL = todos los estados.
+CREATE PROCEDURE [dbo].[PEDIDO_REPOSICION_LISTAR]
+    @estado VARCHAR(10) = NULL
+AS
+    SELECT p.ID, p.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE, p.ESTADO, p.FECHA_CREACION,
+           p.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN,
+           p.RESOLUTOR_ID, ur.USUARIO AS RESOLUTOR_LOGIN, p.FECHA_RESOLUCION, p.MOTIVO_RECHAZO,
+           p.RECIBIDO_POR, ue.USUARIO AS RECIBIDO_POR_LOGIN, p.FECHA_RECEPCION, p.OBSERVACION,
+           (SELECT COUNT(*) FROM PEDIDO_REPOSICION_LINEA l WHERE l.PEDIDO_ID = p.ID) AS CANTIDAD_LINEAS,
+           ISNULL((SELECT SUM(l.CANTIDAD_PEDIDA) FROM PEDIDO_REPOSICION_LINEA l WHERE l.PEDIDO_ID = p.ID), 0) AS UNIDADES_PEDIDAS
+    FROM PEDIDO_REPOSICION p
+    JOIN BODEGA b ON b.ID = p.BODEGA_ID
+    JOIN USUARIO uc ON uc.ID = p.CREADO_POR
+    LEFT JOIN USUARIO ur ON ur.ID = p.RESOLUTOR_ID
+    LEFT JOIN USUARIO ue ON ue.ID = p.RECIBIDO_POR
+    WHERE @estado IS NULL OR p.ESTADO = @estado
+    ORDER BY p.FECHA_CREACION DESC, p.ID DESC
+GO
+
+IF OBJECT_ID('dbo.PEDIDO_REPOSICION_OBTENER_POR_ID', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PEDIDO_REPOSICION_OBTENER_POR_ID]
+GO
+CREATE PROCEDURE [dbo].[PEDIDO_REPOSICION_OBTENER_POR_ID]
+    @id INT
+AS
+    SELECT p.ID, p.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE, p.ESTADO, p.FECHA_CREACION,
+           p.CREADO_POR, uc.USUARIO AS CREADO_POR_LOGIN,
+           p.RESOLUTOR_ID, ur.USUARIO AS RESOLUTOR_LOGIN, p.FECHA_RESOLUCION, p.MOTIVO_RECHAZO,
+           p.RECIBIDO_POR, ue.USUARIO AS RECIBIDO_POR_LOGIN, p.FECHA_RECEPCION, p.OBSERVACION,
+           (SELECT COUNT(*) FROM PEDIDO_REPOSICION_LINEA l WHERE l.PEDIDO_ID = p.ID) AS CANTIDAD_LINEAS,
+           ISNULL((SELECT SUM(l.CANTIDAD_PEDIDA) FROM PEDIDO_REPOSICION_LINEA l WHERE l.PEDIDO_ID = p.ID), 0) AS UNIDADES_PEDIDAS
+    FROM PEDIDO_REPOSICION p
+    JOIN BODEGA b ON b.ID = p.BODEGA_ID
+    JOIN USUARIO uc ON uc.ID = p.CREADO_POR
+    LEFT JOIN USUARIO ur ON ur.ID = p.RESOLUTOR_ID
+    LEFT JOIN USUARIO ue ON ue.ID = p.RECIBIDO_POR
+    WHERE p.ID = @id
+GO
+
+IF OBJECT_ID('dbo.PEDIDO_REPOSICION_OBTENER_LINEAS', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PEDIDO_REPOSICION_OBTENER_LINEAS]
+GO
+CREATE PROCEDURE [dbo].[PEDIDO_REPOSICION_OBTENER_LINEAS]
+    @pedido_id INT
+AS
+    SELECT l.ID, l.PEDIDO_ID, l.VINO_ID, v.CODIGO AS VINO_CODIGO, v.NOMBRE AS VINO_NOMBRE,
+           l.CANTIDAD_SUGERIDA, l.CANTIDAD_PEDIDA, l.CANTIDAD_RECIBIDA
+    FROM PEDIDO_REPOSICION_LINEA l
+    JOIN VINO v ON v.ID = l.VINO_ID
+    WHERE l.PEDIDO_ID = @pedido_id
+    ORDER BY v.NOMBRE, l.ID
+GO
+
+IF OBJECT_ID('dbo.PEDIDO_REPOSICION_AUTORIZAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PEDIDO_REPOSICION_AUTORIZAR]
+GO
+-- RN-33 backstop: el WHERE CREADO_POR <> @resolutor_id deja 0 filas si autoriza quien generó el pedido.
+CREATE PROCEDURE [dbo].[PEDIDO_REPOSICION_AUTORIZAR]
+    @pedido_id    INT,
+    @resolutor_id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @filas INT;
+    UPDATE PEDIDO_REPOSICION
+    SET ESTADO = 'Aprobado', RESOLUTOR_ID = @resolutor_id, FECHA_RESOLUCION = GETDATE()
+    WHERE ID = @pedido_id AND ESTADO = 'Pendiente' AND CREADO_POR <> @resolutor_id;
+    SET @filas = @@ROWCOUNT;
+    SELECT @filas AS FILAS;
+END
+GO
+
+IF OBJECT_ID('dbo.PEDIDO_REPOSICION_RECHAZAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PEDIDO_REPOSICION_RECHAZAR]
+GO
+-- RN-33 + RN-34. Libera los vinos del pedido (ABIERTO = 0) en la misma transacción.
+CREATE PROCEDURE [dbo].[PEDIDO_REPOSICION_RECHAZAR]
+    @pedido_id    INT,
+    @resolutor_id INT,
+    @motivo       VARCHAR(200)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    DECLARE @filas INT = 0;
+    DECLARE @m VARCHAR(200) = LTRIM(RTRIM(@motivo));
+
+    IF @m IS NULL OR LEN(@m) = 0
+    BEGIN
+        SELECT 0 AS FILAS; RETURN;
+    END
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        UPDATE PEDIDO_REPOSICION
+        SET ESTADO = 'Rechazado', RESOLUTOR_ID = @resolutor_id, FECHA_RESOLUCION = GETDATE(), MOTIVO_RECHAZO = @m
+        WHERE ID = @pedido_id AND ESTADO = 'Pendiente' AND CREADO_POR <> @resolutor_id;
+        SET @filas = @@ROWCOUNT;
+
+        IF @filas = 1
+            UPDATE PEDIDO_REPOSICION_LINEA SET ABIERTO = 0 WHERE PEDIDO_ID = @pedido_id;
+
+        COMMIT TRAN;
+        SELECT @filas AS FILAS;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END
+GO
+
+IF OBJECT_ID('dbo.PEDIDO_REPOSICION_RECIBIR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PEDIDO_REPOSICION_RECIBIR]
+GO
+-- RN-35: transaccional (patrón de CAJA_DESPACHAR). @recepcion trae la cantidad recibida de CADA línea
+-- del pedido. Si cualquier verificación falla se hace rollback total y se devuelve FILAS = 0.
+CREATE PROCEDURE [dbo].[PEDIDO_REPOSICION_RECIBIR]
+    @pedido_id         INT,
+    @recibido_por      INT,
+    @responsable_login VARCHAR(50),
+    @recepcion         dbo.PEDIDO_RECEPCION_TT READONLY
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    DECLARE @filas INT = 0;
+    DECLARE @n INT = (SELECT COUNT(*) FROM @recepcion);
+
+    BEGIN TRY
+        BEGIN TRAN;
+
+        -- Solo un pedido Aprobado puede recibirse (bloqueado para evitar doble recepción)
+        IF NOT EXISTS (SELECT 1 FROM PEDIDO_REPOSICION WITH (UPDLOCK, HOLDLOCK)
+                       WHERE ID = @pedido_id AND ESTADO = 'Aprobado')
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        -- La recepción cubre exactamente las líneas del pedido, 0 <= recibida <= pedida, y al menos una > 0
+        IF @n <> (SELECT COUNT(*) FROM PEDIDO_REPOSICION_LINEA WHERE PEDIDO_ID = @pedido_id)
+           OR @n <> (SELECT COUNT(DISTINCT LINEA_ID) FROM @recepcion)
+           OR EXISTS (SELECT 1 FROM @recepcion r
+                      LEFT JOIN PEDIDO_REPOSICION_LINEA pl ON pl.ID = r.LINEA_ID AND pl.PEDIDO_ID = @pedido_id
+                      WHERE pl.ID IS NULL OR r.CANTIDAD < 0 OR r.CANTIDAD > pl.CANTIDAD_PEDIDA)
+           OR NOT EXISTS (SELECT 1 FROM @recepcion WHERE CANTIDAD > 0)
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        -- Solo un vino Activo admite Entradas de stock (misma regla que MovimientoStockBLL)
+        IF EXISTS (SELECT 1 FROM @recepcion r
+                   JOIN PEDIDO_REPOSICION_LINEA pl ON pl.ID = r.LINEA_ID
+                   JOIN VINO v ON v.ID = pl.VINO_ID
+                   WHERE r.CANTIDAD > 0 AND v.ESTADO <> 'Activo')
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        UPDATE pl SET CANTIDAD_RECIBIDA = r.CANTIDAD, ABIERTO = 0
+        FROM PEDIDO_REPOSICION_LINEA pl
+        JOIN @recepcion r ON r.LINEA_ID = pl.ID;
+
+        -- Una Entrada por línea con recibida > 0. INSERT set-based, no EXEC anidado.
+        INSERT INTO MOVIMIENTO_STOCK (VINO_ID, FECHA, TIPO, CANTIDAD, MOTIVO, RESPONSABLE, REFERENCIA_TIPO, REFERENCIA_ID)
+        SELECT pl.VINO_ID, GETDATE(), 'Entrada', r.CANTIDAD,
+               'Recepción de pedido de reposición', @responsable_login, 'PEDIDO', @pedido_id
+        FROM @recepcion r
+        JOIN PEDIDO_REPOSICION_LINEA pl ON pl.ID = r.LINEA_ID
+        WHERE r.CANTIDAD > 0;
+
+        UPDATE PEDIDO_REPOSICION
+        SET ESTADO = 'Recibido', RECIBIDO_POR = @recibido_por, FECHA_RECEPCION = GETDATE()
+        WHERE ID = @pedido_id AND ESTADO = 'Aprobado';
+        SET @filas = @@ROWCOUNT;
+
+        COMMIT TRAN;
+        SELECT @filas AS FILAS;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
+END
+GO
+
+-- ============================================================
 -- N03 — Análisis de Rotación y Reposición de Stock
 -- Proceso de apoyo a la decisión que cruza el catálogo y el kardex (proceso 1) con las cajas
 -- despachadas y las sustituciones (proceso 2). La clasificación y la recomendación se calculan
@@ -5318,11 +5665,13 @@ BEGIN
                ROW_NUMBER() OVER (PARTITION BY s.CAJA_VINO_ID ORDER BY s.ID DESC) AS RN
         FROM SUSTITUCION s
     )
-    SELECT v.ID, v.CODIGO, v.NOMBRE, b.NOMBRE AS BODEGA_NOMBRE, v.STOCK_MINIMO,
+    SELECT v.ID, v.CODIGO, v.NOMBRE, v.BODEGA_ID, b.NOMBRE AS BODEGA_NOMBRE, v.STOCK_MINIMO,
            ISNULL(k.STOCK, 0)     AS STOCK_ACTUAL,
            ISNULL(k.VENDIDAS, 0)  AS UNIDADES_VENDIDAS,
            ISNULL(k.PERDIDAS, 0)  AS UNIDADES_PERDIDAS,
-           ISNULL(so.SOCIOS, 0)   AS SOCIOS_ATENDIDOS
+           ISNULL(so.SOCIOS, 0)   AS SOCIOS_ATENDIDOS,
+           ISNULL(pe.EN_CAMINO, 0) AS EN_CAMINO,
+           pe.ESTADO_ABIERTO      AS PEDIDO_ABIERTO_ESTADO
     FROM VINO v
     JOIN BODEGA b ON b.ID = v.BODEGA_ID
     OUTER APPLY (SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END) AS STOCK,
@@ -5338,6 +5687,14 @@ BEGIN
                  WHERE c.ESTADO = 'Despachada'
                    AND c.FECHA_DESPACHO >= @ini AND c.FECHA_DESPACHO < @fin
                    AND ISNULL(u.VINO_REEMPLAZO_ID, cv.VINO_ID) = v.ID) so
+    -- RN-37: EN_CAMINO = unidades de líneas de pedidos de reposición Aprobados (aún no recibidos).
+    -- PEDIDO_ABIERTO_ESTADO = 'Pendiente' | 'Aprobado' si el vino está en un pedido abierto (RN-32), si no NULL;
+    -- RN-32 garantiza como máximo un pedido abierto por vino.
+    OUTER APPLY (SELECT SUM(CASE WHEN p.ESTADO = 'Aprobado' THEN pl.CANTIDAD_PEDIDA ELSE 0 END) AS EN_CAMINO,
+                        MAX(p.ESTADO) AS ESTADO_ABIERTO
+                 FROM PEDIDO_REPOSICION_LINEA pl
+                 JOIN PEDIDO_REPOSICION p ON p.ID = pl.PEDIDO_ID
+                 WHERE pl.VINO_ID = v.ID AND p.ESTADO IN ('Pendiente', 'Aprobado')) pe
     WHERE v.ESTADO = 'Activo'
     ORDER BY v.NOMBRE
 END
@@ -5359,6 +5716,39 @@ IF @rolAdminRotId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE RO
     INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAdminRotId, @permRotacionId)
 IF @rolComprasRotId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolComprasRotId AND PERMISO_ID = @permRotacionId)
     INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolComprasRotId, @permRotacionId)
+GO
+
+-- ------------------------------------------------------------
+-- SEED — permisos del Pedido de Reposición (idempotente)
+--   'Gestionar pedidos de reposición'  generar el pedido y consultar -> Encargado de Compras/Bodega y Administrador
+--   'Autorizar pedidos de reposición'  autorizar o rechazar          -> solo Administrador
+--   'Recibir pedidos de reposición'    registrar la recepción        -> Encargado de Depósito y Administrador
+-- ------------------------------------------------------------
+IF NOT EXISTS (SELECT 1 FROM PERMISO WHERE NOMBRE = 'Gestionar pedidos de reposición')
+    INSERT INTO PERMISO (NOMBRE) VALUES ('Gestionar pedidos de reposición')
+IF NOT EXISTS (SELECT 1 FROM PERMISO WHERE NOMBRE = 'Autorizar pedidos de reposición')
+    INSERT INTO PERMISO (NOMBRE) VALUES ('Autorizar pedidos de reposición')
+IF NOT EXISTS (SELECT 1 FROM PERMISO WHERE NOMBRE = 'Recibir pedidos de reposición')
+    INSERT INTO PERMISO (NOMBRE) VALUES ('Recibir pedidos de reposición')
+GO
+
+DECLARE @permGestionarId  INT = (SELECT ID FROM PERMISO WHERE NOMBRE = 'Gestionar pedidos de reposición')
+DECLARE @permAutorizarId  INT = (SELECT ID FROM PERMISO WHERE NOMBRE = 'Autorizar pedidos de reposición')
+DECLARE @permRecibirId    INT = (SELECT ID FROM PERMISO WHERE NOMBRE = 'Recibir pedidos de reposición')
+DECLARE @rolAdminPedId    INT = (SELECT TOP 1 ID FROM ROL WHERE NOMBRE = 'Administrador' AND PADRE_ID IS NULL)
+DECLARE @rolComprasPedId  INT = (SELECT TOP 1 ID FROM ROL WHERE NOMBRE = 'Encargado de Compras/Bodega' AND PADRE_ID IS NULL)
+DECLARE @rolDepositoPedId INT = (SELECT TOP 1 ID FROM ROL WHERE NOMBRE = 'Encargado de Depósito' AND PADRE_ID IS NULL)
+
+IF @rolAdminPedId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminPedId AND PERMISO_ID = @permGestionarId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAdminPedId, @permGestionarId)
+IF @rolAdminPedId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminPedId AND PERMISO_ID = @permAutorizarId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAdminPedId, @permAutorizarId)
+IF @rolAdminPedId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolAdminPedId AND PERMISO_ID = @permRecibirId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolAdminPedId, @permRecibirId)
+IF @rolComprasPedId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolComprasPedId AND PERMISO_ID = @permGestionarId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolComprasPedId, @permGestionarId)
+IF @rolDepositoPedId IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ROL_PERMISO WHERE ROL_ID = @rolDepositoPedId AND PERMISO_ID = @permRecibirId)
+    INSERT INTO ROL_PERMISO (ROL_ID, PERMISO_ID) VALUES (@rolDepositoPedId, @permRecibirId)
 GO
 
 -- ============================================================
@@ -5546,6 +5936,8 @@ GO
 --   DEMO-017 Rotación media / Reponer             DEMO-005 Baja rotación / Reponer urgente
 --   DEMO-016 Baja rotación / Sobrestock           DEMO-009 Sin movimiento / Sobrestock
 --   DEMO-006/007/008 Sin movimiento / Reponer urgente (stock bajo el mínimo)
+-- Pedidos de reposición demo (bloque siguiente): la "cantidad sugerida" de DEMO-007 baja por sus 6 u. en camino (RN-37);
+-- las clasificaciones y recomendaciones de la lista anterior no cambian (el en camino solo descuenta la sugerida).
 -- ============================================================
 SET ANSI_NULLS ON
 SET QUOTED_IDENTIFIER ON
@@ -5772,6 +6164,84 @@ BEGIN
     WHERE cm.ESTADO = 'Despachada'
       AND cm.FECHA_DESPACHO IN (SELECT DATEADD(DAY, -DIAS, @ahora) FROM @c)
       AND NOT EXISTS (SELECT 1 FROM MOVIMIENTO_STOCK m WHERE m.REFERENCIA_TIPO = 'CAJA' AND m.REFERENCIA_ID = cm.ID)
+END
+
+COMMIT TRAN
+GO
+
+-- ------------------------------------------------------------
+-- DATOS DE PRUEBA — N03 Pedidos de Reposición (idempotente)
+-- Un pedido en cada estado, todos con OBSERVACION = 'Demo pedidos de reposición' (así se identifican y
+-- el bloque se omite si ya existen o si alguno de sus vinos ya está en un pedido abierto):
+--   Pendiente  Rutini            DEMO-008 x10              generado por compras (listo para autorizar con admin/admin2)
+--   Aprobado   Viña Errázuriz    DEMO-007 x6 "en camino"   autorizado por admin; baja la sugerencia neta de DEMO-007
+--                                                          (sugerida neta = sugerida bruta - 6 en camino, piso 0)
+--   Rechazado  Bodega Norton     DEMO-005 x10              rechazado por admin2 con motivo
+--   Recibido   Concha y Toro     DEMO-004 x10, recibidas 8 recibido por deposito; Entrada de 8 u. en el kardex
+--                                                          (MOTIVO 'Recepción de pedido de reposición', REFERENCIA_TIPO 'PEDIDO')
+-- Las recomendaciones y clasificaciones de los demo no cambian (el "en camino" solo descuenta la cantidad sugerida).
+-- ------------------------------------------------------------
+SET ANSI_NULLS ON
+SET QUOTED_IDENTIFIER ON
+GO
+
+SET XACT_ABORT ON
+BEGIN TRAN
+
+DECLARE @ahoraPed   DATETIME = GETDATE()
+DECLARE @comprasPed INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'compras')
+DECLARE @adminPed   INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'admin')
+DECLARE @admin2Ped  INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'admin2')
+DECLARE @depositoPed INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'deposito')
+DECLARE @obsPed VARCHAR(200) = 'Demo pedidos de reposición'
+
+DECLARE @v008 INT = (SELECT ID FROM VINO WHERE CODIGO = 'DEMO-008' AND ESTADO = 'Activo')
+DECLARE @v007 INT = (SELECT ID FROM VINO WHERE CODIGO = 'DEMO-007' AND ESTADO = 'Activo')
+DECLARE @v005 INT = (SELECT ID FROM VINO WHERE CODIGO = 'DEMO-005' AND ESTADO = 'Activo')
+DECLARE @v004 INT = (SELECT ID FROM VINO WHERE CODIGO = 'DEMO-004' AND ESTADO = 'Activo')
+
+IF @comprasPed IS NOT NULL AND @adminPed IS NOT NULL AND @admin2Ped IS NOT NULL AND @depositoPed IS NOT NULL
+   AND @v008 IS NOT NULL AND @v007 IS NOT NULL AND @v005 IS NOT NULL AND @v004 IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM PEDIDO_REPOSICION WHERE OBSERVACION = @obsPed)
+   AND NOT EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA WHERE ABIERTO = 1 AND VINO_ID IN (@v008, @v007, @v005, @v004))
+BEGIN
+    DECLARE @pid INT
+
+    -- Pendiente
+    INSERT INTO PEDIDO_REPOSICION (BODEGA_ID, ESTADO, FECHA_CREACION, CREADO_POR, OBSERVACION)
+    SELECT BODEGA_ID, 'Pendiente', DATEADD(DAY, -1, @ahoraPed), @comprasPed, @obsPed FROM VINO WHERE ID = @v008
+    SET @pid = SCOPE_IDENTITY()
+    INSERT INTO PEDIDO_REPOSICION_LINEA (PEDIDO_ID, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, ABIERTO)
+    VALUES (@pid, @v008, 5, 10, 1)
+
+    -- Aprobado (queda "en camino")
+    INSERT INTO PEDIDO_REPOSICION (BODEGA_ID, ESTADO, FECHA_CREACION, CREADO_POR, RESOLUTOR_ID, FECHA_RESOLUCION, OBSERVACION)
+    SELECT BODEGA_ID, 'Aprobado', DATEADD(DAY, -4, @ahoraPed), @comprasPed, @adminPed, DATEADD(DAY, -3, @ahoraPed), @obsPed
+    FROM VINO WHERE ID = @v007
+    SET @pid = SCOPE_IDENTITY()
+    INSERT INTO PEDIDO_REPOSICION_LINEA (PEDIDO_ID, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, ABIERTO)
+    VALUES (@pid, @v007, 8, 6, 1)
+
+    -- Rechazado (con motivo; libera el vino)
+    INSERT INTO PEDIDO_REPOSICION (BODEGA_ID, ESTADO, FECHA_CREACION, CREADO_POR, RESOLUTOR_ID, FECHA_RESOLUCION, MOTIVO_RECHAZO, OBSERVACION)
+    SELECT BODEGA_ID, 'Rechazado', DATEADD(DAY, -8, @ahoraPed), @comprasPed, @admin2Ped, DATEADD(DAY, -7, @ahoraPed),
+           'La bodega informó faltante de la cosecha; se vuelve a evaluar el mes próximo.', @obsPed
+    FROM VINO WHERE ID = @v005
+    SET @pid = SCOPE_IDENTITY()
+    INSERT INTO PEDIDO_REPOSICION_LINEA (PEDIDO_ID, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, ABIERTO)
+    VALUES (@pid, @v005, 6, 10, 0)
+
+    -- Recibido (pedidas 10, recibidas 8) con su Entrada de stock
+    INSERT INTO PEDIDO_REPOSICION (BODEGA_ID, ESTADO, FECHA_CREACION, CREADO_POR, RESOLUTOR_ID, FECHA_RESOLUCION,
+                                   RECIBIDO_POR, FECHA_RECEPCION, OBSERVACION)
+    SELECT BODEGA_ID, 'Recibido', DATEADD(DAY, -12, @ahoraPed), @comprasPed, @adminPed, DATEADD(DAY, -10, @ahoraPed),
+           @depositoPed, DATEADD(DAY, -3, @ahoraPed), @obsPed
+    FROM VINO WHERE ID = @v004
+    SET @pid = SCOPE_IDENTITY()
+    INSERT INTO PEDIDO_REPOSICION_LINEA (PEDIDO_ID, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, CANTIDAD_RECIBIDA, ABIERTO)
+    VALUES (@pid, @v004, 8, 10, 8, 0)
+    INSERT INTO MOVIMIENTO_STOCK (VINO_ID, FECHA, TIPO, CANTIDAD, MOTIVO, RESPONSABLE, REFERENCIA_TIPO, REFERENCIA_ID)
+    VALUES (@v004, DATEADD(DAY, -3, @ahoraPed), 'Entrada', 8, 'Recepción de pedido de reposición', 'deposito', 'PEDIDO', @pid)
 END
 
 COMMIT TRAN
