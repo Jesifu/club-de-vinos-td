@@ -187,6 +187,25 @@
     <Compile Include="frmAnalisisRotacion.Designer.cs">
       <DependentUpon>frmAnalisisRotacion.cs</DependentUpon>
     </Compile>
+    <Compile Include="frmAutorizarPedidoReposicion.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmAutorizarPedidoReposicion.Designer.cs">
+      <DependentUpon>frmAutorizarPedidoReposicion.cs</DependentUpon>
+    </Compile>
+    <Compile Include="frmRecibirPedidoReposicion.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmRecibirPedidoReposicion.Designer.cs">
+      <DependentUpon>frmRecibirPedidoReposicion.cs</DependentUpon>
+    </Compile>
+    <Compile Include="frmConsultarPedidosReposicion.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="frmConsultarPedidosReposicion.Designer.cs">
+      <DependentUpon>frmConsultarPedidosReposicion.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PedidoReposicionUI.cs" />
     <Compile Include="frmAyuda.cs">
       <SubType>Form</SubType>
     </Compile>

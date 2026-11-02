@@ -37,7 +37,10 @@ namespace CAPAS
                 { "frmPickingCaja", "caja-picking" },
                 { "frmDespacharCaja", "caja-despacho" },
                 { "frmHistorialDespachos", "caja-historial" },
-                { "frmAnalisisRotacion", "rotacion" }
+                { "frmAnalisisRotacion", "rotacion" },
+                { "frmAutorizarPedidoReposicion", "pedido-autorizar" },
+                { "frmRecibirPedidoReposicion", "pedido-recibir" },
+                { "frmConsultarPedidosReposicion", "pedido-consultar" }
             };
 
         // Id del tema para un tipo de formulario; la raíz si no hay un tema específico.

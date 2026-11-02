@@ -19,10 +19,43 @@ namespace CAPAS
         private ToolStripMenuItem ayudaEnLineaToolStripMenuItem;
         private ToolStripMenuItem acercaDeToolStripMenuItem;
 
+        // Ítems del Pedido de Reposición (CU-38, CU-39, CU-40): se arman por código, como el menú Ayuda,
+        // y se insertan en Catálogo a continuación de "Analizar rotación de stock".
+        private ToolStripMenuItem autorizarPedidoToolStripMenuItem;
+        private ToolStripMenuItem recibirPedidoToolStripMenuItem;
+        private ToolStripMenuItem consultarPedidosToolStripMenuItem;
+
         public frmMenu()
         {
             InitializeComponent();
             CrearMenuAyuda();
+            CrearMenuPedidos();
+        }
+
+        private void CrearMenuPedidos()
+        {
+            autorizarPedidoToolStripMenuItem = new ToolStripMenuItem("Autorizar pedidos de reposición")
+            {
+                Name = "autorizarPedidoToolStripMenuItem"
+            };
+            autorizarPedidoToolStripMenuItem.Click += (s, e) => new frmAutorizarPedidoReposicion().ShowDialog();
+
+            recibirPedidoToolStripMenuItem = new ToolStripMenuItem("Registrar recepción de pedido")
+            {
+                Name = "recibirPedidoToolStripMenuItem"
+            };
+            recibirPedidoToolStripMenuItem.Click += (s, e) => new frmRecibirPedidoReposicion().ShowDialog();
+
+            consultarPedidosToolStripMenuItem = new ToolStripMenuItem("Consultar pedidos de reposición")
+            {
+                Name = "consultarPedidosToolStripMenuItem"
+            };
+            consultarPedidosToolStripMenuItem.Click += (s, e) => new frmConsultarPedidosReposicion().ShowDialog();
+
+            int indice = catalogoToolStripMenuItem.DropDownItems.IndexOf(rotacionStockToolStripMenuItem) + 1;
+            catalogoToolStripMenuItem.DropDownItems.Insert(indice, consultarPedidosToolStripMenuItem);
+            catalogoToolStripMenuItem.DropDownItems.Insert(indice, recibirPedidoToolStripMenuItem);
+            catalogoToolStripMenuItem.DropDownItems.Insert(indice, autorizarPedidoToolStripMenuItem);
         }
 
         private void CrearMenuAyuda()
@@ -87,6 +120,9 @@ namespace CAPAS
             bool puedePicking = sm.TienePermiso("Registrar picking y sustituciones");
             bool puedeDespachar = sm.TienePermiso("Despachar cajas");
             bool puedeRotacion = sm.TienePermiso("Analizar rotación de stock");
+            bool puedeGestionarPedidos = sm.TienePermiso("Gestionar pedidos de reposición");
+            bool puedeAutorizarPedidos = sm.TienePermiso("Autorizar pedidos de reposición");
+            bool puedeRecibirPedidos = sm.TienePermiso("Recibir pedidos de reposición");
 
             usuariosBloqueadosToolStripMenuItem.Visible = puedeAdminUsuarios;
             perfilesToolStripMenuItem.Visible = puedeGestionRoles;
@@ -103,7 +139,15 @@ namespace CAPAS
             autorizarVinoToolStripMenuItem.Visible = puedeAutorizarCatalogo;
             autorizarBajaVinoToolStripMenuItem.Visible = puedeAutorizarCatalogo;
             rotacionStockToolStripMenuItem.Visible = puedeRotacion;
-            catalogoToolStripMenuItem.Visible = puedeCatalogo || puedeAutorizarCatalogo || puedeRotacion;
+            // Cada ítem del Pedido de Reposición se oculta por su propio permiso; la consulta (solo
+            // lectura) la ve quien tenga cualquiera de los tres permisos del ciclo.
+            autorizarPedidoToolStripMenuItem.Visible = puedeAutorizarPedidos;
+            recibirPedidoToolStripMenuItem.Visible = puedeRecibirPedidos;
+            consultarPedidosToolStripMenuItem.Visible = puedeGestionarPedidos || puedeAutorizarPedidos || puedeRecibirPedidos;
+            // El padre se oculta solo si ningún hijo es visible. Se usan los permisos y no la propiedad
+            // Visible de los hijos: mientras el desplegable no se muestra, esta devuelve false.
+            catalogoToolStripMenuItem.Visible = puedeCatalogo || puedeAutorizarCatalogo || puedeRotacion
+                                             || puedeGestionarPedidos || puedeAutorizarPedidos || puedeRecibirPedidos;
 
             // CU-28/29/31: los ítems ya existen y quedan visibles-pero-inertes hasta
             // que su propio slice los conecte (Reconciliation note 2 del apply de tasks).
