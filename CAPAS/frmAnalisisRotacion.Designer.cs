@@ -352,6 +352,7 @@ namespace CAPAS
             this.dgvRotacion.CellFormatting += new System.Windows.Forms.DataGridViewCellFormattingEventHandler(this.dgvRotacion_CellFormatting);
             this.dgvRotacion.CellPainting += new System.Windows.Forms.DataGridViewCellPaintingEventHandler(this.dgvRotacion_CellPainting);
             this.dgvRotacion.CellEndEdit += new System.Windows.Forms.DataGridViewCellEventHandler(this.dgvRotacion_CellEndEdit);
+            this.dgvRotacion.DataError += new System.Windows.Forms.DataGridViewDataErrorEventHandler(this.dgvRotacion_DataError);
             this.dgvRotacion.CurrentCellDirtyStateChanged += new System.EventHandler(this.dgvRotacion_CurrentCellDirtyStateChanged);
             //
             // panelInferior

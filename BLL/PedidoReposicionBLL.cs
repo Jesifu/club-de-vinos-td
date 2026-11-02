@@ -10,6 +10,9 @@ namespace BLL
     // ('Gestionar/Autorizar/Recibir pedidos de reposición') se controlan en la UI, como en el resto del repo.
     public class PedidoReposicionBLL
     {
+        // Tope de unidades por línea (pedida y recibida); lo respalda el CHECK CK_PEDREPLIN_TOPE.
+        public const int CantidadMaximaPorLinea = 100000;
+
         private const int MotivoMaxLongitud = 200;
         private const int ObservacionMaxLongitud = 200;
 
@@ -39,12 +42,14 @@ namespace BLL
             // Se valida todo antes de crear el primer pedido, para no dejar pedidos a medias por un dato malo.
             // La bodega se toma del vino en la base (no de la fila de la UI).
             var porBodega = new Dictionary<int, List<PedidoReposicionLinea>>();
+            var nombresBodega = new Dictionary<int, string>();
             foreach (ResultadoRotacion f in elegidas)
             {
                 int cantidad = cantidadesPorVino != null && cantidadesPorVino.ContainsKey(f.VinoId)
                     ? cantidadesPorVino[f.VinoId] : f.CantidadSugerida;
                 Vino v = _vinoDal.ObtenerPorId(f.VinoId);
                 ValidarLinea(v, f.Nombre, cantidad);
+                nombresBodega[v.BodegaId] = string.IsNullOrEmpty(f.BodegaNombre) ? v.BodegaNombre : f.BodegaNombre;
 
                 List<PedidoReposicionLinea> grupo;
                 if (!porBodega.TryGetValue(v.BodegaId, out grupo))
@@ -62,7 +67,22 @@ namespace BLL
 
             List<PedidoReposicion> creados = new List<PedidoReposicion>();
             foreach (KeyValuePair<int, List<PedidoReposicionLinea>> kv in porBodega)
-                creados.Add(GenerarPedido(kv.Key, kv.Value, null, sesion));
+            {
+                try
+                {
+                    creados.Add(GenerarPedido(kv.Key, kv.Value, null, sesion));
+                }
+                catch (Exception ex) when (creados.Count > 0)
+                {
+                    // No se ocultan los pedidos ya creados: la UI los informa junto con el que falló.
+                    string bodega;
+                    if (!nombresBodega.TryGetValue(kv.Key, out bodega) || string.IsNullOrEmpty(bodega))
+                        bodega = "Nº " + kv.Key;
+                    string motivo = ex is InvalidOperationException
+                        ? ex.Message : "error inesperado al guardar el pedido.";
+                    throw new PedidoParcialException(creados, bodega, motivo, ex);
+                }
+            }
             return creados;
         }
 
@@ -178,6 +198,10 @@ namespace BLL
                 if (recibida < 0 || recibida > l.CantidadPedida)
                     throw new InvalidOperationException(
                         "RN-35: la cantidad recibida de \"" + l.VinoNombre + "\" debe estar entre 0 y " + l.CantidadPedida + ".");
+                if (recibida > CantidadMaximaPorLinea)
+                    throw new InvalidOperationException(
+                        "RN-35: la cantidad recibida de \"" + l.VinoNombre + "\" no puede superar las " +
+                        CantidadMaximaPorLinea + " unidades por línea.");
                 if (recibida > 0)
                 {
                     Vino v = _vinoDal.ObtenerPorId(l.VinoId);
@@ -208,6 +232,9 @@ namespace BLL
                 throw new InvalidOperationException("RN-31: solo se pueden pedir vinos Activos (\"" + v.Nombre + "\" no lo está).");
             if (cantidad <= 0)
                 throw new InvalidOperationException("RN-31: la cantidad pedida de \"" + v.Nombre + "\" debe ser mayor a cero.");
+            if (cantidad > CantidadMaximaPorLinea)
+                throw new InvalidOperationException(
+                    "RN-31: la cantidad pedida de \"" + v.Nombre + "\" no puede superar las " + CantidadMaximaPorLinea + " unidades por línea.");
         }
 
         // RN-32: ningún vino puede estar en otro pedido abierto (Pendiente o Aprobado).

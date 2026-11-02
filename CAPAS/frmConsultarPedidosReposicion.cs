@@ -112,9 +112,23 @@ namespace CAPAS
         private void CargarPedidos()
         {
             BE.EstadoPedidoReposicion? filtro = (cboEstado.SelectedItem as OpcionEstado)?.Estado;
-            dgvPedidos.DataSource = _bll.Listar(filtro);
-            PedidoReposicionUI.ConfigurarGrillaPedidos(dgvPedidos, true);
+            try
+            {
+                dgvPedidos.DataSource = _bll.Listar(filtro);
+                PedidoReposicionUI.ConfigurarGrillaPedidos(dgvPedidos, true);
+            }
+            catch (Exception)
+            {
+                dgvPedidos.DataSource = null;
+                MostrarErrorGenerico();
+            }
             MostrarDetalle();
+        }
+
+        private static void MostrarErrorGenerico()
+        {
+            MsgBox.Show("No se pudo completar la operación. Intente nuevamente.", "Error",
+                MsgBox.Botones.OK, MsgBox.Icono.Error);
         }
 
         private void dgvPedidos_SelectionChanged(object sender, EventArgs e)
@@ -136,9 +150,18 @@ namespace CAPAS
                 dgvLineas.DataSource = null;
                 return;
             }
-            txtDetalle.Text = PedidoReposicionUI.ArmarCabecera(p);
-            dgvLineas.DataSource = _bll.ObtenerLineas(p.Id);
-            PedidoReposicionUI.ConfigurarGrillaLineas(dgvLineas, p.Estado == BE.EstadoPedidoReposicion.Recibido);
+            try
+            {
+                txtDetalle.Text = PedidoReposicionUI.ArmarCabecera(p);
+                dgvLineas.DataSource = _bll.ObtenerLineas(p.Id);
+                PedidoReposicionUI.ConfigurarGrillaLineas(dgvLineas, p.Estado == BE.EstadoPedidoReposicion.Recibido);
+            }
+            catch (Exception)
+            {
+                txtDetalle.Clear();
+                dgvLineas.DataSource = null;
+                MostrarErrorGenerico();
+            }
         }
 
         private void btnCerrar_Click(object sender, EventArgs e)

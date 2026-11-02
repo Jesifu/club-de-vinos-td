@@ -2096,7 +2096,8 @@ GO
 
 IF OBJECT_ID('dbo.SOLICITUD_APROBAR_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[SOLICITUD_APROBAR_BAJA]
 GO
--- RN-01 (EMISOR_ID <> @resolutor_id) y RN-15 (stock = 0, leído con UPDLOCK/HOLDLOCK).
+-- RN-01 (EMISOR_ID <> @resolutor_id) y RN-15 (stock = 0, leído con UPDLOCK/HOLDLOCK, y sin pedido de
+-- reposición abierto: extensión de N03).
 -- RN-04: baja lógica, el vino pasa a Descontinuado y nunca se borra.
 CREATE PROCEDURE [dbo].[SOLICITUD_APROBAR_BAJA]
     @solicitud_id INT,
@@ -2130,6 +2131,14 @@ BEGIN
         IF ISNULL((SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END)
                    FROM MOVIMIENTO_STOCK m WITH (UPDLOCK, HOLDLOCK)
                    WHERE m.VINO_ID = @vino_id), 0) <> 0
+        BEGIN
+            ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
+        END
+
+        -- RN-15 extendida (N03): el vino pudo entrar en un pedido de reposición abierto después de la solicitud.
+        IF EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA pl
+                   JOIN PEDIDO_REPOSICION p ON p.ID = pl.PEDIDO_ID
+                   WHERE pl.VINO_ID = @vino_id AND p.ESTADO IN ('Pendiente', 'Aprobado'))
         BEGIN
             ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
         END
@@ -4355,7 +4364,8 @@ GO
 IF OBJECT_ID('dbo.VINO_SOLICITAR_BAJA', 'P') IS NOT NULL DROP PROCEDURE [dbo].[VINO_SOLICITAR_BAJA]
 GO
 -- Crea la solicitud BAJA Pendiente solo si el vino está Activo, no tiene otra baja pendiente
--- y no tiene stock (RN-15, leído con UPDLOCK/HOLDLOCK). 0 FILAS = rechazado. El vino sigue Activo (R1).
+-- y no tiene stock (RN-15, leído con UPDLOCK/HOLDLOCK) ni está en un pedido de reposición abierto
+-- (RN-15 extendida por N03: Pendiente o Aprobado). 0 FILAS = rechazado. El vino sigue Activo (R1).
 -- El índice UX_SOLAUT_PENDIENTE es el backstop de carreras (error 2601/2627).
 CREATE PROCEDURE [dbo].[VINO_SOLICITAR_BAJA]
     @id             INT,
@@ -4378,7 +4388,11 @@ BEGIN
                           WHERE s.VINO_ID = v.ID AND s.TIPO = 'BAJA' AND s.ESTADO = 'Pendiente')
           -- RN-15: solo se solicita la baja de un vino sin stock en depósito
           AND ISNULL((SELECT SUM(CASE WHEN m.TIPO = 'Entrada' THEN m.CANTIDAD ELSE -m.CANTIDAD END)
-                      FROM MOVIMIENTO_STOCK m WITH (UPDLOCK, HOLDLOCK) WHERE m.VINO_ID = @id), 0) = 0;
+                      FROM MOVIMIENTO_STOCK m WITH (UPDLOCK, HOLDLOCK) WHERE m.VINO_ID = @id), 0) = 0
+          -- RN-15 extendida (N03): tampoco si el vino está en un pedido de reposición abierto (Pendiente o Aprobado)
+          AND NOT EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA pl
+                          JOIN PEDIDO_REPOSICION p ON p.ID = pl.PEDIDO_ID
+                          WHERE pl.VINO_ID = v.ID AND p.ESTADO IN ('Pendiente', 'Aprobado'));
         SET @filas = @@ROWCOUNT;
 
         COMMIT TRAN;
@@ -5294,6 +5308,10 @@ GO
 --   RN-31  Solo vinos Activo, cantidad pedida entera > 0, todos de la misma bodega, al menos una línea.
 --   RN-32  Un vino no puede estar en más de un pedido abierto (Pendiente o Aprobado):
 --          índice único filtrado UX_PEDREPLIN_VINO_ABIERTO + verificación en el SP y en la BLL.
+--   RN-15 (extendida por N03): no se puede solicitar ni autorizar la baja de un vino que está en un pedido
+--          de reposición abierto (Pendiente o Aprobado), porque la recepción exige un vino Activo.
+--          VinoBLL.SolicitarBaja/AutorizarBaja, VINO_SOLICITAR_BAJA y SOLICITUD_APROBAR_BAJA.
+--   Tope  100000 unidades por línea, pedida y recibida (PedidoReposicionBLL, UI y CHECK CK_PEDREPLIN_TOPE).
 --   RN-33  Separación de funciones: quien autoriza o rechaza no puede ser quien generó el pedido
 --          (UI, PedidoReposicionBLL, WHERE de cada SP y CHECK CK_PEDREP_RN33).
 --   RN-34  El rechazo exige motivo de 1 a 200 caracteres (como RN-17; CHECK CK_PEDREP_MOTIVO).
@@ -5373,6 +5391,14 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_PEDREP_ESTADO' AND obj
     CREATE INDEX IX_PEDREP_ESTADO ON [dbo].[PEDIDO_REPOSICION] ([ESTADO])
 GO
 
+-- Tope de 100000 unidades por línea (pedida y recibida). Se agrega aparte para que también se aplique
+-- en bases donde la tabla ya existía.
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints
+               WHERE name = 'CK_PEDREPLIN_TOPE' AND parent_object_id = OBJECT_ID('dbo.PEDIDO_REPOSICION_LINEA'))
+    ALTER TABLE [dbo].[PEDIDO_REPOSICION_LINEA] ADD CONSTRAINT CK_PEDREPLIN_TOPE
+        CHECK ([CANTIDAD_PEDIDA] <= 100000 AND ([CANTIDAD_RECIBIDA] IS NULL OR [CANTIDAD_RECIBIDA] <= 100000))
+GO
+
 -- Tipos de tabla para pasar las líneas a los SP transaccionales.
 IF TYPE_ID('dbo.PEDIDO_LINEA_TT') IS NULL
     CREATE TYPE [dbo].[PEDIDO_LINEA_TT] AS TABLE (
@@ -5391,8 +5417,9 @@ GO
 
 IF OBJECT_ID('dbo.PEDIDO_REPOSICION_INSERTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PEDIDO_REPOSICION_INSERTAR]
 GO
--- Cabecera + líneas en una sola transacción. Bloquea primero VINO (UPDLOCK, HOLDLOCK), igual que los
--- SP de solicitudes, y recién después verifica RN-31/RN-32 e inserta.
+-- Cabecera + líneas en una sola transacción. Bloquea primero VINO (UPDLOCK, HOLDLOCK, en orden de ID),
+-- igual que los SP de solicitudes, y recién después verifica RN-31/RN-32 e inserta.
+-- Tope de 100000 unidades por línea (CK_PEDREPLIN_TOPE).
 CREATE PROCEDURE [dbo].[PEDIDO_REPOSICION_INSERTAR]
     @bodega_id   INT,
     @creado_por  INT,
@@ -5407,7 +5434,7 @@ BEGIN
 
     -- RN-31: al menos una línea, cantidades > 0, sin vinos repetidos
     IF @n = 0
-       OR EXISTS (SELECT 1 FROM @lineas WHERE CANTIDAD_PEDIDA <= 0 OR CANTIDAD_SUGERIDA < 0)
+       OR EXISTS (SELECT 1 FROM @lineas WHERE CANTIDAD_PEDIDA <= 0 OR CANTIDAD_PEDIDA > 100000 OR CANTIDAD_SUGERIDA < 0)
        OR @n <> (SELECT COUNT(DISTINCT VINO_ID) FROM @lineas)
     BEGIN
         SELECT 0 AS ID; RETURN;
@@ -5416,8 +5443,18 @@ BEGIN
     BEGIN TRY
         BEGIN TRAN;
 
+        -- Los VINO se bloquean de a uno y en orden ascendente de ID: dos pedidos con vinos solapados
+        -- toman los bloqueos en el mismo orden y no se interbloquean entre sí.
+        DECLARE @vid INT = 0, @lock INT;
+        WHILE 1 = 1
+        BEGIN
+            SELECT TOP (1) @vid = VINO_ID FROM @lineas WHERE VINO_ID > @vid ORDER BY VINO_ID;
+            IF @@ROWCOUNT = 0 BREAK;
+            SELECT @lock = ID FROM VINO WITH (UPDLOCK, HOLDLOCK) WHERE ID = @vid;
+        END
+
         -- RN-31: todos los vinos existen, están Activos y son de la bodega del pedido
-        IF (SELECT COUNT(*) FROM VINO v WITH (UPDLOCK, HOLDLOCK)
+        IF (SELECT COUNT(*) FROM VINO v
             JOIN @lineas l ON l.VINO_ID = v.ID
             WHERE v.ESTADO = 'Activo' AND v.BODEGA_ID = @bodega_id) <> @n
         BEGIN
@@ -5450,6 +5487,18 @@ BEGIN
 END
 GO
 
+IF OBJECT_ID('dbo.PEDIDO_REPOSICION_ABIERTO_POR_VINO', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PEDIDO_REPOSICION_ABIERTO_POR_VINO]
+GO
+-- RN-15 extendida: Nº del pedido abierto (Pendiente o Aprobado) que incluye al vino; 0 = ninguno.
+CREATE PROCEDURE [dbo].[PEDIDO_REPOSICION_ABIERTO_POR_VINO]
+    @vino_id INT
+AS
+    SELECT ISNULL(MAX(p.ID), 0) AS ID
+    FROM PEDIDO_REPOSICION_LINEA pl
+    JOIN PEDIDO_REPOSICION p ON p.ID = pl.PEDIDO_ID
+    WHERE pl.VINO_ID = @vino_id AND p.ESTADO IN ('Pendiente', 'Aprobado')
+GO
+
 IF OBJECT_ID('dbo.PEDIDO_REPOSICION_LISTAR', 'P') IS NOT NULL DROP PROCEDURE [dbo].[PEDIDO_REPOSICION_LISTAR]
 GO
 -- @estado NULL = todos los estados.
@@ -5461,7 +5510,7 @@ AS
            p.RESOLUTOR_ID, ur.USUARIO AS RESOLUTOR_LOGIN, p.FECHA_RESOLUCION, p.MOTIVO_RECHAZO,
            p.RECIBIDO_POR, ue.USUARIO AS RECIBIDO_POR_LOGIN, p.FECHA_RECEPCION, p.OBSERVACION,
            (SELECT COUNT(*) FROM PEDIDO_REPOSICION_LINEA l WHERE l.PEDIDO_ID = p.ID) AS CANTIDAD_LINEAS,
-           ISNULL((SELECT SUM(l.CANTIDAD_PEDIDA) FROM PEDIDO_REPOSICION_LINEA l WHERE l.PEDIDO_ID = p.ID), 0) AS UNIDADES_PEDIDAS
+           ISNULL((SELECT SUM(CAST(l.CANTIDAD_PEDIDA AS BIGINT)) FROM PEDIDO_REPOSICION_LINEA l WHERE l.PEDIDO_ID = p.ID), 0) AS UNIDADES_PEDIDAS
     FROM PEDIDO_REPOSICION p
     JOIN BODEGA b ON b.ID = p.BODEGA_ID
     JOIN USUARIO uc ON uc.ID = p.CREADO_POR
@@ -5481,7 +5530,7 @@ AS
            p.RESOLUTOR_ID, ur.USUARIO AS RESOLUTOR_LOGIN, p.FECHA_RESOLUCION, p.MOTIVO_RECHAZO,
            p.RECIBIDO_POR, ue.USUARIO AS RECIBIDO_POR_LOGIN, p.FECHA_RECEPCION, p.OBSERVACION,
            (SELECT COUNT(*) FROM PEDIDO_REPOSICION_LINEA l WHERE l.PEDIDO_ID = p.ID) AS CANTIDAD_LINEAS,
-           ISNULL((SELECT SUM(l.CANTIDAD_PEDIDA) FROM PEDIDO_REPOSICION_LINEA l WHERE l.PEDIDO_ID = p.ID), 0) AS UNIDADES_PEDIDAS
+           ISNULL((SELECT SUM(CAST(l.CANTIDAD_PEDIDA AS BIGINT)) FROM PEDIDO_REPOSICION_LINEA l WHERE l.PEDIDO_ID = p.ID), 0) AS UNIDADES_PEDIDAS
     FROM PEDIDO_REPOSICION p
     JOIN BODEGA b ON b.ID = p.BODEGA_ID
     JOIN USUARIO uc ON uc.ID = p.CREADO_POR
@@ -5592,7 +5641,7 @@ BEGIN
            OR @n <> (SELECT COUNT(DISTINCT LINEA_ID) FROM @recepcion)
            OR EXISTS (SELECT 1 FROM @recepcion r
                       LEFT JOIN PEDIDO_REPOSICION_LINEA pl ON pl.ID = r.LINEA_ID AND pl.PEDIDO_ID = @pedido_id
-                      WHERE pl.ID IS NULL OR r.CANTIDAD < 0 OR r.CANTIDAD > pl.CANTIDAD_PEDIDA)
+                      WHERE pl.ID IS NULL OR r.CANTIDAD < 0 OR r.CANTIDAD > pl.CANTIDAD_PEDIDA OR r.CANTIDAD > 100000)
            OR NOT EXISTS (SELECT 1 FROM @recepcion WHERE CANTIDAD > 0)
         BEGIN
             ROLLBACK TRAN; SELECT 0 AS FILAS; RETURN;
@@ -5690,7 +5739,7 @@ BEGIN
     -- RN-37: EN_CAMINO = unidades de líneas de pedidos de reposición Aprobados (aún no recibidos).
     -- PEDIDO_ABIERTO_ESTADO = 'Pendiente' | 'Aprobado' si el vino está en un pedido abierto (RN-32), si no NULL;
     -- RN-32 garantiza como máximo un pedido abierto por vino.
-    OUTER APPLY (SELECT SUM(CASE WHEN p.ESTADO = 'Aprobado' THEN pl.CANTIDAD_PEDIDA ELSE 0 END) AS EN_CAMINO,
+    OUTER APPLY (SELECT SUM(CASE WHEN p.ESTADO = 'Aprobado' THEN CAST(pl.CANTIDAD_PEDIDA AS BIGINT) ELSE CAST(0 AS BIGINT) END) AS EN_CAMINO,
                         MAX(p.ESTADO) AS ESTADO_ABIERTO
                  FROM PEDIDO_REPOSICION_LINEA pl
                  JOIN PEDIDO_REPOSICION p ON p.ID = pl.PEDIDO_ID
@@ -5936,8 +5985,10 @@ GO
 --   DEMO-017 Rotación media / Reponer             DEMO-005 Baja rotación / Reponer urgente
 --   DEMO-016 Baja rotación / Sobrestock           DEMO-009 Sin movimiento / Sobrestock
 --   DEMO-006/007/008 Sin movimiento / Reponer urgente (stock bajo el mínimo)
--- Pedidos de reposición demo (bloque siguiente): la "cantidad sugerida" de DEMO-007 baja por sus 6 u. en camino (RN-37);
--- las clasificaciones y recomendaciones de la lista anterior no cambian (el en camino solo descuenta la sugerida).
+-- Pedidos de reposición demo (bloque siguiente): las clasificaciones y recomendaciones de la lista anterior no cambian,
+-- pero SÍ cambian dos cantidades sugeridas (verificado con ROTACION_ANALIZAR, 90 días, umbrales por defecto):
+--   DEMO-007 baja de 8 a 2 por sus 6 u. en camino (RN-37), y DEMO-004 baja de 36 a 28 porque el pedido Recibido
+--   suma 8 u. de stock (stock 12 -> 20). DEMO-008 queda con su pedido Pendiente (no descuenta: solo cuenta lo Aprobado).
 -- ============================================================
 SET ANSI_NULLS ON
 SET QUOTED_IDENTIFIER ON
@@ -6179,7 +6230,10 @@ GO
 --   Rechazado  Bodega Norton     DEMO-005 x10              rechazado por admin2 con motivo
 --   Recibido   Concha y Toro     DEMO-004 x10, recibidas 8 recibido por deposito; Entrada de 8 u. en el kardex
 --                                                          (MOTIVO 'Recepción de pedido de reposición', REFERENCIA_TIPO 'PEDIDO')
--- Las recomendaciones y clasificaciones de los demo no cambian (el "en camino" solo descuenta la cantidad sugerida).
+-- Las recomendaciones y clasificaciones de los demo no cambian; las cantidades sugeridas netas sí (DEMO-007: 8 -> 2 por
+-- lo en camino; DEMO-004: 36 -> 28 por las 8 u. recibidas, que suben su stock de 12 a 20).
+-- RN-15 extendida: mientras el pedido está abierto, DEMO-008 (Pendiente) y DEMO-007 (Aprobado) no admiten solicitar
+-- su baja, y la baja Pendiente de DEMO-008 (CU-25) no puede autorizarse hasta que el pedido se resuelva.
 -- ------------------------------------------------------------
 SET ANSI_NULLS ON
 SET QUOTED_IDENTIFIER ON

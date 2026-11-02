@@ -689,7 +689,9 @@ namespace CAPAS
             if (f == null) return;
 
             int valor;
-            if (!int.TryParse(Convert.ToString(celda.Value), out valor) || valor <= 0)
+            bool invalida = !int.TryParse(Convert.ToString(celda.Value), out valor) || valor <= 0;
+            bool excedida = !invalida && valor > BLL.PedidoReposicionBLL.CantidadMaximaPorLinea;
+            if (invalida || excedida)
             {
                 // Se restituye la sugerida antes del aviso y se evita reentrar si el aviso reabre la edición.
                 if (_corrigiendoCantidad) return;
@@ -697,13 +699,38 @@ namespace CAPAS
                 try
                 {
                     celda.Value = f.CantidadSugerida;
-                    MsgBox.Show("La cantidad a pedir debe ser un número entero mayor a cero.", "Atención",
-                        MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                    MsgBox.Show(excedida
+                            ? "La cantidad a pedir no puede superar las " + BLL.PedidoReposicionBLL.CantidadMaximaPorLinea + " unidades por línea."
+                            : "La cantidad a pedir debe ser un número entero mayor a cero.",
+                        "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
                 }
                 finally
                 {
                     _corrigiendoCantidad = false;
                 }
+            }
+        }
+
+        // Un texto no numérico en "Cantidad a pedir" (ValueType int) llega como error de conversión:
+        // no se lanza la excepción; se avisa y se restituye la sugerida.
+        private void dgvRotacion_DataError(object sender, DataGridViewDataErrorEventArgs e)
+        {
+            e.ThrowException = false;
+            if (e.RowIndex < 0 || e.ColumnIndex < 0 || dgvRotacion.Columns[e.ColumnIndex].Name != ColCantidadAPedir) return;
+            if (_corrigiendoCantidad) return;
+            _corrigiendoCantidad = true;
+            try
+            {
+                BE.ResultadoRotacion f = dgvRotacion.Rows[e.RowIndex].DataBoundItem as BE.ResultadoRotacion;
+                dgvRotacion.CancelEdit();
+                if (f != null)
+                    dgvRotacion.Rows[e.RowIndex].Cells[e.ColumnIndex].Value = f.CantidadSugerida;
+                MsgBox.Show("La cantidad a pedir debe ser un número entero mayor a cero.", "Atención",
+                    MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+            }
+            finally
+            {
+                _corrigiendoCantidad = false;
             }
         }
 
@@ -742,11 +769,19 @@ namespace CAPAS
                         "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
                     return;
                 }
+                if (cantidad > BLL.PedidoReposicionBLL.CantidadMaximaPorLinea)
+                {
+                    MsgBox.Show("La cantidad a pedir de \"" + f.Nombre + "\" no puede superar las " +
+                                BLL.PedidoReposicionBLL.CantidadMaximaPorLinea + " unidades por línea.",
+                        "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                    return;
+                }
                 filas.Add(f);
                 cantidades[f.VinoId] = cantidad;
             }
 
-            int unidades = cantidades.Values.Sum();
+            // long: la suma de muchas líneas no debe desbordar un int.
+            long unidades = cantidades.Values.Sum(c => (long)c);
             if (MsgBox.Show("¿Generar el pedido de reposición con " + filas.Count + " vino(s) y " + unidades +
                             " unidad(es)? Se crea un pedido por bodega y queda Pendiente de autorización.",
                     "Confirmar", MsgBox.Botones.SiNo, MsgBox.Icono.Pregunta) != DialogResult.Yes)
@@ -758,6 +793,13 @@ namespace CAPAS
             {
                 creados = new BLL.PedidoReposicionBLL().Generar(filas, cantidades, sesion);
             }
+            catch (BLL.PedidoParcialException ex)
+            {
+                // Se crearon algunos pedidos y falló uno posterior: el mensaje los incluye todos.
+                MsgBox.Show(ex.Message, "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                ReanalizarUltimo();
+                return;
+            }
             catch (InvalidOperationException ex)
             {
                 MsgBox.Show(ex.Message, "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
@@ -768,6 +810,7 @@ namespace CAPAS
             {
                 MsgBox.Show("No se pudo generar el pedido de reposición.", "Error",
                     MsgBox.Botones.OK, MsgBox.Icono.Error);
+                ReanalizarUltimo();
                 return;
             }
 

@@ -13,6 +13,7 @@ namespace BLL
         private readonly DAL.SolicitudAutorizacionDAL _solicitudDal = new DAL.SolicitudAutorizacionDAL();
         private readonly DAL.BodegaDAL _bodegaDal = new DAL.BodegaDAL();
         private readonly DAL.MovimientoStockDAL _movimientoDal = new DAL.MovimientoStockDAL();
+        private readonly DAL.PedidoReposicionDAL _pedidoDal = new DAL.PedidoReposicionDAL();
         private readonly BitacoraBLL _bitacora = new BitacoraBLL();
 
         public List<Bodega> ListarBodegas()
@@ -178,6 +179,8 @@ namespace BLL
             // liquida antes con un ajuste de inventario (CU-27). Se valida al solicitar para no
             // generar pedidos que no podrían autorizarse.
             ValidarSinStock(vinoId);
+            // RN-15 extendida: tampoco si el vino está en un pedido de reposición abierto.
+            ValidarSinPedidoAbierto(vinoId);
 
             // 0 filas = el estado, el stock o una baja pendiente cambiaron entre la lectura y la escritura.
             int filas;
@@ -208,12 +211,14 @@ namespace BLL
 
             // RN-15 se revalida: entre la solicitud y la autorización pudo ingresar mercadería (CU-23).
             ValidarSinStock(s.VinoId);
+            // RN-15 extendida: el vino pudo entrar en un pedido de reposición abierto después de la solicitud.
+            ValidarSinPedidoAbierto(s.VinoId, "autorizar");
 
-            // Backstop SP de RN-01 y RN-15: 0 filas = rechazado por la BD (otro usuario cambió el estado o el stock).
+            // Backstop SP de RN-01 y RN-15: 0 filas = rechazado por la BD (otro usuario cambió el estado, el stock o el pedido abierto).
             int filas = _solicitudDal.AprobarBaja(s.Id, sesion.Id);
             if (filas == 0)
                 throw new InvalidOperationException(
-                    "No se pudo autorizar la baja: el vino cambió de estado o de stock. Actualice e intente nuevamente.");
+                    "No se pudo autorizar la baja: el vino cambió de estado, de stock o de pedido de reposición. Actualice e intente nuevamente.");
 
             _bitacora.RegistrarAccion(sesion.Usuario, "AUTORIZACION_BAJA_VINO:" + s.VinoCodigo);
         }
@@ -269,6 +274,17 @@ namespace BLL
                 throw new InvalidOperationException(
                     "No se puede descontinuar un vino con stock (" + stock + " botellas). " +
                     "Registre un ajuste de inventario para dejarlo en 0 y luego solicite la baja.");
+        }
+
+        // RN-15 extendida: un vino en un pedido de reposición abierto (Pendiente o Aprobado) no se descontinúa,
+        // porque la recepción exige un vino Activo y el pedido quedaría sin salida.
+        private void ValidarSinPedidoAbierto(int vinoId, string accion = "solicitar")
+        {
+            int pedidoId = _pedidoDal.ObtenerPedidoAbiertoDeVino(vinoId);
+            if (pedidoId != 0)
+                throw new InvalidOperationException(
+                    "El vino tiene un pedido de reposición abierto (Nº " + pedidoId + "). " +
+                    "Espere a que se resuelva antes de " + accion + " su baja.");
         }
 
         // CU-26: consulta pasiva, sin efectos secundarios ni bitácora.

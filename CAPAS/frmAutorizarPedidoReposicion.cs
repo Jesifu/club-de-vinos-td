@@ -74,9 +74,23 @@ namespace CAPAS
 
         private void CargarPendientes()
         {
-            dgvPedidos.DataSource = _bll.Listar(BE.EstadoPedidoReposicion.Pendiente);
-            PedidoReposicionUI.ConfigurarGrillaPedidos(dgvPedidos, false);
+            try
+            {
+                dgvPedidos.DataSource = _bll.Listar(BE.EstadoPedidoReposicion.Pendiente);
+                PedidoReposicionUI.ConfigurarGrillaPedidos(dgvPedidos, false);
+            }
+            catch (Exception)
+            {
+                dgvPedidos.DataSource = null;
+                MostrarErrorGenerico();
+            }
             ActualizarSeleccion();
+        }
+
+        private static void MostrarErrorGenerico()
+        {
+            MsgBox.Show("No se pudo completar la operación. Intente nuevamente.", "Error",
+                MsgBox.Botones.OK, MsgBox.Icono.Error);
         }
 
         private BE.PedidoReposicion PedidoSeleccionado()
@@ -110,9 +124,18 @@ namespace CAPAS
                 dgvLineas.DataSource = null;
                 return;
             }
-            txtDetalle.Text = PedidoReposicionUI.ArmarCabecera(p);
-            dgvLineas.DataSource = _bll.ObtenerLineas(p.Id);
-            PedidoReposicionUI.ConfigurarGrillaLineas(dgvLineas, false);
+            try
+            {
+                txtDetalle.Text = PedidoReposicionUI.ArmarCabecera(p);
+                dgvLineas.DataSource = _bll.ObtenerLineas(p.Id);
+                PedidoReposicionUI.ConfigurarGrillaLineas(dgvLineas, false);
+            }
+            catch (Exception)
+            {
+                txtDetalle.Clear();
+                dgvLineas.DataSource = null;
+                MostrarErrorGenerico();
+            }
         }
 
         private void ActualizarEstadoBotones()
@@ -148,6 +171,12 @@ namespace CAPAS
                 CargarPendientes();
                 return;
             }
+            catch (Exception)
+            {
+                MostrarErrorGenerico();
+                CargarPendientes();
+                return;
+            }
 
             MsgBox.Show("Pedido Nº " + p.Id + " autorizado correctamente. Queda Aprobado, a la espera de su recepción.",
                 "Éxito", MsgBox.Botones.OK, MsgBox.Icono.Exito);
@@ -179,6 +208,12 @@ namespace CAPAS
             catch (InvalidOperationException ex)
             {
                 MsgBox.Show(ex.Message, "Atención", MsgBox.Botones.OK, MsgBox.Icono.Atencion);
+                CargarPendientes();
+                return;
+            }
+            catch (Exception)
+            {
+                MostrarErrorGenerico();
                 CargarPendientes();
                 return;
             }

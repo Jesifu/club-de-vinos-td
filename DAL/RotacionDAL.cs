@@ -38,7 +38,8 @@ namespace DAL
                         UnidadesVendidas = Convert.ToInt32(fila["UNIDADES_VENDIDAS"]),
                         UnidadesPerdidas = Convert.ToInt32(fila["UNIDADES_PERDIDAS"]),
                         SociosAtendidos = Convert.ToInt32(fila["SOCIOS_ATENDIDOS"]),
-                        EnCamino = Convert.ToInt32(fila["EN_CAMINO"]),
+                        // EN_CAMINO llega como BIGINT; se acota para que la propiedad int nunca desborde.
+                        EnCamino = (int)Math.Min(int.MaxValue, Convert.ToInt64(fila["EN_CAMINO"])),
                         PedidoAbiertoEstado = fila["PEDIDO_ABIERTO_ESTADO"] == DBNull.Value
                             ? null : fila["PEDIDO_ABIERTO_ESTADO"].ToString()
                     });

@@ -39,6 +39,19 @@ namespace DAL
             finally { _acceso.Cerrar(); }
         }
 
+        // Nº del pedido abierto (Pendiente o Aprobado) que incluye al vino; 0 = ninguno (RN-15 extendida).
+        public int ObtenerPedidoAbiertoDeVino(int vinoId)
+        {
+            try
+            {
+                _acceso.Abrir();
+                DataTable tabla = _acceso.Leer("PEDIDO_REPOSICION_ABIERTO_POR_VINO",
+                    new List<SqlParameter> { _acceso.CrearParametro("@vino_id", vinoId) });
+                return Convert.ToInt32(tabla.Rows[0]["ID"]);
+            }
+            finally { _acceso.Cerrar(); }
+        }
+
         // estado null = todos.
         public List<PedidoReposicion> Listar(EstadoPedidoReposicion? estado)
         {
@@ -170,7 +183,8 @@ namespace DAL
                 FechaRecepcion = fila["FECHA_RECEPCION"] == DBNull.Value ? (DateTime?)null : Convert.ToDateTime(fila["FECHA_RECEPCION"]),
                 Observacion = fila["OBSERVACION"] == DBNull.Value ? null : fila["OBSERVACION"].ToString(),
                 CantidadLineas = Convert.ToInt32(fila["CANTIDAD_LINEAS"]),
-                UnidadesPedidas = Convert.ToInt32(fila["UNIDADES_PEDIDAS"])
+                // La suma llega como BIGINT; se acota para que la propiedad int nunca desborde.
+                UnidadesPedidas = (int)Math.Min(int.MaxValue, Convert.ToInt64(fila["UNIDADES_PEDIDAS"]))
             };
         }
     }
