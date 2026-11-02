@@ -99,7 +99,11 @@ namespace BLL
                 r.Prioridad = 2;
             }
 
-            r.CantidadSugerida = CalcularCantidadSugerida(r, c);
+            // RN-24 (ajustada por RN-37): la sugerencia bruta se calcula como siempre y se le descuenta
+            // lo que ya viene en camino (pedidos Aprobados sin recibir). La neta nunca baja de 0, de modo
+            // que el piso 1 de Urgente aplica a la bruta y deja de aplicar si lo en camino cubre la necesidad.
+            r.CantidadSugeridaBruta = CalcularCantidadSugerida(r, c);
+            r.CantidadSugerida = Math.Max(0, r.CantidadSugeridaBruta - Math.Max(0, r.EnCamino));
         }
 
         // Cantidad sugerida a reponer, solo para Urgente o Reponer (Mantener y Sobrestock = 0):

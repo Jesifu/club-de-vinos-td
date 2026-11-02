@@ -31,12 +31,16 @@ namespace DAL
                         VinoId = Convert.ToInt32(fila["ID"]),
                         Codigo = fila["CODIGO"].ToString(),
                         Nombre = fila["NOMBRE"].ToString(),
+                        BodegaId = Convert.ToInt32(fila["BODEGA_ID"]),
                         BodegaNombre = fila["BODEGA_NOMBRE"].ToString(),
                         StockMinimo = Convert.ToInt32(fila["STOCK_MINIMO"]),
                         StockActual = Convert.ToInt32(fila["STOCK_ACTUAL"]),
                         UnidadesVendidas = Convert.ToInt32(fila["UNIDADES_VENDIDAS"]),
                         UnidadesPerdidas = Convert.ToInt32(fila["UNIDADES_PERDIDAS"]),
-                        SociosAtendidos = Convert.ToInt32(fila["SOCIOS_ATENDIDOS"])
+                        SociosAtendidos = Convert.ToInt32(fila["SOCIOS_ATENDIDOS"]),
+                        EnCamino = Convert.ToInt32(fila["EN_CAMINO"]),
+                        PedidoAbiertoEstado = fila["PEDIDO_ABIERTO_ESTADO"] == DBNull.Value
+                            ? null : fila["PEDIDO_ABIERTO_ESTADO"].ToString()
                     });
                 }
             }

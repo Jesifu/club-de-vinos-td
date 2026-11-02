@@ -49,6 +49,9 @@
     <Compile Include="CONTROL_IDIOMA.cs" />
     <Compile Include="ConfiguracionRotacion.cs" />
     <Compile Include="ResultadoRotacion.cs" />
+    <Compile Include="EstadoPedidoReposicion.cs" />
+    <Compile Include="PedidoReposicion.cs" />
+    <Compile Include="PedidoReposicionLinea.cs" />
     <Compile Include="EstadoCaja.cs" />
     <Compile Include="EstadoSolicitud.cs" />
     <Compile Include="EstadoVino.cs" />

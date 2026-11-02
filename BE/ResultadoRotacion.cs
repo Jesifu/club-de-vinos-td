@@ -26,6 +26,7 @@ namespace BE
         public int VinoId { get; set; }
         public string Codigo { get; set; }
         public string Nombre { get; set; }
+        public int BodegaId { get; set; }
         public string BodegaNombre { get; set; }
         public int StockMinimo { get; set; }
         public int StockActual { get; set; }
@@ -48,8 +49,20 @@ namespace BE
         public string Clasificacion { get; set; }
         public string Recomendacion { get; set; }
 
-        // Unidades sugeridas a reponer (0 salvo recomendación Urgente o Reponer). La calcula
-        // RotacionBLL.Evaluar.
+        // Unidades de líneas de pedidos de reposición Aprobados aún no recibidos (RN-37). Lo
+        // entrega ROTACION_ANALIZAR.
+        public int EnCamino { get; set; }
+
+        // Estado del pedido abierto (Pendiente o Aprobado) que incluye al vino, o null si no
+        // tiene ninguno (RN-32: un vino con pedido abierto no puede pedirse de nuevo).
+        public string PedidoAbiertoEstado { get; set; }
+
+        // Sugerencia bruta (antes de descontar lo en camino): 0 salvo recomendación Urgente o
+        // Reponer. La calcula RotacionBLL.Evaluar.
+        public int CantidadSugeridaBruta { get; set; }
+
+        // Unidades sugeridas a reponer NETAS (RN-37): max(0, bruta - EnCamino). Es la cifra que
+        // muestran la grilla, los totales y el informe.
         public int CantidadSugerida { get; set; }
 
         // 0 = más urgente. Sirve para ordenar el informe.
