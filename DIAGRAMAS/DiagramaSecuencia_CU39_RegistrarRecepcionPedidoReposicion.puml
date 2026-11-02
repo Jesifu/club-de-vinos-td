@@ -43,6 +43,11 @@ PB --> FA : List<PedidoReposicion>
 FA -> FA : dgvPedidos.DataSource = pedidos
 FA -> UI : ConfigurarGrillaPedidos(dgvPedidos, false)
 FA -> FA : ActualizarSeleccion()
+opt 39l. falla la carga de la lista de pedidos aprobados (catch Exception de CargarAprobados)
+  FA -> FA : dgvPedidos.DataSource = null
+  FA --> U : "No se pudo completar la operación. Intente nuevamente."\n(título "Error")
+  note right of FA : ActualizarSeleccion() se ejecuta igual: detalle vacío y "Registrar recepción" deshabilitado
+end
 
 FA -> UI : ArmarCabecera(p)
 UI --> FA : texto (Nº, estado, bodega, generado por, resuelto por)
@@ -54,6 +59,11 @@ PD --> PB : List<PedidoReposicionLinea>
 PB --> FA : List<PedidoReposicionLinea>
 FA -> FA : por defecto CantidadRecibida = CantidadPedida en cada línea;\nsolo la columna "Cantidad recibida" es editable
 FA -> UI : ConfigurarGrillaLineas(dgvLineas, true)
+opt 39m. falla la carga de la cabecera o de las líneas (catch Exception de ActualizarSeleccion)
+  FA -> FA : txtDetalle.Clear(); _lineas = null; dgvLineas.DataSource = null
+  FA --> U : "No se pudo completar la operación. Intente nuevamente."\n(título "Error")
+  note right of FA : btnRegistrarRecepcion queda deshabilitado (p != null y _lineas != null)
+end
 FA --> U : grilla de pedidos aprobados y líneas del pedido seleccionado
 
 U -> FA : seleccionar otro pedido
@@ -67,6 +77,10 @@ loop por cada línea que difiere de lo pedido
   end
   opt 39b. la cantidad recibida es menor a 0 o mayor a la pedida (RN-35, dgvLineas_CellEndEdit)
     FA --> U : "La cantidad recibida de 'X' debe estar entre 0 y N."\n(título "Atención")
+    FA -> FA : l.CantidadRecibida = l.CantidadPedida
+  end
+  opt 39j. la cantidad recibida supera el tope de 100000 unidades por línea (dgvLineas_CellEndEdit)
+    FA --> U : "La cantidad recibida de 'X' debe estar entre 0 y N."\n(título "Atención"; N = la menor entre la pedida y 100000)
     FA -> FA : l.CantidadRecibida = l.CantidadPedida
   end
 end
@@ -110,6 +124,9 @@ loop por cada línea del pedido
   break 39g. la recepción no cubre todas las líneas, la recibida está fuera de 0..pedida\no todas las cantidades son 0 (RN-35)
     PB --> FA : throw InvalidOperationException\n("RN-35: debe informar la cantidad recibida de cada línea del pedido." /\n"RN-35: la cantidad recibida de 'X' debe estar entre 0 y N." /\n"RN-35: al menos una línea debe tener cantidad recibida mayor a cero.")
   end
+  break 39j. la cantidad recibida supera el tope de 100000 unidades por línea (RN-35)
+    PB --> FA : throw InvalidOperationException\n("RN-35: la cantidad recibida de 'X' no puede superar las 100000\nunidades por línea.")
+  end
   opt recibida > 0
     PB -> VD : ObtenerPorId(l.VinoId)
     VD -> DB : VINO_OBTENER_POR_ID(@id)
@@ -151,6 +168,12 @@ deactivate PB
 
 opt la BLL lanzó InvalidOperationException (catch de btnRegistrarRecepcion_Click)
   FA --> U : ex.Message\n(título "Atención")
+  FA -> FA : CargarAprobados()\n(vuelve a listar los pedidos Aprobados: Listar → PEDIDO_REPOSICION_LISTAR,\ncomo en la carga inicial)
+  note right of FA : return
+end
+
+opt 39k. falla inesperada (catch Exception de btnRegistrarRecepcion_Click)
+  FA --> U : "No se pudo completar la operación. Intente nuevamente."\n(título "Error")
   FA -> FA : CargarAprobados()\n(vuelve a listar los pedidos Aprobados: Listar → PEDIDO_REPOSICION_LISTAR,\ncomo en la carga inicial)
   note right of FA : return
 end

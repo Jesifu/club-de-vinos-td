@@ -17,12 +17,14 @@ participant ":BodegaDAL"              as BD #E8E8F4
 participant ":VinoDAL"                as VD #E8E8F4
 participant ":SolicitudAutorizacionDAL" as SD #E8E8F4
 participant ":MovimientoStockDAL"     as MD #E8E8F4
+participant ":Pedido\nReposicionDAL"  as PD #E8E8F4
 participant ":BitacoraDAL"            as TD #E8E8F4
 database    ":DB"                     as DB #EEEEEE
 
 note over FC
   Precondición: sesión activa; permiso "Gestionar catálogo de vinos";
-  vino con ESTADO = 'Activo', sin baja pendiente y con stock 0 (RN-15).
+  vino con ESTADO = 'Activo', sin baja pendiente, con stock 0 y sin pedido de
+  reposición abierto (RN-15, extendida por el módulo de pedidos de reposición).
   sesion = SessionManager.getInstance().getUsuario().
 end note
 
@@ -97,30 +99,40 @@ else vino Activo
     alt 24c. el vino tiene stock distinto de 0 (RN-15)
       VB --> FC : throw InvalidOperationException\n("No se puede descontinuar un vino con stock (N botellas). Registre un\najuste de inventario para dejarlo en 0 y luego solicite la baja.")
     else stock = 0
-      VB -> VD : SolicitarBaja(vinoId, sesion.Id)
-      VD -> DB : VINO_SOLICITAR_BAJA(@id,@solicitante_id)
-      note right of DB : INSERT SOLICITUD_AUTORIZACION (BAJA, Pendiente)\nsolo si el vino sigue Activo, sin baja pendiente y con stock 0\n(lectura con UPDLOCK/HOLDLOCK). El vino sigue Activo.
+      VB -> VB : ValidarSinPedidoAbierto(vinoId)
+      VB -> PD : ObtenerPedidoAbiertoDeVino(vinoId)
+      PD -> DB : PEDIDO_REPOSICION_ABIERTO_POR_VINO(@vino_id)
+      DB --> PD : ID (Nº del pedido Pendiente o Aprobado que incluye al vino; 0 = ninguno)
+      PD --> VB : int pedidoId
 
-      alt 24d. otra solicitud de baja ganó la carrera (SqlException 2601 / 2627)
-        DB --> VD : SqlException
-        VD --> VB : SqlException
-        VB --> FC : throw InvalidOperationException\n("El vino ya tiene una baja solicitada, pendiente de autorización.")
-      else sin colisión
-        DB --> VD : FILAS
-        VD --> VB : int filas
+      alt 24g. el vino está en un pedido de reposición abierto (pedidoId != 0; RN-15 extendida)
+        VB --> FC : throw InvalidOperationException\n("El vino tiene un pedido de reposición abierto (Nº N). Espere a que se\nresuelva antes de solicitar su baja.")
+      else sin pedido abierto (pedidoId = 0)
+        VB -> VD : SolicitarBaja(vinoId, sesion.Id)
+        VD -> DB : VINO_SOLICITAR_BAJA(@id,@solicitante_id)
+        note right of DB : INSERT SOLICITUD_AUTORIZACION (BAJA, Pendiente) solo si el vino sigue\nActivo, sin baja pendiente, con stock 0 (lectura con UPDLOCK/HOLDLOCK)\ny sin pedido de reposición abierto. El vino sigue Activo.
 
-        alt 24d. 0 filas (el estado o el stock cambiaron entre la lectura y la escritura; backstop del SP)
-          VB --> FC : throw InvalidOperationException\n("No se pudo solicitar la baja: el estado o el stock del vino cambiaron.\nActualice e intente nuevamente.")
-        else 1 fila
-          VB -> BB : RegistrarAccion(sesion.Usuario,\n"BAJA_SOLICITADA_VINO:" + v.Codigo)
-          BB -> TD : Registrar(usuario, accion)
-          TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
-          DB --> TD : filas afectadas
-          TD --> BB : void
-          BB --> VB : void
-          VB --> FC : void
-          FC --> U : "Descontinuación solicitada, pendiente de autorización."\n(título "Éxito")
-          @LC
+        alt 24d. otra solicitud de baja ganó la carrera (SqlException 2601 / 2627)
+          DB --> VD : SqlException
+          VD --> VB : SqlException
+          VB --> FC : throw InvalidOperationException\n("El vino ya tiene una baja solicitada, pendiente de autorización.")
+        else sin colisión
+          DB --> VD : FILAS
+          VD --> VB : int filas
+
+          alt 24d. 0 filas (el estado, el stock o el pedido abierto cambiaron entre la lectura y la escritura; backstop del SP)
+            VB --> FC : throw InvalidOperationException\n("No se pudo solicitar la baja: el vino cambió de estado, de stock o de\npedido de reposición. Actualice e intente nuevamente.")
+          else 1 fila
+            VB -> BB : RegistrarAccion(sesion.Usuario,\n"BAJA_SOLICITADA_VINO:" + v.Codigo)
+            BB -> TD : Registrar(usuario, accion)
+            TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+            DB --> TD : filas afectadas
+            TD --> BB : void
+            BB --> VB : void
+            VB --> FC : void
+            FC --> U : "Descontinuación solicitada, pendiente de autorización."\n(título "Éxito")
+            @LC
+          end
         end
       end
     end

@@ -61,6 +61,17 @@ else hay un pedido seleccionado (p)
   FA --> U : lista de pedidos (con su estado traducido) y detalle del pedido seleccionado
 end
 
+opt 40d. falla la carga de la lista de pedidos (catch Exception de CargarPedidos, también al filtrar)
+  FA -> FA : dgvPedidos.DataSource = null
+  FA --> U : "No se pudo completar la operación. Intente nuevamente."\n(título "Error")
+  note right of FA : MostrarDetalle() se ejecuta igual y deja el detalle vacío
+end
+
+opt 40e. falla la carga de la cabecera o de las líneas (catch Exception de MostrarDetalle)
+  FA -> FA : txtDetalle.Clear(); dgvLineas.DataSource = null
+  FA --> U : "No se pudo completar la operación. Intente nuevamente."\n(título "Error")
+end
+
 opt 40b. el usuario filtra por estado
   U -> FA : elige un estado en cboEstado
   FA -> FA : cboEstado_SelectedIndexChanged → CargarPedidos()

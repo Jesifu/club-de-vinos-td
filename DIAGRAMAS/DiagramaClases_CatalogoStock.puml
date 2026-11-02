@@ -200,6 +200,12 @@ package "DAL" #E8E8F4 {
     + ObtenerStockActual(vinoId : int) : int
   }
 
+  class PedidoReposicionDAL <<existente>> {
+    - _acceso : Acceso
+    .. CU-24 y CU-25 (RN-15 extendida) ..
+    + ObtenerPedidoAbiertoDeVino(vinoId : int) : int
+  }
+
   class BitacoraDAL <<existente>> {
     - _acceso : Acceso
     + Registrar(usuario : string, accion : string) : void
@@ -211,6 +217,7 @@ package "DAL" #E8E8F4 {
   SolicitudAutorizacionDAL --> Acceso
   BodegaDAL          --> Acceso
   MovimientoStockDAL --> Acceso
+  PedidoReposicionDAL --> Acceso
   BitacoraDAL        --> Acceso
 }
 
@@ -229,6 +236,7 @@ package "BLL" #E8F4E8 {
     - _solicitudDal : SolicitudAutorizacionDAL
     - _bodegaDal : BodegaDAL
     - _movimientoDal : MovimientoStockDAL
+    - _pedidoDal : PedidoReposicionDAL
     - _bitacora : BitacoraBLL
     + ListarBodegas() : List<Bodega>
     .. CU-21 ..
@@ -252,6 +260,7 @@ package "BLL" #E8F4E8 {
     - ValidarSeparacionDeFunciones(s : SolicitudAutorizacion, sesion : USUARIO, accion : string) : void
     - ValidarMotivo(motivo : string) : string
     - ValidarSinStock(vinoId : int) : void
+    - ValidarSinPedidoAbierto(vinoId : int, accion : string = "solicitar") : void
     .. CU-26 ..
     + ListarAlertaStockMinimo() : List<AlertaStockMinimo>
   }
@@ -272,6 +281,7 @@ package "BLL" #E8F4E8 {
   VinoBLL            --> SolicitudAutorizacionDAL
   VinoBLL            --> BodegaDAL
   VinoBLL            --> MovimientoStockDAL
+  VinoBLL            --> PedidoReposicionDAL
   VinoBLL            --> BitacoraBLL
   MovimientoStockBLL --> MovimientoStockDAL
   MovimientoStockBLL --> VinoDAL

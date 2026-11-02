@@ -124,6 +124,10 @@ package "CAPAS" #F4E8E8 {
 
   class frmAnalisisRotacion {
     + ActualizarIdioma() : void
+    - dgvRotacion_CellEndEdit(sender : object, e : DataGridViewCellEventArgs) : void
+    - dgvRotacion_DataError(sender : object, e : DataGridViewDataErrorEventArgs) : void
+    - btnGenerarPedido_Click(sender : object, e : EventArgs) : void
+    - ReanalizarUltimo() : void
   }
 
   class ConfiguracionRotacionStore <<static>> {

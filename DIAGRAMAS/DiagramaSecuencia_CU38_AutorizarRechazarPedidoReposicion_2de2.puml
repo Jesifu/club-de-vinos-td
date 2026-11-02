@@ -104,6 +104,12 @@ group 38e. Rechazar el pedido ("Rechazar pedido")
     FA -> FA : CargarPendientes()\n(vuelve a listar los pedidos Pendientes: Listar → PEDIDO_REPOSICION_LISTAR,\ncomo en la carga inicial)
     note right of FA : return
   end
+
+  opt 38j. falla inesperada (catch Exception de btnRechazarPedido_Click)
+    FA --> A : "No se pudo completar la operación. Intente nuevamente."\n(título "Error")
+    FA -> FA : CargarPendientes()\n(vuelve a listar los pedidos Pendientes: Listar → PEDIDO_REPOSICION_LISTAR,\ncomo en la carga inicial)
+    note right of FA : return
+  end
 end
 deactivate FA
 

@@ -86,6 +86,7 @@ package "DAL" #E8E8F4 {
     + Listar(estado : EstadoPedidoReposicion?) : List<PedidoReposicion>
     + ObtenerPorId(id : int) : PedidoReposicion
     + ObtenerLineas(pedidoId : int) : List<PedidoReposicionLinea>
+    + ObtenerPedidoAbiertoDeVino(vinoId : int) : int
     + Autorizar(pedidoId : int, resolutorId : int) : int
     + Rechazar(pedidoId : int, resolutorId : int, motivo : string) : int
     + Recibir(pedidoId : int, recibidoPor : int, responsableLogin : string, cantidadesPorLinea : IDictionary<int,int>) : int
@@ -103,7 +104,18 @@ package "BLL" #E8F4E8 {
     + RegistrarAccion(usuario : string, accion : string) : void
   }
 
+  class InvalidOperationException <<System>> {
+  }
+
+  class PedidoParcialException {
+    + Creados : List<PedidoReposicion>
+    + BodegaFallida : string
+    + Motivo : string
+    + PedidoParcialException(creados : List<PedidoReposicion>, bodegaFallida : string, motivo : string, causa : Exception)
+  }
+
   class PedidoReposicionBLL {
+    + {static} CantidadMaximaPorLinea : int = 100000
     - _dal : PedidoReposicionDAL
     - _vinoDal : VinoDAL
     - _bitacora : BitacoraBLL
@@ -121,6 +133,9 @@ package "BLL" #E8F4E8 {
   PedidoReposicionBLL --> PedidoReposicionDAL
   PedidoReposicionBLL --> VinoDAL
   PedidoReposicionBLL --> BitacoraBLL
+  InvalidOperationException <|-- PedidoParcialException
+  PedidoReposicionBLL ..> PedidoParcialException : lanza >
+  PedidoParcialException ..> PedidoReposicion
 }
 
 ' ─────────────────────────────────────────
@@ -133,6 +148,10 @@ package "CAPAS" #F4E8E8 {
 
   class frmAnalisisRotacion <<existente>> {
     + ActualizarIdioma() : void
+    - dgvRotacion_CellEndEdit(sender : object, e : DataGridViewCellEventArgs) : void
+    - dgvRotacion_DataError(sender : object, e : DataGridViewDataErrorEventArgs) : void
+    - btnGenerarPedido_Click(sender : object, e : EventArgs) : void
+    - ReanalizarUltimo() : void
   }
 
   class frmAutorizarPedidoReposicion {

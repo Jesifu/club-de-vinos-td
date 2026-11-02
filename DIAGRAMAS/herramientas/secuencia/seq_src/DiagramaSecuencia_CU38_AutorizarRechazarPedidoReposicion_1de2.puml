@@ -32,6 +32,11 @@ note right of FA
   también reevalúan ActualizarSeleccion().
 end note
 @PQ
+opt 38k. falla la carga de la lista de pendientes (catch Exception de CargarPendientes)
+  FA -> FA : dgvPedidos.DataSource = null
+  FA --> A : "No se pudo completar la operación. Intente nuevamente."\n(título "Error")
+  note right of FA : ActualizarSeleccion() se ejecuta igual: detalle vacío y botones deshabilitados
+end
 
 FA -> FA : MostrarDetalle()
 FA -> UI : ArmarCabecera(p)
@@ -43,6 +48,10 @@ DB --> PD : filas de PEDIDO_REPOSICION_LINEA
 PD --> PB : List<PedidoReposicionLinea>
 PB --> FA : List<PedidoReposicionLinea>
 FA -> UI : ConfigurarGrillaLineas(dgvLineas, false)
+opt 38l. falla la carga de la cabecera o de las líneas (catch Exception de MostrarDetalle)
+  FA -> FA : txtDetalle.Clear(); dgvLineas.DataSource = null
+  FA --> A : "No se pudo completar la operación. Intente nuevamente."\n(título "Error")
+end
 FA -> FA : ActualizarEstadoBotones(): habilitar "Autorizar pedido" y "Rechazar pedido"\nsolo si p.CreadoPor <> sesion.Id (RN-33, capa UI)
 FA --> A : grilla de pedidos pendientes y detalle del pedido (cabecera + líneas)
 
@@ -100,6 +109,12 @@ group Autorizar el pedido ("Autorizar pedido")
 
   opt la BLL lanzó InvalidOperationException (catch de btnAutorizarPedido_Click)
     FA --> A : ex.Message\n(título "Atención")
+    @PQ corto
+    note right of FA : return
+  end
+
+  opt 38i. falla inesperada (catch Exception de btnAutorizarPedido_Click)
+    FA --> A : "No se pudo completar la operación. Intente nuevamente."\n(título "Error")
     @PQ corto
     note right of FA : return
   end

@@ -36,9 +36,21 @@ U -> FA : tilda "Pedir" en uno o más vinos
 FA -> FA : dgvRotacion_CurrentCellDirtyStateChanged →\nActualizarSeleccionPedido()
 FA -> FA : btnGenerarPedido.Enabled = (n > 0);\nlblSeleccionPedido = "Vinos seleccionados para el pedido: n"
 
-opt 37a. el usuario edita "Cantidad a pedir" con un valor que no es un entero mayor a cero
+opt 37a. el usuario edita "Cantidad a pedir" con un valor que no es un entero mayor a cero (cero o negativo)
   U -> FA : escribe la cantidad
   FA -> FA : dgvRotacion_CellEndEdit: restituye la cantidad sugerida
+  FA --> U : "La cantidad a pedir debe ser un número entero mayor a cero."\n(título "Atención")
+end
+
+opt 37l. el usuario edita "Cantidad a pedir" con un entero mayor al tope de 100000 unidades por línea
+  U -> FA : escribe la cantidad
+  FA -> FA : dgvRotacion_CellEndEdit: restituye la cantidad sugerida
+  FA --> U : "La cantidad a pedir no puede superar las 100000 unidades por línea."\n(título "Atención")
+end
+
+opt 37m. el usuario escribe un texto no numérico en "Cantidad a pedir" (error de conversión de la grilla)
+  U -> FA : escribe un texto
+  FA -> FA : dgvRotacion_DataError: ThrowException = false;\nCancelEdit() y restituye la cantidad sugerida
   FA --> U : "La cantidad a pedir debe ser un número entero mayor a cero."\n(título "Atención")
 end
 
@@ -54,6 +66,9 @@ loop por cada fila elegida
   FA -> FA : filas.Add(f); cantidades[f.VinoId] = cantidad
   break 37c. la cantidad a pedir de la fila no es un entero mayor a cero
     FA --> U : "La cantidad a pedir de 'X' debe ser un número entero mayor a cero."\n(título "Atención")
+  end
+  break 37n. la cantidad a pedir de la fila supera el tope de 100000 unidades por línea
+    FA --> U : "La cantidad a pedir de 'X' no puede superar las 100000 unidades\npor línea." (título "Atención")
   end
 end
 
@@ -74,8 +89,8 @@ loop por cada vino elegido
   DB --> VD : fila de VINO
   VD --> PB : Vino (o null)
   PB -> PB : ValidarLinea(v, nombre, cantidad)
-  break 37e. regla RN-31 incumplida: el vino no existe, no está Activo\no la cantidad pedida no es mayor a cero
-    PB --> FA : throw InvalidOperationException\n("RN-31: el vino 'X' no existe." / "RN-31: solo se pueden pedir vinos\nActivos ('X' no lo está)." / "RN-31: la cantidad pedida de 'X'\ndebe ser mayor a cero.")
+  break 37e. regla RN-31 incumplida: el vino no existe, no está Activo,\nla cantidad pedida no es mayor a cero o supera 100000 unidades por línea
+    PB --> FA : throw InvalidOperationException\n("RN-31: el vino 'X' no existe." / "RN-31: solo se pueden pedir vinos\nActivos ('X' no lo está)." / "RN-31: la cantidad pedida de 'X'\ndebe ser mayor a cero." / "RN-31: la cantidad pedida de 'X' no puede\nsuperar las 100000 unidades por línea.")
   end
   PB -> PB : agrupar la línea por v.BodegaId\n(la bodega sale del vino en la base, no de la fila de la UI)
 end
@@ -119,7 +134,7 @@ loop por cada bodega (un pedido por bodega)
     PB --> FA : throw InvalidOperationException\n("RN-32: un vino del pedido ya está incluido en otro pedido abierto.")
   else 37h. id == 0 (el SP rechazó el pedido: un vino dejó de estar activo,\ncambió de bodega o ya está en otro pedido abierto)
     PB --> FA : throw InvalidOperationException\n("RN-31/RN-32: no se pudo generar el pedido (...). Actualice el análisis\ne intente nuevamente.")
-    note right of PB : los pedidos de otras bodegas ya creados se conservan
+    note right of PB : los pedidos de otras bodegas ya creados se conservan\n(si ya hay alguno creado, ver 37o)
   else id > 0
     PB -> BB : RegistrarAccion(sesion.Usuario,\n"PEDIDO_GENERADO:" + id)
     BB -> TD : Registrar(usuario, accion)
@@ -132,15 +147,23 @@ loop por cada bodega (un pedido por bodega)
     DB --> PD : fila (cabecera + CANTIDAD_LINEAS + UNIDADES_PEDIDAS)
     PD --> PB : PedidoReposicion
   end
+  break 37o. falla la bodega de este paso (37g, 37h o error inesperado)\ny ya se había creado al menos un pedido (creados.Count > 0)
+    PB --> FA : throw PedidoParcialException(creados, bodega, motivo)\n("Se creó el pedido Nº X pero falló el de la bodega Y: <motivo>" /\n"Se crearon los pedidos Nº X, Z pero falló el de la bodega Y: <motivo>")
+    note right of PB : hereda de InvalidOperationException y conserva los pedidos ya creados en Creados;\nmotivo = ex.Message si era InvalidOperationException, si no\n"error inesperado al guardar el pedido."
+  end
 end
 PB --> FA : List<PedidoReposicion> creados (estado Pendiente)
 deactivate PB
 
-alt 37i. la BLL lanzó InvalidOperationException (catch de btnGenerarPedido_Click)
+alt 37o. la BLL lanzó PedidoParcialException (catch previo al de InvalidOperationException)
+  FA --> U : ex.Message ("Se creó el pedido Nº X pero falló el de la bodega Y: ...")\n(título "Atención")
+  FA -> FA : ReanalizarUltimo()\n(igual que en el flujo principal)
+else 37i. la BLL lanzó InvalidOperationException (catch de btnGenerarPedido_Click)
   FA --> U : ex.Message\n(título "Atención")
   FA -> FA : ReanalizarUltimo()\n(igual que en el flujo principal)
 else 37j. falla inesperada (catch Exception)
   FA --> U : "No se pudo generar el pedido de reposición."\n(título "Error")
+  FA -> FA : ReanalizarUltimo()\n(igual que en el flujo principal)
 else se generaron los pedidos
   FA --> U : "Pedido de reposición generado:" / "Pedidos de reposición generados\n(uno por bodega):" + "Nº N - Bodega (n línea(s), m unidad(es))" por pedido\n+ "Quedan Pendientes de autorización." (título "Éxito")
   FA -> FA : ReanalizarUltimo()

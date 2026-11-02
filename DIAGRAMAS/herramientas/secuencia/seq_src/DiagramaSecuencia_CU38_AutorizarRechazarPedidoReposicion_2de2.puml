@@ -104,6 +104,12 @@ group 38e. Rechazar el pedido ("Rechazar pedido")
     @PQ corto
     note right of FA : return
   end
+
+  opt 38j. falla inesperada (catch Exception de btnRechazarPedido_Click)
+    FA --> A : "No se pudo completar la operación. Intente nuevamente."\n(título "Error")
+    @PQ corto
+    note right of FA : return
+  end
 end
 deactivate FA
 

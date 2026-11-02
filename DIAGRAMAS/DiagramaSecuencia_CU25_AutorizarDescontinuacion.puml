@@ -15,6 +15,7 @@ participant ":VinoBLL"                 as VB #E8F4E8
 participant ":BitacoraBLL"             as BB #E8F4E8
 participant ":SolicitudAutorizacionDAL" as SD #E8E8F4
 participant ":MovimientoStockDAL"      as MD #E8E8F4
+participant ":Pedido\nReposicionDAL"   as PD #E8E8F4
 participant ":BitacoraDAL"             as TD #E8E8F4
 database    ":DB"                      as DB #EEEEEE
 
@@ -92,32 +93,42 @@ alt el administrador autoriza la baja ("Autorizar baja")
       alt 25d. el vino tiene stock distinto de 0 (RN-15, revalidación)
         VB --> FA : throw InvalidOperationException\n("No se puede descontinuar un vino con stock (N botellas). Registre un\najuste de inventario para dejarlo en 0 y luego solicite la baja.")
       else stock = 0
-        VB -> SD : AprobarBaja(s.Id, sesion.Id)
-        SD -> DB : SOLICITUD_APROBAR_BAJA(@solicitud_id,@resolutor_id)
-        note right of DB : en una transacción: solicitud Aprobada (WHERE EMISOR_ID <> @resolutor_id)\n+ VINO Activo → Descontinuado (RN-04), con la revalidación de RN-15\ncon UPDLOCK/HOLDLOCK
-        DB --> SD : FILAS
-        SD --> VB : int filas
+        VB -> VB : ValidarSinPedidoAbierto(s.VinoId, "autorizar")
+        VB -> PD : ObtenerPedidoAbiertoDeVino(vinoId)
+        PD -> DB : PEDIDO_REPOSICION_ABIERTO_POR_VINO(@vino_id)
+        DB --> PD : ID (Nº del pedido Pendiente o Aprobado que incluye al vino; 0 = ninguno)
+        PD --> VB : int pedidoId
 
-        alt 25e. 0 filas (RN-01 y RN-15, backstop SP)
-          VB --> FA : throw InvalidOperationException\n("No se pudo autorizar la baja: el vino cambió de estado o de stock.\nActualice e intente nuevamente.")
-        else 1 fila
-          VB -> BB : RegistrarAccion(sesion.Usuario,\n"AUTORIZACION_BAJA_VINO:" + s.VinoCodigo)
-          BB -> TD : Registrar(usuario, accion)
-          TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
-          DB --> TD : filas afectadas
-          TD --> BB : void
-          BB --> VB : void
-          VB --> FA : void
-          FA --> A : "Vino descontinuado correctamente."\n(título "Éxito")
-          FA -> FA : txtMotivoRechazo.Clear()
-          FA -> FA : CargarPendientes()
-          FA -> VB : ListarSolicitudesPendientes(TipoSolicitud.Baja)
-          VB -> SD : ListarPendientes(TipoSolicitud.Baja)
-          SD -> DB : SOLICITUD_LISTAR_PENDIENTES(@tipo)
-          DB --> SD : filas (solicitud + emisor + datos del vino + stock actual)
-          SD --> VB : List<SolicitudAutorizacion>
-          VB --> FA : List<SolicitudAutorizacion>
-          FA -> FA : dgvPendientesBaja.DataSource = solicitudes; ocultar columnas;\nActualizarEncabezados(); ActualizarSeleccion()\n(MostrarDetalle + ActualizarEstadoBotones)
+        alt 25h. el vino está en un pedido de reposición abierto (pedidoId != 0; RN-15 extendida, revalidación)
+          VB --> FA : throw InvalidOperationException\n("El vino tiene un pedido de reposición abierto (Nº N). Espere a que se\nresuelva antes de autorizar su baja.")
+        else sin pedido abierto (pedidoId = 0)
+          VB -> SD : AprobarBaja(s.Id, sesion.Id)
+          SD -> DB : SOLICITUD_APROBAR_BAJA(@solicitud_id,@resolutor_id)
+          note right of DB : en una transacción: solicitud Aprobada (WHERE EMISOR_ID <> @resolutor_id)\n+ VINO Activo → Descontinuado (RN-04), con la revalidación de RN-15 (stock = 0\ny sin pedido de reposición abierto) con UPDLOCK/HOLDLOCK
+          DB --> SD : FILAS
+          SD --> VB : int filas
+
+          alt 25e. 0 filas (RN-01 y RN-15, backstop SP)
+            VB --> FA : throw InvalidOperationException\n("No se pudo autorizar la baja: el vino cambió de estado, de stock o de\npedido de reposición. Actualice e intente nuevamente.")
+          else 1 fila
+            VB -> BB : RegistrarAccion(sesion.Usuario,\n"AUTORIZACION_BAJA_VINO:" + s.VinoCodigo)
+            BB -> TD : Registrar(usuario, accion)
+            TD -> DB : BITACORA_INSERTAR(@usuario,@accion)
+            DB --> TD : filas afectadas
+            TD --> BB : void
+            BB --> VB : void
+            VB --> FA : void
+            FA --> A : "Vino descontinuado correctamente."\n(título "Éxito")
+            FA -> FA : txtMotivoRechazo.Clear()
+            FA -> FA : CargarPendientes()
+            FA -> VB : ListarSolicitudesPendientes(TipoSolicitud.Baja)
+            VB -> SD : ListarPendientes(TipoSolicitud.Baja)
+            SD -> DB : SOLICITUD_LISTAR_PENDIENTES(@tipo)
+            DB --> SD : filas (solicitud + emisor + datos del vino + stock actual)
+            SD --> VB : List<SolicitudAutorizacion>
+            VB --> FA : List<SolicitudAutorizacion>
+            FA -> FA : dgvPendientesBaja.DataSource = solicitudes; ocultar columnas;\nActualizarEncabezados(); ActualizarSeleccion()\n(MostrarDetalle + ActualizarEstadoBotones)
+          end
         end
       end
     end

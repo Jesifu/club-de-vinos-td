@@ -85,8 +85,8 @@ class "Pedido de Reposición" as PedidoReposicion {
 
 class "Línea de Pedido" as PedidoLinea {
   Cantidad sugerida
-  Cantidad pedida
-  Cantidad recibida
+  {field} Cantidad pedida (hasta 100000)
+  {field} Cantidad recibida (hasta 100000)
 }
 
 Bodega      "1" -down- "0..*" Vino            : produce >
@@ -126,6 +126,7 @@ note bottom of PedidoReposicion
   Aprobado → Recibido. Un vino no puede estar en más de un
   pedido abierto (Pendiente o Aprobado). Lo aprobado y aún no
   recibido es "en camino" y se descuenta de la sugerencia.
+  Un vino con pedido abierto no puede darse de baja (RN-15).
 end note
 
 note bottom of MovimientoStock
