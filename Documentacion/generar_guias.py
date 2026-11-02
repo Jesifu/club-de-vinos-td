@@ -1206,17 +1206,24 @@ def guia_operacion():
     g.p("Para el uso funcional de la aplicación consulte la Guía del Usuario; para compilar, extender o diagnosticar el código, la Guía de Mantenimiento.")
     g.h2("Modelo de despliegue")
     g.p("El sistema se despliega en **una sola computadora**: la aplicación de escritorio (`CAPAS.exe`) y la base de datos SQL Server (`BDCAPAS`) "
-        "residen en el mismo equipo. La aplicación se conecta con autenticación de Windows a la instancia **predeterminada** (`.`) del equipo "
-        "(cadena de conexión fija en `DAL\\Acceso.cs`). Esto tiene dos consecuencias que se retoman más adelante:")
+        "residen en el mismo equipo. La aplicación se conecta con autenticación de Windows al servidor o instancia que se eligió al instalar. "
+        "Al iniciar, `DAL\\Acceso.cs` resuelve el servidor una sola vez, en este orden de prioridad:")
+    g.pasos([
+        "La variable de entorno `CLUBVINOS_SQL` (`servidor\\instancia`), pensada como excepción de soporte.",
+        "El valor `SqlInstance` del registro de Windows (`HKLM\\Software\\Club de Vinos`), que escribe el instalador con la instancia elegida en la pantalla **Instancia de SQL Server** (incluso con “Instalar solo la aplicación”).",
+        "Si ninguno existe o no puede leerse, la instancia predeterminada (`.`).",
+    ])
+    g.p("Esto tiene tres consecuencias:", mantener=True)
     g.bullets([
-        "Si la base se crea en una instancia con nombre (por ejemplo `.\\SQLEXPRESS`) o en un servidor remoto, la aplicación **no se conectará** hasta que se modifique la cadena de conexión y se recompile (Guía de Mantenimiento).",
-        "No hay una arquitectura cliente-servidor lista para varios equipos: cada equipo con la aplicación necesita su propia base local.",
+        "Una instancia con nombre (por ejemplo `.\\SQLEXPRESS`) funciona sin recompilar: basta con elegirla en el instalador. Para cambiarla después, defina `CLUBVINOS_SQL` o reinstale eligiendo otra instancia.",
+        "Al abrir la aplicación se prueba la conexión (espera como máximo 5 segundos). Si no hay base accesible, se muestra el aviso “No se pudo conectar con la base de datos de Club de Vinos” con el servidor probado, el motivo y los pasos a seguir, y los botones **Reintentar** y **Cancelar**.",
+        "No hay una arquitectura cliente-servidor lista para varios equipos: cada equipo con la aplicación necesita su propia base local (el servidor remoto es posible, pero no se ofrece como configuración soportada).",
     ])
     g.h2("Requisitos")
     g.tabla(["Componente", "Requisito"], [
         ["Sistema operativo", "Windows 10 u 11."],
         ["Plataforma", ".NET Framework 4.8."],
-        ["Base de datos", "SQL Server local (por ejemplo, SQL Server Express) con la instancia predeterminada para que la aplicación pueda conectarse."],
+        ["Base de datos", "SQL Server local (por ejemplo, SQL Server Express), en la instancia predeterminada o en una instancia con nombre que se elige durante la instalación."],
         ["Permisos para instalar", "Cuenta de Windows con privilegios de administrador (el MSI es por equipo y pide elevación). La base se crea con autenticación de Windows."],
         ["Herramienta de línea de comandos", "`sqlcmd` (herramientas de SQL Server), necesaria solo para ejecutar el script a mano o usar `EjecutarScript.cmd`."],
         ["Visor de PDF", "Cualquier lector de PDF, para abrir remitos e informes."],
@@ -1232,7 +1239,7 @@ def guia_operacion():
         ["Accesos directos", "“Club de Vinos” en el menú Inicio y en el Escritorio."],
         ["Base de datos", "`BDCAPAS` en la instancia elegida, creada si no existe, y ejecución de `DAL\\script.sql` (tablas, procedimientos, datos iniciales, datos de demostración)."],
         ["Carpeta `BaseDeDatos`", "Dentro de la carpeta de instalación: copia de `script.sql` y `EjecutarScript.cmd`, útiles para crear la base más tarde."],
-        ["Registro de Windows", "`HKLM\\Software\\Club de Vinos`, valor `DatabaseInstalled = 1` (cuando se crea la base)."],
+        ["Registro de Windows", "`HKLM\\Software\\Club de Vinos`: `SqlInstance` (cadena con la instancia elegida, que la aplicación lee al iniciar; se quita al desinstalar) y `DatabaseInstalled = 1` (cuando se crea la base)."],
     ], [4.4, 12.2])
     g.nota("La base de datos **nunca se elimina** al desinstalar o actualizar. La carpeta de instalación es de solo lectura para los usuarios comunes, por lo que "
            "la aplicación escribe sus archivos propios en la carpeta del usuario (sección 8).")
@@ -1240,7 +1247,7 @@ def guia_operacion():
     g.h2("Antes de instalar")
     g.bullets([
         "Verifique que el equipo tenga Windows 10/11 y .NET Framework 4.8.",
-        "Verifique que haya una instancia de SQL Server instalada. Para el funcionamiento normal use la instancia predeterminada (`MSSQLSERVER`, que el asistente muestra como “(local) - instancia predeterminada (MSSQLSERVER)”).",
+        "Verifique que haya una instancia de SQL Server instalada. Puede usar la instancia predeterminada (`MSSQLSERVER`, que el asistente muestra como “(local) - instancia predeterminada (MSSQLSERVER)”) o una instancia con nombre (por ejemplo `.\\SQLEXPRESS`): la aplicación usará la que elija en el asistente.",
         "Cierre la aplicación si ya estaba instalada y haga un respaldo de la base si se trata de una actualización (sección 6).",
         "Ejecute el instalador con una cuenta con privilegios de administrador o acepte el aviso de Control de cuentas de usuario (UAC).",
     ])
@@ -1325,7 +1332,7 @@ def guia_operacion():
     ], [3.4, 13.2])
 
     g.h2("Instalación silenciosa")
-    g.p("Una instalación silenciosa (`/qn`) no muestra el asistente: usa la instancia predeterminada (`.`) o el valor pasado por línea de comandos. "
+    g.p("Una instalación silenciosa (`/qn`) no muestra el asistente: usa el valor pasado por línea de comandos (`SQLINSTANCE`), si no el de una instalación previa y, en su defecto, la instancia predeterminada (`.`). "
         "Aun así se valida el servicio y la conexión antes de copiar archivos; si no hay SQL Server instalado, fallará salvo que se indique `SQLSKIPDB=1`. "
         "Un cuadro Reintentar/Cancelar se responde automáticamente en modo silencioso (la instalación falla y se revierte).", mantener=True)
     g.codigo("msiexec /i ClubDeVinos.msi /qn /l*v install.log\n"
@@ -1345,8 +1352,8 @@ def guia_operacion():
         "Cambie de inmediato la contraseña de `admin` en **Configuración > Cambiar Contraseña**. La contraseña inicial `1234` **no cumple** la política de contraseñas, por lo que la nueva debe tener 6 o más caracteres, una mayúscula y un número.",
         "Revise los usuarios de prueba (sección 4) y decida cuáles conservar.",
     ])
-    g.nota("Si el servicio de SQL Server está detenido o la base no es accesible en la instancia predeterminada, la aplicación no podrá iniciar sesión: la ventana de acceso se muestra, "
-           "pero al presionar **Ingresar** el error de conexión no se controla con un mensaje propio y .NET muestra su ventana estándar de excepción no controlada (sección 9).",
+    g.nota("Si el servicio de SQL Server está detenido o la base no es accesible en la instancia configurada, la aplicación lo detecta al abrirse (prueba de conexión de hasta 5 segundos) "
+           "y muestra el aviso “No se pudo conectar con la base de datos de Club de Vinos” con el servidor probado y el motivo. Corrija el problema y elija **Reintentar**, o **Cancelar** para salir (sección 9).",
            tipo="Importante")
 
     # ---------------- 4 ----------------
@@ -1706,7 +1713,7 @@ def guia_mantenimiento():
         "**Siempre con `SqlParameter`** (previene inyección SQL). `Acceso.CrearParametro` solo tiene sobrecargas para `string` e `int`: un `bool` se pasa como `valor ? 1 : 0` y un `int?` o un `decimal` se construyen a mano (`new SqlParameter(\"@x\", SqlDbType.Int) { Value = (object)v ?? DBNull.Value }`).",
         "`Acceso.Leer()` devuelve un `DataTable`; `Acceso.Escribir()` devuelve el número de filas. Los SP de escritura devuelven `SELECT @filas AS FILAS` y se leen con `Leer` (porque `ExecuteNonQuery` suma los conteos de todas las sentencias): **0 filas = operación rechazada**.",
         "Patrón de uso: `Abrir()` → comando → `Cerrar()` en `finally`. Las operaciones de varios pasos usan `IniciarTx()` / `ConfirmarTX()` / `DeshacerTX()` en el DAL, o una transacción dentro del propio SP.",
-        "La cadena de conexión está fija en `DAL\\Acceso.cs`: `initial catalog=BDCAPAS; Data Source=.; Integrated Security=SSPI`.",
+        "La cadena de conexión se arma en `DAL\\Acceso.cs` (autenticación de Windows, base `BDCAPAS`). El servidor se resuelve una sola vez, sin lanzar excepciones: variable de entorno `CLUBVINOS_SQL` > valor `SqlInstance` de `HKLM\\Software\\Club de Vinos` (vista de 64 bits y luego de 32) > `.`. `DAL\\ConexionDAL.cs` (vía `BLL\\ConexionBLL.cs`) prueba la conexión con un tiempo de espera de 5 segundos y `CAPAS\\ErrorInicio.cs` muestra el aviso Reintentar/Cancelar al arrancar.",
     ])
     g.h2("Seguridad")
     g.bullets([
@@ -1734,18 +1741,28 @@ def guia_mantenimiento():
     g.p("Puntos de diseño relevantes: el estado del vino (`VINO.ESTADO`) solo guarda el ciclo de vida (Pendiente, Activo, Rechazado, Descontinuado); las aprobaciones viven en `SOLICITUD_AUTORIZACION`. "
         "El stock se deriva del kardex (Entrada suma, el resto resta) y nunca se almacena. La composición efectiva de una caja se calcula con `CAJA_VINO` y `SUSTITUCION` (solo de agregado).")
     g.h2("Reglas de negocio y dónde se hacen cumplir")
-    g.p("Las reglas se verifican en varias capas (defensa en profundidad). La numeración RN corresponde a los casos de uso CU-21 a CU-32 (`DIAGRAMAS\\CasosDeUso.docx`).", mantener=True)
+    g.p("Las reglas se verifican en varias capas (defensa en profundidad). La numeración RN corresponde a los casos de uso CU-21 a CU-36 (RN-19 a RN-30 pertenecen al Proceso 3, CU-33 a CU-36); el catálogo completo está en el documento de la entrega y en `DIAGRAMAS\\CasosDeUso.docx`.", mantener=True)
     g.tabla(["Regla", "Contenido", "Dónde se aplica"], [
         ["RN-01", "Quien resuelve una solicitud de alta o baja no puede ser su emisor.", "UI (botones), `VinoBLL.ValidarSeparacionDeFunciones`, `WHERE EMISOR_ID <> @resolutor_id` en el SP y CHECK `CK_SOLAUT_RN01`."],
         ["RN-03", "Ninguna salida deja el stock por debajo de cero.", "BLL (mensaje claro) y SP atómico (inserta solo si alcanza)."],
         ["RN-04", "Baja lógica del vino; las cajas congelan nombre y precio.", "SP de baja (cambia `ESTADO`, nunca borra); snapshots en `CajaMensualBLL.Armar`."],
         ["RN-05 / RN-06", "Total de caja ≤ presupuesto; solo vinos Activos con stock.", "UI, `CajaMensualBLL` y SP de candidatos."],
-        ["RN-08 / RN-09", "Una caja no cancelada por socio y período; armar no descuenta stock.", "Índice filtrado `UQ_CAJA_SOCIO_PERIODO`; el único movimiento de kardex del dominio lo genera `CAJA_DESPACHAR`."],
+        ["RN-08 / RN-09", "Una caja solo se opera estando Armada (ciclo unidireccional: Armada -> Despachada | Cancelada); armar no descuenta stock.", "Estado validado en la BLL y los SP; el único movimiento de kardex del dominio lo genera `CAJA_DESPACHAR`."],
+        ["RN-18", "Un socio no tiene más de una caja no cancelada por período (una cancelada no impide re-armar).", "`CajaMensualBLL` e índice único filtrado `UQ_CAJA_SOCIO_PERIODO`."],
         ["RN-10", "Quien armó la caja no sustituye ni despacha.", "UI, BLL y SP (triple guardia)."],
         ["RN-11 / RN-12", "El remito es best-effort; regenerar sobrescribe `Remito_Caja<id>.pdf`.", "`frmDespacharCaja`, `frmHistorialDespachos`, `RemitoDespachoPdf`."],
         ["RN-15", "No se descontinúa un vino con stock.", "`VinoBLL.ValidarSinStock` (al solicitar y al autorizar) y SP."],
         ["RN-16", "Una solicitud pendiente por vino y tipo.", "BLL y índice único filtrado `UX_SOLAUT_PENDIENTE`."],
         ["RN-17", "El rechazo exige motivo de 1 a 200 caracteres.", "UI, `VinoBLL.ValidarMotivo`, SP y CHECK `CK_SOLAUT_MOTIVO`."],
+        ["RN-19", "Ventana de análisis: período inclusivo, “Desde” no posterior a “Hasta”, días = (Hasta − Desde) + 1; días configurables de 1 a 3650.", "`RotacionBLL.Validar` y `RotacionBLL.CantidadDias`; `frmAnalisisRotacion`."],
+        ["RN-20", "Solo se analizan vinos Activos; stock derivado del kardex; vendidas = salidas de referencia Caja; perdidas = salidas de referencia Ajuste (no cuentan como consumo).", "SP `ROTACION_ANALIZAR`."],
+        ["RN-21 / RN-22", "Consumo mensual = unidades vendidas ÷ (días ÷ 30); cobertura = stock ÷ consumo; clasificación Alta rotación, Rotación media, Baja rotación o Sin movimiento según umbrales.", "`RotacionBLL.Evaluar` (función pura)."],
+        ["RN-23 / RN-24", "Recomendación Reponer urgente, Reponer, Mantener o Sobrestock; cantidad sugerida solo para Urgente y Reponer (nunca 0 en Urgente).", "`RotacionBLL.Evaluar` y `ResultadoRotacion.CantidadSugerida`."],
+        ["RN-25 / RN-26", "Los parámetros deben ser coherentes; el archivo XML serializado prevalece y “Analizar” lo guarda y lo relee antes de analizar.", "`RotacionBLL.Validar`; `ConfiguracionRotacionStore` (guardado atómico, defaults si el archivo está dañado)."],
+        ["RN-27", "Solo con el permiso “Analizar rotación de stock” (por defecto Administrador y Encargado de Compras/Bodega).", "`frmMenu.ActualizarVisibilidadMenu`."],
+        ["RN-28", "Si “Hasta” es anterior a hoy se avisa que la cobertura puede no ser representativa (aviso no bloqueante, también en el PDF).", "`frmAnalisisRotacion`, `RotacionReposicionPdf`."],
+        ["RN-29", "La sugerencia no es vinculante: el análisis solo lee, no genera pedidos ni modifica datos.", "SP de solo lectura; `RotacionBLL` no registra bitácora."],
+        ["RN-30", "Informe PDF A4 apaisado, en el idioma activo, con un archivo nuevo por exportación (nunca se sobrescribe).", "`RotacionReposicionPdf`; carpeta `Documentos\\ClubDeVinos\\Informes`."],
     ], [2.2, 6.4, 8.0], tam=9)
     g.nota("Los SP de resolución bloquean primero `VINO` (`UPDLOCK, HOLDLOCK`) y recién después actualizan `SOLICITUD_AUTORIZACION`, para evitar interbloqueos entre aprobar/rechazar y proponer/reproponer. Respete este orden en cualquier SP nuevo.")
 
@@ -1755,7 +1772,7 @@ def guia_mantenimiento():
     g.bullets([
         "Visual Studio 2022 (Community o superior) con la carga de trabajo de escritorio .NET y el paquete de desarrollo de .NET Framework 4.8.",
         "Acceso a NuGet para restaurar `ReaLTaiizor` 3.8.1.8 y `PDFsharp-MigraDoc` 1.50.5147.",
-        "SQL Server local con la instancia predeterminada y `sqlcmd`.",
+        "SQL Server local (instancia predeterminada o con nombre; en desarrollo, defina `CLUBVINOS_SQL` si usa una instancia con nombre) y `sqlcmd`.",
         "Para el MSI: .NET SDK y la herramienta WiX (sección 3.5). Para la documentación: Python 3.12 (sección 8).",
     ])
     g.h2("Compilar la solución")
@@ -1773,7 +1790,7 @@ def guia_mantenimiento():
         "Ejecute `CAPAS.exe` (F5 en Visual Studio) e ingrese con `admin` / `1234`, o con las cuentas de prueba (contraseña `Club2026`).",
     ])
     g.h2("Pruebas")
-    g.p("**No hay pruebas automatizadas**: la verificación es manual sobre la aplicación en ejecución. Los datos de demostración del script permiten recorrer los casos de uso CU-21 a CU-32 "
+    g.p("**No hay pruebas automatizadas**: la verificación es manual sobre la aplicación en ejecución. Los datos de demostración del script permiten recorrer los casos de uso CU-21 a CU-36 "
         "(Guía de Operación, sección “Datos de demostración y cuentas de prueba”). Tras un cambio, recorra como mínimo: inicio de sesión y menú por rol; el circuito de alta, autorización y baja de vinos; "
         "armado, sustitución y despacho de una caja (con remito); el análisis de rotación con su exportación; y el cambio de idioma.")
 
@@ -1959,8 +1976,8 @@ def guia_mantenimiento():
     # ---------------- 9 ----------------
     g.h1("Limitaciones conocidas y deuda técnica")
     g.tabla(["Tema", "Descripción", "Impacto y sugerencia"], [
-        ["Cadena de conexión fija", "`DAL\\Acceso.cs` apunta a `Data Source=.` (instancia predeterminada); hay una alternativa comentada para otra instancia.",
-         "Una instancia con nombre o un servidor remoto no funcionan aunque el instalador cree allí la base. Leer la cadena de `App.config` o de una variable de entorno."],
+        ["Resolución del servidor SQL", "`DAL\\Acceso.cs` toma el servidor de `CLUBVINOS_SQL`, del registro (`HKLM\\Software\\Club de Vinos\\SqlInstance`, escrito por el instalador) o `.`; solo cambia el servidor, no el nombre de la base (`BDCAPAS`) ni la autenticación de Windows. Se resuelve una vez por proceso (cambiarla exige reabrir la aplicación).",
+         "Un servidor remoto o una autenticación SQL requieren modificar `Acceso.cs`. La variable `CLUBVINOS_SQL` no se aplica al **Reintentar** de una sesión ya abierta."],
         ["Sin pruebas automatizadas", "La verificación es manual.", "Riesgo de regresiones. Empezar por pruebas de BLL con una base de prueba."],
         ["Integridad acotada", "Los dígitos verificadores cubren solo `USUARIO` (más sus roles asignados) y se verifican solo al arrancar. `BITACORA`, `ROL`, `PERMISO` y `ROL_PERMISO` no están protegidos. Una mutación posterior acepta como válidos datos ya corrompidos.",
          "Ampliar la cobertura (sección 5.5) o verificar periódicamente."],
@@ -1968,14 +1985,14 @@ def guia_mantenimiento():
         ["Política de contraseñas parcial", "`frmNuevoUsuario` y `UsuarioBLL.Crear` solo exigen contraseña no vacía.", "Aplicar `ValidadorContrasena` al crear."],
         ["Sin restablecimiento de contraseña", "No existe una función para que un administrador restablezca la contraseña de otro usuario.", "Agregar un procedimiento controlado con registro en historial."],
         ["Cajas sin cancelación en la UI", "`CajaMensualBLL.Cancelar` existe, pero no hay formulario; las cajas canceladas solo vienen de los datos de prueba.", "Agregar la pantalla (con motivo y separación de funciones)."],
-        ["Manejo de errores", "No hay `try/catch` global ni `Application.ThreadException`; un error de conexión o inesperado muestra el diálogo estándar de .NET.", "Agregar un manejador global y mensajes claros."],
+        ["Manejo de errores", "`ErrorInicio.Instalar()` registra `ThreadException` y `UnhandledException`: los errores de conexión muestran un aviso propio y el resto un diálogo genérico en español con el detalle. Los textos están fijos en español porque las traducciones viven en la base, que puede no estar disponible.", "Los errores de negocio siguen mostrándose con `MsgBox` en cada formulario; no hay registro de errores en archivo, salvo el de integridad."],
         ["Cierre de la aplicación", "El formulario de login original queda oculto tras iniciar sesión y no se encontró una llamada a `Application.Exit`; por inspección del código, el proceso podría seguir activo tras cerrar el menú (no verificado en ejecución).", "Verificar el comportamiento y cerrar la aplicación al cerrar el menú."],
         ["Mensajes sin traducción", "Los textos de `MsgBox` y de las excepciones están en español fijo.", "Pasar los mensajes por `IdiomaManager`."],
         ["Remanentes legados", "`NODO_PERMISO` (sin uso desde la migración a `ROL`/`PERMISO`), `PERSONA` (puede existir en bases creadas antes), `UI_TemporaryKey.pfx` en `CAPAS\\` (no referenciado por `UI.csproj`).", "Eliminar tras verificar."],
         ["Versiones de .NET", "Las bibliotecas apuntan a 4.7.2 y la interfaz a 4.8; `App.config` declara `sku=\".NETFramework,Version=v4.7.2\"`.", "Unificar (compatible en la práctica porque 4.8 es una actualización de 4.7.2)."],
         ["Documentación desactualizada", "`README.md` aún describe `NODO_PERMISO`, cinco permisos, rutas de diagramas en la raíz, `sqlcmd` sin `-I`/`-f 65001` y la firma antigua de `TRADUCCION_GUARDAR` (la real recibe `idioma_id`, `control_id`, `texto`). `CLAUDE.md` describe en “Permissions check flow” una herencia de roles ya eliminada.",
          "Actualizar ambos archivos; mientras tanto, prevalece el código y `script.sql`."],
-        ["Despliegue de un solo equipo", "Aplicación y base locales; no hay modo cliente-servidor.", "Parametrizar la conexión y revisar permisos de SQL Server si se necesita acceso en red."],
+        ["Despliegue de un solo equipo", "Aplicación y base locales; no hay modo cliente-servidor.", "Si se necesita acceso en red, soportar servidores remotos y revisar los permisos de SQL Server."],
     ], [3.2, 7.4, 6.0], tam=9)
 
     # ---------------- 10 ----------------
@@ -1988,7 +2005,7 @@ def guia_mantenimiento():
         ["`cannot insert NULL into IDIOMA_ID` o tildes corruptas.", "Script ejecutado sin `-f 65001`.", "Reejecutar con `-I -f 65001`."],
         ["Error 1934 al ejecutar el script.", "Falta `-I`.", "Reejecutar con `-I`."],
         ["Aparece la ventana de integridad tras tocar la base a mano.", "DVH/DVV desactualizados.", "Elegir “Recalcular y continuar” o borrar los DVV de `USUARIO` (sección 4)."],
-        ["La aplicación no conecta.", "Servicio detenido, base ausente o instancia distinta de `.`.", "Verificar con `sqlcmd -S . -E -Q \"SELECT DB_ID('BDCAPAS')\"`; ver la limitación de conexión fija."],
+        ["La aplicación no conecta.", "Servicio detenido, base ausente, o servidor distinto del que resuelve `Acceso.cs` (`CLUBVINOS_SQL` > registro `SqlInstance` > `.`).", "Leer el servidor probado en el aviso; verificar con `sqlcmd -S <servidor> -E -Q \"SELECT DB_ID('BDCAPAS')\"`; revisar `CLUBVINOS_SQL` y el valor del registro."],
         ["`wix` falla por la licencia.", "No se aceptó la EULA.", "`wix eula accept wix7`."],
         ["El MSI no reemplaza a la versión anterior.", "La versión nueva no es mayor en alguno de los tres primeros campos.", "Incrementar `Version` en `Package.wxs`."],
         ["Textos con tildes corruptos tras instalar con el MSI.", "`script.sql` guardado sin codificación UTF-8 (la conversión a UTF-16 LE parte de UTF-8) o un `script.utf16.sql` obsoleto.", "Verificar que `script.sql` sea UTF-8 con BOM, borrar `Instalador\\obj` y recompilar."],

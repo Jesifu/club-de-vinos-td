@@ -2083,6 +2083,7 @@ CUS = [
         "postcondiciones_exito": [
             "Se crea una CAJA_MENSUAL en estado Armada, con presupuesto congelado (PRESUPUESTO_SNAPSHOT).",
             "Cada línea CAJA_VINO queda con NOMBRE_SNAPSHOT y PRECIO_SNAPSHOT congelados (RN-04).",
+            "Queda como única caja no cancelada del socio para ese período (RN-18).",
         ],
         "postcondiciones_fallo": [
             "Si la suma de las líneas supera el presupuesto del socio: no se persiste ninguna línea ni la caja.",
@@ -2107,14 +2108,14 @@ CUS = [
             "El sistema muestra el presupuesto mensual del socio y el total de la caja en $0.",
             "El Usuario selecciona un vino candidato, indica la cantidad y presiona \"Agregar a la caja\"; el sistema recalcula el total en cada línea y mantiene deshabilitado \"Confirmar armado\" si no hay líneas, el período no tiene el formato AAAA-MM o el total supera el presupuesto.",
             "El Usuario presiona \"Confirmar armado\".",
-            "El sistema valida el total contra el presupuesto (RN-05.1), la unicidad del período (RN-08) y que cada línea siga cumpliendo RN-06, e inserta la caja y sus líneas en una única transacción, dejándola en estado Armada.",
+            "El sistema valida el total contra el presupuesto (RN-05.1), la unicidad del período (RN-18) y que cada línea siga cumpliendo RN-06, e inserta la caja y sus líneas en una única transacción, dejándola en estado Armada.",
             "El sistema informa que la caja quedó armada (\"Caja armada correctamente.\") y limpia el formulario.",
         ],
         "flujos_alternativos": [
             {"id": "8a", "nombre": "El total supera el presupuesto mensual (RN-05.1)",
              "pasos": ["El sistema muestra \"El total de la caja supera el presupuesto mensual del socio.\"",
                        "El caso de uso vuelve al paso 6."]},
-            {"id": "8b", "nombre": "Ya existe una caja no cancelada del socio para el período (RN-08)",
+            {"id": "8b", "nombre": "Caja existente para el período (RN-18)",
              "pasos": ["El sistema muestra \"El socio ya tiene una caja armada para ese período.\"",
                        "El caso de uso vuelve al paso 3."]},
             {"id": "8c", "nombre": "Una línea dejó de cumplir RN-06 durante la selección",
@@ -2126,8 +2127,8 @@ CUS = [
             {"codigo": "RN-04", "regla": "Cada línea de caja congela NOMBRE y PRECIO del vino al momento del armado (snapshot)."},
             {"codigo": "RN-05", "regla": "La suma de las líneas no puede exceder el presupuesto del socio (tope duro, RN-05.1); los varietales preferidos solo ordenan candidatos, nunca excluyen (RN-05.2)."},
             {"codigo": "RN-06", "regla": "Solo pueden incluirse vinos Activos, autorizados y con stock derivado mayor a cero (catálogo gobernado)."},
-            {"codigo": "RN-08", "regla": "Un socio no puede tener más de una caja no cancelada por período."},
             {"codigo": "RN-09", "regla": "Armar una caja no reserva ni descuenta stock; la salida se registra recién al despachar (ver CU-31)."},
+            {"codigo": "RN-18", "regla": "Unicidad de caja por socio y período: un socio no puede tener más de una caja no cancelada por período; una caja cancelada no impide re-armar. La verifica la BLL y la respalda un índice único filtrado (UQ_CAJA_SOCIO_PERIODO)."},
         ],
         "relaciones": [
             {"tipo": "«precede» a", "destino": "CU-29 Registrar Sustitución por Falta de Stock",
@@ -2361,6 +2362,7 @@ CUS = [
             "La caja pasa a estado Despachada.",
             "Se crea un MOVIMIENTO_STOCK de tipo Salida por cada línea efectiva de la caja, referenciando la caja (REFERENCIA_TIPO='CAJA', REFERENCIA_ID=caja).",
             "Se genera y abre el Remito de Despacho en PDF (Documentos\\ClubDeVinos\\Remitos\\Remito_Caja{id}.pdf); si la generación falla, el despacho ya confirmado no se revierte (RN-11).",
+            "El domicilio o el teléfono del socio no informados se imprimen en el remito como \"(no informado)\" (RN-14).",
         ],
         "postcondiciones_fallo": [
             "Si la caja no está en estado Armada: se rechaza y no se genera ningún movimiento.",
@@ -2441,7 +2443,7 @@ CUS = [
         ],
         "postcondiciones_exito": [
             "El Remito de Despacho de la caja seleccionada se regenera, sobrescribiendo "
-            "Documentos\\ClubDeVinos\\Remitos\\Remito_Caja{id}.pdf en el mismo path, sin sufijo de timestamp (RN-12), y se abre.",
+            "Documentos\\ClubDeVinos\\Remitos\\Remito_Caja{id}.pdf en el mismo path, sin sufijo de timestamp (RN-12), y se abre. Al regenerarse, el domicilio o el teléfono no informados se imprimen como \"(no informado)\" (RN-14).",
         ],
         "postcondiciones_fallo": [
             "Si la generación del PDF falla: se muestra un mensaje de error y no se abre ningún "
