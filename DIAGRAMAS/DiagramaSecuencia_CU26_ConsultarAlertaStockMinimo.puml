@@ -16,7 +16,7 @@ participant ":VinoDAL"                 as VD #E8E8F4
 database    ":DB"                      as DB #EEEEEE
 
 note over FA
-  Precondición: sesión activa; permiso "Gestionar catálogo de vinos".
+  Precondición: sesión activa; permiso "Gestionar stock de vinos".
   Consulta pasiva: no hay aviso automático al iniciar sesión ni registro en Bitácora.
 end note
 

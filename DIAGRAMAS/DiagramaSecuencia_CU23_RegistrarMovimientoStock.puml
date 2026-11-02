@@ -20,7 +20,7 @@ participant ":BitacoraDAL"                as TD #E8E8F4
 database    ":DB"                         as DB #EEEEEE
 
 note over FE
-  Precondición: sesión activa; permiso "Gestionar catálogo de vinos";
+  Precondición: sesión activa; permiso "Gestionar stock de vinos";
   existe al menos un vino autorizado y activo.
   sesion = SessionManager.getInstance().getUsuario().
 end note

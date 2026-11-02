@@ -1051,7 +1051,7 @@ CUS = [
         ],
         "excepciones": [],
         "reglas_negocio": [
-            {"codigo": "RN-01", "regla": "El catálogo de permisos es estático y no se crea ni se elimina desde la UI: \"Administrar usuarios\", \"Gestión de roles\", \"Gestión de idiomas\", \"Ver bitácora\", \"Cambiar contraseña\", \"Gestionar catálogo de vinos\", \"Autorizar alta de vinos\", \"Gestionar socios\", \"Armar cajas mensuales\", \"Registrar picking y sustituciones\" y \"Despachar cajas\"."},
+            {"codigo": "RN-01", "regla": "El catálogo de permisos es estático y no se crea ni se elimina desde la UI: \"Administrar usuarios\", \"Gestión de roles\", \"Gestión de idiomas\", \"Ver bitácora\", \"Cambiar contraseña\", \"Gestionar catálogo de vinos\", \"Gestionar stock de vinos\", \"Autorizar alta de vinos\", \"Gestionar socios\", \"Armar cajas mensuales\", \"Registrar picking y sustituciones\" y \"Despachar cajas\"."},
             {"codigo": "RN-02", "regla": "Guardar reemplaza completamente la lista anterior — no es incremental."},
             {"codigo": "RN-03", "regla": "La operación se ejecuta en una transacción (LIMPIAR + N × INSERTAR) para garantizar consistencia."},
         ],
@@ -1349,7 +1349,7 @@ CUS = [
             "con el mismo SKU."
         ),
         "precondiciones": [
-            "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar catálogo de vinos\".",
+            "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar stock de vinos\".",
             "La bodega del vino ya existe en BODEGA y está habilitada.",
             "Para una alta nueva: el código/SKU del vino no está registrado previamente en VINO.",
             "Para una re-propuesta: el vino está en estado Rechazado y no tiene una solicitud de alta pendiente.",
@@ -1606,7 +1606,7 @@ CUS = [
              "extension": "Recalcular y notificar si el vino queda por debajo de STOCK_MINIMO — la notificación activa es fuera de alcance; ver CU-26 Consultar Alerta de Stock Mínimo (consulta pasiva)."},
         ],
         "grafico_cu_desc": (
-            "Actor: Usuario (permiso \"Gestionar catálogo de vinos\")\n"
+            "Actor: Usuario (permiso \"Gestionar stock de vinos\")\n"
             "  ──> (Registrar Movimiento de Stock — Entrada)"
         ),
         "flujo_principal": [
@@ -1906,13 +1906,13 @@ CUS = [
         "frecuencia": "Media",
         "prioridad": "Media",
         "proposito": (
-            "Permitir que el Usuario con el permiso \"Gestionar catálogo de vinos\" consulte, bajo "
+            "Permitir que el Usuario con el permiso \"Gestionar stock de vinos\" consulte, bajo "
             "demanda, los vinos cuyo stock actual esté por debajo de su STOCK_MINIMO configurado. "
             "Es una consulta pasiva (Decisión D9 del diseño): no hay un push automático al iniciar "
             "sesión, dado que la aplicación es WinForms de escritorio sin scheduler."
         ),
         "precondiciones": [
-            "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar catálogo de vinos\".",
+            "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar stock de vinos\".",
         ],
         "postcondiciones_exito": [
             "Se muestra al Usuario la lista de vinos con stock actual menor a su STOCK_MINIMO.",
@@ -1963,7 +1963,7 @@ CUS = [
             "respetando el bloqueo por stock cero (RN-03) en el sentido negativo."
         ),
         "precondiciones": [
-            "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar catálogo de vinos\".",
+            "El Usuario inició sesión correctamente y tiene el permiso \"Gestionar stock de vinos\".",
             "El vino sobre el que se registra el ajuste existe en VINO.",
         ],
         "postcondiciones_exito": [
@@ -1979,7 +1979,7 @@ CUS = [
              "extension": "Recalcular y notificar si el vino queda por debajo de STOCK_MINIMO — la notificación activa es fuera de alcance; ver CU-26 Consultar Alerta de Stock Mínimo (consulta pasiva)."},
         ],
         "grafico_cu_desc": (
-            "Actor: Usuario (permiso \"Gestionar catálogo de vinos\")\n"
+            "Actor: Usuario (permiso \"Gestionar stock de vinos\")\n"
             "  ──> (Registrar Ajuste de Inventario)\n\n"
             "(Registrar Ajuste de Inventario) incluye dos variantes internas:\n"
             "  - Ajuste positivo (corrección de conteo a favor)\n"
