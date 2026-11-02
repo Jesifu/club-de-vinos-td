@@ -6013,3 +6013,110 @@ EXEC TRADUCCION_GUARDAR @espIdRot4, @cidRot4, 'Sin datos para graficar'
 EXEC TRADUCCION_GUARDAR @ingIdRot4, @cidRot4, 'No data to chart'
 EXEC TRADUCCION_GUARDAR @ptIdRot4, @cidRot4, 'Sem dados para o gráfico'
 GO
+
+-- ============================================================
+-- i18n — N03 informe PDF en el idioma activo: títulos, encabezado, rótulos de columnas y
+-- notas del PDF, más los mensajes de la exportación. Reutiliza rot_rec_*, rot_clas_*,
+-- rot_UnidadesSugeridas, rot_gra_EjeVino y colhdr_*. Idempotente: CONTROL_REGISTRAR y
+-- TRADUCCION_GUARDAR son upserts.
+-- ============================================================
+EXEC CONTROL_REGISTRAR 'rot_pdf_Titulo', 'INFORME DE ROTACIÓN Y REPOSICIÓN DE STOCK'
+EXEC CONTROL_REGISTRAR 'rot_pdf_Periodo', 'Período analizado: {0} al {1} ({2} días)'
+EXEC CONTROL_REGISTRAR 'rot_pdf_Generado', 'Fecha de generación: {0}'
+EXEC CONTROL_REGISTRAR 'rot_pdf_Umbrales', 'Umbrales: alta rotación >= {0} u/mes; baja rotación < {1} u/mes'
+EXEC CONTROL_REGISTRAR 'rot_pdf_Cobertura', 'Cobertura (meses): urgente < {0}; reponer < {1}; sobrestock > {2}; objetivo = {3}'
+EXEC CONTROL_REGISTRAR 'rot_pdf_NotaStock', 'Nota: el stock es el del día de generación del informe; la cobertura puede no ser representativa para períodos que terminan antes de esa fecha.'
+EXEC CONTROL_REGISTRAR 'rot_pdf_Resumen', 'Resumen ({0} vinos activos analizados)'
+EXEC CONTROL_REGISTRAR 'rot_pdf_ColStock', 'Stock'
+EXEC CONTROL_REGISTRAR 'rot_pdf_ColConsMes', 'Cons./mes'
+EXEC CONTROL_REGISTRAR 'rot_pdf_ColSocios', 'Socios'
+EXEC CONTROL_REGISTRAR 'rot_pdf_ColAReponer', 'A reponer'
+EXEC CONTROL_REGISTRAR 'rot_pdf_NotaFormula1', 'Consumo mensual = unidades vendidas por cajas / (días del período / 30). Cobertura = stock actual / consumo mensual. Las pérdidas son salidas por ajustes de inventario.'
+EXEC CONTROL_REGISTRAR 'rot_pdf_NotaFormula2', 'A reponer (solo vinos a reponer o a reponer con urgencia) = máx(consumo mensual × cobertura objetivo; stock mínimo) - stock actual, redondeado hacia arriba.'
+-- CONTROL_REGISTRAR only inserts: fix defaults stored with non-cp1252 chars (>= and minus were degraded to '=' and '-')
+UPDATE CONTROL_IDIOMA SET TEXTO_DEFAULT = 'Umbrales: alta rotación >= {0} u/mes; baja rotación < {1} u/mes' WHERE CLAVE = 'rot_pdf_Umbrales'
+UPDATE CONTROL_IDIOMA SET TEXTO_DEFAULT = 'A reponer (solo vinos a reponer o a reponer con urgencia) = máx(consumo mensual × cobertura objetivo; stock mínimo) - stock actual, redondeado hacia arriba.' WHERE CLAVE = 'rot_pdf_NotaFormula2'
+EXEC CONTROL_REGISTRAR 'rot_pdf_MsgTitulo', 'Informe'
+DECLARE @msgExito NVARCHAR(200) = 'Informe generado en:' + CHAR(10) + '{0}'
+EXEC CONTROL_REGISTRAR 'rot_pdf_MsgExito', @msgExito
+EXEC CONTROL_REGISTRAR 'rot_pdf_MsgErrorTitulo', 'Error'
+EXEC CONTROL_REGISTRAR 'rot_pdf_MsgError', 'No se pudo generar el informe en PDF. Verifique que la carpeta Documentos sea escribible.'
+GO
+
+DECLARE @espIdRot5 INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @ingIdRot5 INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @ptIdRot5  INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+DECLARE @cidRot5   INT
+DECLARE @msgExito NVARCHAR(200)
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_Titulo')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'INFORME DE ROTACIÓN Y REPOSICIÓN DE STOCK'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'STOCK TURNOVER AND REPLENISHMENT REPORT'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'RELATÓRIO DE GIRO E REPOSIÇÃO DE ESTOQUE'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_Periodo')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'Período analizado: {0} al {1} ({2} días)'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'Analyzed period: {0} to {1} ({2} days)'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Período analisado: {0} a {1} ({2} dias)'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_Generado')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'Fecha de generación: {0}'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'Generated on: {0}'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Data de geração: {0}'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_Umbrales')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'Umbrales: alta rotación >= {0} u/mes; baja rotación < {1} u/mes'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'Thresholds: high turnover >= {0} units/month; low turnover < {1} units/month'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Limites: alto giro >= {0} un./mês; baixo giro < {1} un./mês'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_Cobertura')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'Cobertura (meses): urgente < {0}; reponer < {1}; sobrestock > {2}; objetivo = {3}'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'Coverage (months): urgent < {0}; replenish < {1}; overstock > {2}; target = {3}'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Cobertura (meses): urgente < {0}; repor < {1}; excesso > {2}; meta = {3}'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_NotaStock')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'Nota: el stock es el del día de generación del informe; la cobertura puede no ser representativa para períodos que terminan antes de esa fecha.'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'Note: stock is as of the day the report is generated; coverage may not be representative for periods ending before that date.'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Nota: o estoque é o do dia de geração do relatório; a cobertura pode não ser representativa para períodos que terminam antes dessa data.'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_Resumen')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'Resumen ({0} vinos activos analizados)'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'Summary ({0} active wines analyzed)'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Resumo ({0} vinhos ativos analisados)'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_ColStock')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'Stock'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'Stock'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Estoque'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_ColConsMes')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'Cons./mes'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'Cons./month'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Cons./mês'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_ColSocios')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'Socios'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'Members'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Sócios'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_ColAReponer')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'A reponer'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'To replenish'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'A repor'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_NotaFormula1')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'Consumo mensual = unidades vendidas por cajas / (días del período / 30). Cobertura = stock actual / consumo mensual. Las pérdidas son salidas por ajustes de inventario.'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'Monthly consumption = units sold through boxes / (days in period / 30). Coverage = current stock / monthly consumption. Losses are outflows from inventory adjustments.'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Consumo mensal = unidades vendidas em caixas / (dias do período / 30). Cobertura = estoque atual / consumo mensal. As perdas são saídas por ajustes de inventário.'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_NotaFormula2')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'A reponer (solo vinos a reponer o a reponer con urgencia) = máx(consumo mensual × cobertura objetivo; stock mínimo) - stock actual, redondeado hacia arriba.'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'To replenish (only wines to replenish or to replenish urgently) = max(monthly consumption × target coverage; minimum stock) - current stock, rounded up.'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'A repor (somente vinhos a repor ou a repor com urgência) = máx(consumo mensal × cobertura meta; estoque mínimo) - estoque atual, arredondado para cima.'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_MsgTitulo')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'Informe'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'Report'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Relatório'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_MsgExito')
+SET @msgExito = 'Informe generado en:' + CHAR(10) + '{0}'
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, @msgExito
+SET @msgExito = 'Report generated at:' + CHAR(10) + '{0}'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, @msgExito
+SET @msgExito = 'Relatório gerado em:' + CHAR(10) + '{0}'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, @msgExito
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_MsgErrorTitulo')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'Error'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'Error'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Erro'
+SET @cidRot5 = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_pdf_MsgError')
+EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'No se pudo generar el informe en PDF. Verifique que la carpeta Documentos sea escribible.'
+EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'The PDF report could not be generated. Check that the Documents folder is writable.'
+EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Não foi possível gerar o relatório em PDF. Verifique se a pasta Documentos permite gravação.'
+GO

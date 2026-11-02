@@ -596,8 +596,8 @@ def guia_usuario():
     ], [4.6, 12.0])
     g.p("La guía describe la interfaz en español, que es el idioma predeterminado. Si cambia el idioma de la interfaz "
         "(sección 2.5), los rótulos de pantallas y menús se muestran traducidos, pero los procedimientos son los mismos. "
-        "Los **mensajes de aviso y de error** se muestran siempre en español, y los documentos PDF (remito e informe de "
-        "rotación) también.")
+        "Los **mensajes de aviso y de error** se muestran siempre en español, y el remito de despacho en PDF también. El informe PDF de rotación, en cambio, "
+        "sale en el idioma de la interfaz activo al exportarlo.")
 
     g.h2("Qué necesita para usar el sistema")
     g.bullets([
@@ -1082,7 +1082,7 @@ def guia_usuario():
         "El sistema genera el informe, lo abre y muestra “Informe generado en:” seguido de la ruta del archivo.",
     ])
     g.p("El informe se guarda en **Documentos\\ClubDeVinos\\Informes** con el nombre `Rotacion_AAAAMMDD_HHMMSS_mmm.pdf` (fecha y hora de generación, con milisegundos), "
-        "de modo que cada exportación crea un archivo nuevo. Es un documento A4 apaisado, siempre en español, y contiene: el título “INFORME DE ROTACIÓN Y REPOSICIÓN DE STOCK”, "
+        "de modo que cada exportación crea un archivo nuevo. Es un documento A4 apaisado que se emite en el idioma de la interfaz activo al exportar (los textos sin traducción salen en español; fechas y números mantienen el formato es-AR) y contiene: el título (en español, “INFORME DE ROTACIÓN Y REPOSICIÓN DE STOCK”), "
         "el período analizado, la fecha de generación, los umbrales usados, un resumen con la cantidad de vinos por recomendación y el total de unidades sugeridas a reponer, "
         "los gráficos (la primera página reúne el encabezado, el resumen y los gráficos de consumo vs stock y de distribución por recomendación; la segunda abre con las unidades sugeridas a reponer), "
         "la tabla completa con color por recomendación (incluye la columna “A reponer”) y una nota con las fórmulas. Refleja el **último análisis realizado**, no los cambios que haya hecho después en pantalla. "
@@ -1124,7 +1124,7 @@ def guia_usuario():
         ["¿Dónde quedan los PDF?",
          "Los remitos en Documentos\\ClubDeVinos\\Remitos y los informes de rotación en Documentos\\ClubDeVinos\\Informes."],
         ["Cambié el idioma pero el PDF sigue en español.",
-         "El remito y el informe son documentos comerciales que siempre se emiten en español. Los mensajes de aviso también."],
+         "El remito de despacho siempre se emite en español. El informe de rotación sale en el idioma activo al exportar: cambie el idioma y vuelva a exportar. Los mensajes de aviso del resto del sistema también se muestran en español."],
         ["El análisis de rotación no muestra todos los vinos.",
          "Solo analiza vinos Activos. Los Pendientes, Rechazados y Descontinuados no se incluyen."],
         ["Olvidé mi contraseña.",
@@ -1931,7 +1931,7 @@ def guia_mantenimiento():
         ["`RotacionReposicionPdf`", "Informe de rotación y reposición", "A4 apaisado. `Documentos\\ClubDeVinos\\Informes\\Rotacion_{yyyyMMdd_HHmmss_fff}.pdf` (nombre único). Incluye tres gráficos de `RotacionGraficos`, incrustados como PNG en memoria (`base64:`), sin archivos temporales."],
     ], [4.4, 5.0, 7.2], tam=9)
     g.bullets([
-        "Son clases estáticas **independientes del idioma de sesión**: texto y formato siempre en español y cultura es-AR (documentos comerciales). No implementan `IObservadorIdioma`.",
+        "Son clases estáticas que no implementan `IObservadorIdioma`. `RemitoDespachoPdf` es **independiente del idioma de sesión** (siempre español, es-AR). `RotacionReposicionPdf.Generar` recibe un `Func<string,string> traducir` opcional (el mismo traductor del formulario, claves `rot_pdf_*` más las `colhdr_*`/`rot_rec_*`/`rot_clas_*` existentes): sin traductor o sin traducción de una clave, el texto sale en español; fechas y números siguen en es-AR porque `IDIOMA` no tiene cultura. `TRADUCCION.TEXTO` admite 200 caracteres y trunca en silencio: los textos largos se dividen en varias claves.",
         "La carpeta se obtiene de `Environment.SpecialFolder.MyDocuments`; se crea con `Directory.CreateDirectory`. **No escriba en la carpeta de la aplicación.**",
         "La generación es best-effort: `Generar` propaga las excepciones de E/S y el formulario que la invoca decide cómo informarlas. El despacho de una caja nunca se revierte por un fallo del remito (RN-11).",
         "`Abrir(ruta)` usa `Process.Start` y traga su propia excepción: el archivo ya existe aunque no haya lector de PDF.",

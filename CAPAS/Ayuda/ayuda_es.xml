@@ -75,7 +75,7 @@
       </Pasos>
       <Reglas>
         <Regla>Si un texto no tiene traducción cargada, se muestra en español.</Regla>
-        <Regla>Los informes PDF (remito e informe de rotación) se emiten siempre en español.</Regla>
+        <Regla>El remito de despacho se emite siempre en español; el informe PDF de rotación sale en el idioma de la interfaz que esté activo al exportarlo.</Regla>
       </Reglas>
     </Tema>
   </Tema>
@@ -583,12 +583,12 @@
       <Reglas>
         <Regla>Los colores son los mismos en todos los gráficos: rojo, Reponer urgente; naranja, Reponer; verde, Mantener; azul grisáceo, Sobrestock / no reponer.</Regla>
         <Regla>Si no hay datos para un gráfico (por ejemplo, ningún vino necesita reposición), se muestra "Sin datos para graficar".</Regla>
-        <Regla>Los textos de los gráficos siguen el idioma de la interfaz; los del informe PDF son siempre en español.</Regla>
+        <Regla>Los textos de los gráficos siguen el idioma de la interfaz; el informe PDF de rotación usa el mismo idioma al exportarlo.</Regla>
       </Reglas>
     </Tema>
 
     <Tema id="rotacion-pdf" titulo="Informe PDF de rotación">
-      <Resumen>Exporta el resultado del último análisis a un informe PDF en hoja A4 apaisada, siempre en español. Incluye los gráficos del análisis: la primera página reúne el encabezado, el resumen y dos gráficos; la segunda, las unidades sugeridas y la tabla.</Resumen>
+      <Resumen>Exporta el resultado del último análisis a un informe PDF en hoja A4 apaisada, en el idioma de la interfaz que esté activo al exportar (los textos sin traducción salen en español; fechas y números mantienen el formato es-AR). Incluye los gráficos del análisis: la primera página reúne el encabezado, el resumen y dos gráficos; la segunda, las unidades sugeridas y la tabla.</Resumen>
       <Permiso>Analizar rotación de stock.</Permiso>
       <Pasos>
         <Paso>Presione Analizar para obtener resultados (Exportar a PDF se habilita solo si hay resultados).</Paso>

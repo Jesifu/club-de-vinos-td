@@ -591,16 +591,27 @@ namespace CAPAS
         {
             if (_ultimoResultado == null || _ultimoResultado.Count == 0) return;
 
+            var mgr = SeguridadYServicios.IdiomaManager.getInstance();
+            // Mismo traductor que usan la grilla y los gráficos: el PDF sale en el idioma activo.
+            Func<string, string> traducir = clave => mgr.Traducir(clave);
+            RotacionGraficos.Opciones txt = new RotacionGraficos.Opciones
+            {
+                Traducir = traducir,
+                Cultura = System.Globalization.CultureInfo.CurrentCulture
+            };
+
             try
             {
-                string ruta = RotacionReposicionPdf.Generar(_ultimoResultado, _ultimoDesde, _ultimoHasta, _ultimaConfig);
+                string ruta = RotacionReposicionPdf.Generar(_ultimoResultado, _ultimoDesde, _ultimoHasta, _ultimaConfig, traducir);
                 RotacionReposicionPdf.Abrir(ruta);
-                MsgBox.Show("Informe generado en:\n" + ruta, "Informe", MsgBox.Botones.OK, MsgBox.Icono.Exito);
+                MsgBox.Show(RotacionGraficos.Formatear(txt, "rot_pdf_MsgExito", "Informe generado en:\n{0}", ruta),
+                    RotacionGraficos.T(txt, "rot_pdf_MsgTitulo", "Informe"), MsgBox.Botones.OK, MsgBox.Icono.Exito);
             }
             catch (Exception)
             {
-                MsgBox.Show("No se pudo generar el informe en PDF. Verifique que la carpeta Documentos sea escribible.",
-                    "Error", MsgBox.Botones.OK, MsgBox.Icono.Error);
+                MsgBox.Show(RotacionGraficos.T(txt, "rot_pdf_MsgError",
+                        "No se pudo generar el informe en PDF. Verifique que la carpeta Documentos sea escribible."),
+                    RotacionGraficos.T(txt, "rot_pdf_MsgErrorTitulo", "Error"), MsgBox.Botones.OK, MsgBox.Icono.Error);
             }
         }
 

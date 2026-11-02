@@ -228,7 +228,7 @@ namespace CAPAS
 
         // ---------------------------------------------------------------- helpers
 
-        private static string T(Opciones o, string clave, string porDefecto)
+        internal static string T(Opciones o, string clave, string porDefecto)
         {
             string t = o.Traducir == null ? null : o.Traducir(clave);
             return string.IsNullOrEmpty(t) ? porDefecto : t;
@@ -236,7 +236,7 @@ namespace CAPAS
 
         // Aplica string.Format a una traducción editable. Si el texto guardado tiene llaves mal
         // formadas (se edita en frmIdiomas), cae al formato en español en lugar de romper la pantalla.
-        private static string Formatear(Opciones o, string clave, string formatoPorDefecto, params object[] args)
+        internal static string Formatear(Opciones o, string clave, string formatoPorDefecto, params object[] args)
         {
             try
             {
