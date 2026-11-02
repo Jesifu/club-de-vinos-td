@@ -5987,8 +5987,8 @@ GO
 --   DEMO-006/007/008 Sin movimiento / Reponer urgente (stock bajo el mínimo)
 -- Pedidos de reposición demo (bloque siguiente): las clasificaciones y recomendaciones de la lista anterior no cambian,
 -- pero SÍ cambian dos cantidades sugeridas (verificado con ROTACION_ANALIZAR, 90 días, umbrales por defecto):
---   DEMO-007 baja de 8 a 2 por sus 6 u. en camino (RN-37), y DEMO-004 baja de 36 a 28 porque el pedido Recibido
---   suma 8 u. de stock (stock 12 -> 20). DEMO-008 queda con su pedido Pendiente (no descuenta: solo cuenta lo Aprobado).
+--   DEMO-001 baja de 14 a 4 por sus 10 u. en camino (RN-37), y DEMO-004 baja de 36 a 28 porque el pedido Recibido
+--   suma 8 u. de stock (stock 12 -> 20). DEMO-006 tiene un pedido Pendiente (no descuenta: solo cuenta lo Aprobado).
 -- ============================================================
 SET ANSI_NULLS ON
 SET QUOTED_IDENTIFIER ON
@@ -6222,18 +6222,24 @@ GO
 
 -- ------------------------------------------------------------
 -- DATOS DE PRUEBA — N03 Pedidos de Reposición (idempotente)
--- Un pedido en cada estado, todos con OBSERVACION = 'Demo pedidos de reposición' (así se identifican y
--- el bloque se omite si ya existen o si alguno de sus vinos ya está en un pedido abierto):
---   Pendiente  Rutini            DEMO-008 x10              generado por compras (listo para autorizar con admin/admin2)
---   Aprobado   Viña Errázuriz    DEMO-007 x6 "en camino"   autorizado por admin; baja la sugerencia neta de DEMO-007
---                                                          (sugerida neta = sugerida bruta - 6 en camino, piso 0)
+-- Un pedido en cada estado, todos con OBSERVACION = 'Demo pedidos de reposición'. Los vinos se eligieron para NO
+-- interferir con los escenarios demo de altas/bajas (RN-15 extendida): DEMO-007 (admite pedir baja, CU-24) y
+-- DEMO-008 (baja Pendiente a autorizar, CU-25) quedan sin pedido abierto.
+--   Pendiente  Norton            DEMO-006 x15              generado por compras (listo para autorizar con admin/admin2)
+--   Aprobado   Catena Zapata     DEMO-001 x10 "en camino"  autorizado por admin; baja la sugerencia neta de DEMO-001
+--                                                          (sugerida neta = sugerida bruta 14 - 10 en camino = 4)
 --   Rechazado  Bodega Norton     DEMO-005 x10              rechazado por admin2 con motivo
 --   Recibido   Concha y Toro     DEMO-004 x10, recibidas 8 recibido por deposito; Entrada de 8 u. en el kardex
 --                                                          (MOTIVO 'Recepción de pedido de reposición', REFERENCIA_TIPO 'PEDIDO')
--- Las recomendaciones y clasificaciones de los demo no cambian; las cantidades sugeridas netas sí (DEMO-007: 8 -> 2 por
--- lo en camino; DEMO-004: 36 -> 28 por las 8 u. recibidas, que suben su stock de 12 a 20).
--- RN-15 extendida: mientras el pedido está abierto, DEMO-008 (Pendiente) y DEMO-007 (Aprobado) no admiten solicitar
--- su baja, y la baja Pendiente de DEMO-008 (CU-25) no puede autorizarse hasta que el pedido se resuelva.
+-- Cada pedido se siembra solo si su vino no tiene ya un pedido demo (ni, para los abiertos, otro pedido abierto).
+-- Migración: la versión anterior del demo usaba DEMO-008 (Pendiente) y DEMO-007 (Aprobado); si esos pedidos demo
+-- siguen en su estado original se eliminan antes de sembrar la versión nueva. No se tocan los pedidos de la usuaria.
+-- Resultados esperados del análisis (90 días, umbrales por defecto): ver SELECT de verificación en la entrega;
+--   DEMO-006 Sin movimiento / Reponer urgente, bruta 12, EnCamino 0, neta 12, pedido abierto Pendiente
+--   DEMO-001 Alta rotación / Reponer, bruta 14, EnCamino 10, neta 4, pedido abierto Aprobado
+--   DEMO-007 y DEMO-008: Reponer urgente, sin pedido abierto (bruta 8 y 5, EnCamino 0, neta 8 y 5)
+--   DEMO-004: Alta rotación / Reponer urgente, neta 28 (36 menos lo que sube el stock por las 8 u. recibidas)
+-- Las clasificaciones y recomendaciones de los demo no cambian por los pedidos.
 -- ------------------------------------------------------------
 SET ANSI_NULLS ON
 SET QUOTED_IDENTIFIER ON
@@ -6249,53 +6255,81 @@ DECLARE @admin2Ped  INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'admin2')
 DECLARE @depositoPed INT = (SELECT ID FROM USUARIO WHERE USUARIO = 'deposito')
 DECLARE @obsPed VARCHAR(200) = 'Demo pedidos de reposición'
 
-DECLARE @v008 INT = (SELECT ID FROM VINO WHERE CODIGO = 'DEMO-008' AND ESTADO = 'Activo')
-DECLARE @v007 INT = (SELECT ID FROM VINO WHERE CODIGO = 'DEMO-007' AND ESTADO = 'Activo')
+DECLARE @v006 INT = (SELECT ID FROM VINO WHERE CODIGO = 'DEMO-006' AND ESTADO = 'Activo')
+DECLARE @v001 INT = (SELECT ID FROM VINO WHERE CODIGO = 'DEMO-001' AND ESTADO = 'Activo')
 DECLARE @v005 INT = (SELECT ID FROM VINO WHERE CODIGO = 'DEMO-005' AND ESTADO = 'Activo')
 DECLARE @v004 INT = (SELECT ID FROM VINO WHERE CODIGO = 'DEMO-004' AND ESTADO = 'Activo')
+DECLARE @pid INT
+
+-- Migración de la versión anterior (DEMO-008 Pendiente / DEMO-007 Aprobado), solo si no fueron operados.
+DECLARE @viejos TABLE (ID INT)
+INSERT INTO @viejos (ID)
+SELECT p.ID FROM PEDIDO_REPOSICION p
+WHERE p.OBSERVACION = @obsPed
+  AND EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA pl JOIN VINO v ON v.ID = pl.VINO_ID
+              WHERE pl.PEDIDO_ID = p.ID
+                AND ((v.CODIGO = 'DEMO-008' AND p.ESTADO = 'Pendiente') OR (v.CODIGO = 'DEMO-007' AND p.ESTADO = 'Aprobado')))
+DELETE FROM PEDIDO_REPOSICION_LINEA WHERE PEDIDO_ID IN (SELECT ID FROM @viejos)
+DELETE FROM PEDIDO_REPOSICION WHERE ID IN (SELECT ID FROM @viejos)
 
 IF @comprasPed IS NOT NULL AND @adminPed IS NOT NULL AND @admin2Ped IS NOT NULL AND @depositoPed IS NOT NULL
-   AND @v008 IS NOT NULL AND @v007 IS NOT NULL AND @v005 IS NOT NULL AND @v004 IS NOT NULL
-   AND NOT EXISTS (SELECT 1 FROM PEDIDO_REPOSICION WHERE OBSERVACION = @obsPed)
-   AND NOT EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA WHERE ABIERTO = 1 AND VINO_ID IN (@v008, @v007, @v005, @v004))
 BEGIN
-    DECLARE @pid INT
-
     -- Pendiente
-    INSERT INTO PEDIDO_REPOSICION (BODEGA_ID, ESTADO, FECHA_CREACION, CREADO_POR, OBSERVACION)
-    SELECT BODEGA_ID, 'Pendiente', DATEADD(DAY, -1, @ahoraPed), @comprasPed, @obsPed FROM VINO WHERE ID = @v008
-    SET @pid = SCOPE_IDENTITY()
-    INSERT INTO PEDIDO_REPOSICION_LINEA (PEDIDO_ID, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, ABIERTO)
-    VALUES (@pid, @v008, 5, 10, 1)
+    IF @v006 IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA pl JOIN PEDIDO_REPOSICION p ON p.ID = pl.PEDIDO_ID
+                       WHERE pl.VINO_ID = @v006 AND (p.OBSERVACION = @obsPed OR pl.ABIERTO = 1))
+    BEGIN
+        INSERT INTO PEDIDO_REPOSICION (BODEGA_ID, ESTADO, FECHA_CREACION, CREADO_POR, OBSERVACION)
+        SELECT BODEGA_ID, 'Pendiente', DATEADD(DAY, -1, @ahoraPed), @comprasPed, @obsPed FROM VINO WHERE ID = @v006
+        SET @pid = SCOPE_IDENTITY()
+        INSERT INTO PEDIDO_REPOSICION_LINEA (PEDIDO_ID, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, ABIERTO)
+        VALUES (@pid, @v006, 12, 15, 1)
+    END
 
     -- Aprobado (queda "en camino")
-    INSERT INTO PEDIDO_REPOSICION (BODEGA_ID, ESTADO, FECHA_CREACION, CREADO_POR, RESOLUTOR_ID, FECHA_RESOLUCION, OBSERVACION)
-    SELECT BODEGA_ID, 'Aprobado', DATEADD(DAY, -4, @ahoraPed), @comprasPed, @adminPed, DATEADD(DAY, -3, @ahoraPed), @obsPed
-    FROM VINO WHERE ID = @v007
-    SET @pid = SCOPE_IDENTITY()
-    INSERT INTO PEDIDO_REPOSICION_LINEA (PEDIDO_ID, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, ABIERTO)
-    VALUES (@pid, @v007, 8, 6, 1)
+    IF @v001 IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA pl JOIN PEDIDO_REPOSICION p ON p.ID = pl.PEDIDO_ID
+                       WHERE pl.VINO_ID = @v001 AND (p.OBSERVACION = @obsPed OR pl.ABIERTO = 1))
+    BEGIN
+        INSERT INTO PEDIDO_REPOSICION (BODEGA_ID, ESTADO, FECHA_CREACION, CREADO_POR, RESOLUTOR_ID, FECHA_RESOLUCION, OBSERVACION)
+        SELECT BODEGA_ID, 'Aprobado', DATEADD(DAY, -4, @ahoraPed), @comprasPed, @adminPed, DATEADD(DAY, -3, @ahoraPed), @obsPed
+        FROM VINO WHERE ID = @v001
+        SET @pid = SCOPE_IDENTITY()
+        INSERT INTO PEDIDO_REPOSICION_LINEA (PEDIDO_ID, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, ABIERTO)
+        VALUES (@pid, @v001, 14, 10, 1)
+    END
 
     -- Rechazado (con motivo; libera el vino)
-    INSERT INTO PEDIDO_REPOSICION (BODEGA_ID, ESTADO, FECHA_CREACION, CREADO_POR, RESOLUTOR_ID, FECHA_RESOLUCION, MOTIVO_RECHAZO, OBSERVACION)
-    SELECT BODEGA_ID, 'Rechazado', DATEADD(DAY, -8, @ahoraPed), @comprasPed, @admin2Ped, DATEADD(DAY, -7, @ahoraPed),
-           'La bodega informó faltante de la cosecha; se vuelve a evaluar el mes próximo.', @obsPed
-    FROM VINO WHERE ID = @v005
-    SET @pid = SCOPE_IDENTITY()
-    INSERT INTO PEDIDO_REPOSICION_LINEA (PEDIDO_ID, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, ABIERTO)
-    VALUES (@pid, @v005, 6, 10, 0)
+    IF @v005 IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA pl JOIN PEDIDO_REPOSICION p ON p.ID = pl.PEDIDO_ID
+                       WHERE pl.VINO_ID = @v005 AND p.OBSERVACION = @obsPed)
+    BEGIN
+        INSERT INTO PEDIDO_REPOSICION (BODEGA_ID, ESTADO, FECHA_CREACION, CREADO_POR, RESOLUTOR_ID, FECHA_RESOLUCION, MOTIVO_RECHAZO, OBSERVACION)
+        SELECT BODEGA_ID, 'Rechazado', DATEADD(DAY, -8, @ahoraPed), @comprasPed, @admin2Ped, DATEADD(DAY, -7, @ahoraPed),
+               'La bodega informó faltante de la cosecha; se vuelve a evaluar el mes próximo.', @obsPed
+        FROM VINO WHERE ID = @v005
+        SET @pid = SCOPE_IDENTITY()
+        INSERT INTO PEDIDO_REPOSICION_LINEA (PEDIDO_ID, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, ABIERTO)
+        VALUES (@pid, @v005, 6, 10, 0)
+    END
 
     -- Recibido (pedidas 10, recibidas 8) con su Entrada de stock
-    INSERT INTO PEDIDO_REPOSICION (BODEGA_ID, ESTADO, FECHA_CREACION, CREADO_POR, RESOLUTOR_ID, FECHA_RESOLUCION,
-                                   RECIBIDO_POR, FECHA_RECEPCION, OBSERVACION)
-    SELECT BODEGA_ID, 'Recibido', DATEADD(DAY, -12, @ahoraPed), @comprasPed, @adminPed, DATEADD(DAY, -10, @ahoraPed),
-           @depositoPed, DATEADD(DAY, -3, @ahoraPed), @obsPed
-    FROM VINO WHERE ID = @v004
-    SET @pid = SCOPE_IDENTITY()
-    INSERT INTO PEDIDO_REPOSICION_LINEA (PEDIDO_ID, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, CANTIDAD_RECIBIDA, ABIERTO)
-    VALUES (@pid, @v004, 8, 10, 8, 0)
-    INSERT INTO MOVIMIENTO_STOCK (VINO_ID, FECHA, TIPO, CANTIDAD, MOTIVO, RESPONSABLE, REFERENCIA_TIPO, REFERENCIA_ID)
-    VALUES (@v004, DATEADD(DAY, -3, @ahoraPed), 'Entrada', 8, 'Recepción de pedido de reposición', 'deposito', 'PEDIDO', @pid)
+    IF @v004 IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA pl JOIN PEDIDO_REPOSICION p ON p.ID = pl.PEDIDO_ID
+                       WHERE pl.VINO_ID = @v004 AND p.OBSERVACION = @obsPed)
+       AND NOT EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA WHERE VINO_ID = @v004 AND ABIERTO = 1)
+    BEGIN
+        INSERT INTO PEDIDO_REPOSICION (BODEGA_ID, ESTADO, FECHA_CREACION, CREADO_POR, RESOLUTOR_ID, FECHA_RESOLUCION,
+                                       RECIBIDO_POR, FECHA_RECEPCION, OBSERVACION)
+        SELECT BODEGA_ID, 'Recibido', DATEADD(DAY, -12, @ahoraPed), @comprasPed, @adminPed, DATEADD(DAY, -10, @ahoraPed),
+               @depositoPed, DATEADD(DAY, -3, @ahoraPed), @obsPed
+        FROM VINO WHERE ID = @v004
+        SET @pid = SCOPE_IDENTITY()
+        INSERT INTO PEDIDO_REPOSICION_LINEA (PEDIDO_ID, VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA, CANTIDAD_RECIBIDA, ABIERTO)
+        VALUES (@pid, @v004, 8, 10, 8, 0)
+        INSERT INTO MOVIMIENTO_STOCK (VINO_ID, FECHA, TIPO, CANTIDAD, MOTIVO, RESPONSABLE, REFERENCIA_TIPO, REFERENCIA_ID)
+        VALUES (@v004, DATEADD(DAY, -3, @ahoraPed), 'Entrada', 8, 'Recepción de pedido de reposición', 'deposito', 'PEDIDO', @pid)
+    END
 END
 
 COMMIT TRAN

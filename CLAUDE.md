@@ -283,7 +283,7 @@ El análisis deja de ser de solo lectura: de las filas elegidas se genera un **P
 - **RN-15 extendida y topes:** no se puede solicitar ni autorizar la baja de un vino que está en un pedido de reposición abierto (Pendiente o Aprobado; `VinoBLL.SolicitarBaja/AutorizarBaja`, `VINO_SOLICITAR_BAJA`, `SOLICITUD_APROBAR_BAJA`, SP `PEDIDO_REPOSICION_ABIERTO_POR_VINO`); tope de 100000 unidades por línea, pedida y recibida (`PedidoReposicionBLL.CantidadMaximaPorLinea`, UI y CHECK `CK_PEDREPLIN_TOPE`); si `Generar` crea pedidos de algunas bodegas y falla uno posterior, lanza `PedidoParcialException` (con `Creados`) y la UI reanaliza.
 - **Permisos:** `Gestionar pedidos de reposición` (Encargado de Compras/Bodega, Administrador), `Autorizar pedidos de reposición` (solo Administrador), `Recibir pedidos de reposición` (Encargado de Depósito, Administrador). Se controlan en la UI.
 - **Bitácora:** `PEDIDO_GENERADO:<id>`, `PEDIDO_AUTORIZADO:<id>`, `PEDIDO_RECHAZADO:<id>`, `PEDIDO_RECIBIDO:<id>`.
-- **Datos de prueba:** cuatro pedidos (uno por estado) marcados con la observación `Demo pedidos de reposición`, al final del bloque de datos N03 (DEMO-008 Pendiente, DEMO-007 Aprobado y en camino, DEMO-005 Rechazado, DEMO-004 Recibido con su Entrada).
+- **Datos de prueba:** cuatro pedidos (uno por estado) marcados con la observación `Demo pedidos de reposición`, al final del bloque de datos N03 (DEMO-006 Pendiente, DEMO-001 Aprobado y en camino, DEMO-005 Rechazado, DEMO-004 Recibido con su Entrada; no usan DEMO-007/008, para no bloquear los demo de baja de CU-24/CU-25; el script migra la versión anterior).
 
 ### N03 — Pedido de reposición (interfaz)
 
