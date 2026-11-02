@@ -77,11 +77,13 @@ loop por cada línea que difiere de lo pedido
 end
 
 U -> FA : click "Registrar recepción" (btnRegistrarRecepcion)
-FA -> FA : dgvLineas.EndEdit(); cantidades[l.Id] = l.CantidadRecibida ?? 0
+FA -> FA : dgvLineas.EndEdit()
 
 break 39c. no hay un pedido aprobado seleccionado
   FA --> U : "Seleccione un pedido aprobado."\n(título "Atención")
 end
+
+FA -> FA : cantidades[l.Id] = l.CantidadRecibida ?? 0
 
 break 39d. todas las cantidades recibidas son 0 (RN-35, capa UI)
   FA --> U : "Al menos una línea debe tener una cantidad recibida mayor a cero."\n(título "Atención")
@@ -111,9 +113,13 @@ PD -> DB : PEDIDO_REPOSICION_OBTENER_LINEAS(@pedido_id)
 DB --> PD : filas de PEDIDO_REPOSICION_LINEA
 PD --> PB : List<PedidoReposicionLinea>
 
+break 39g. la recepción no cubre todas las líneas del pedido (RN-35)
+  PB --> FA : throw InvalidOperationException\n("RN-35: debe informar la cantidad recibida de cada línea del pedido.")
+end
+
 loop por cada línea del pedido
-  break 39g. la recepción no cubre todas las líneas, la recibida está fuera de 0..pedida\no todas las cantidades son 0 (RN-35)
-    PB --> FA : throw InvalidOperationException\n("RN-35: debe informar la cantidad recibida de cada línea del pedido." /\n"RN-35: la cantidad recibida de 'X' debe estar entre 0 y N." /\n"RN-35: al menos una línea debe tener cantidad recibida mayor a cero.")
+  break 39g. la cantidad recibida está fuera de 0..pedida (RN-35)
+    PB --> FA : throw InvalidOperationException\n("RN-35: la cantidad recibida de 'X' debe estar entre 0 y N.")
   end
   break 39j. la cantidad recibida supera el tope de 100000 unidades por línea (RN-35)
     PB --> FA : throw InvalidOperationException\n("RN-35: la cantidad recibida de 'X' no puede superar las 100000\nunidades por línea.")
@@ -127,6 +133,10 @@ loop por cada línea del pedido
       PB --> FA : throw InvalidOperationException\n("El vino 'X' no está activo: no admite entradas de stock.")
     end
   end
+end
+
+break 39g. todas las cantidades recibidas son 0 (RN-35)
+  PB --> FA : throw InvalidOperationException\n("RN-35: al menos una línea debe tener cantidad recibida mayor a cero.")
 end
 
 PB -> PD : Recibir(p.Id, sesion.Id, sesion.Usuario, cantidades)
