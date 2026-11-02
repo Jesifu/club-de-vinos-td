@@ -1,0 +1,103 @@
+@startuml ModeloConceptual_Rotacion
+
+title Modelo Conceptual — Análisis de Rotación y Reposición de Stock
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+skinparam nodesep 120
+skinparam ranksep 60
+hide circle
+hide methods
+
+class Bodega {
+  Nombre
+}
+
+class Vino {
+  Código
+  Nombre
+  Stock mínimo
+  {field} Estado (solo se analizan los Activos)
+}
+
+class "Movimiento de Stock" as MovimientoStock {
+  Fecha
+  {field} Tipo (Entrada / Salida)
+  Cantidad
+  {field} Referencia (Caja / Ajuste)
+}
+
+class Socio {
+  Nombre
+  Apellido
+}
+
+class "Caja Mensual" as CajaMensual {
+  Período
+  {field} Estado (Armada / Despachada / Cancelada)
+  Fecha de despacho
+}
+
+class "Línea de Caja" as CajaVino {
+  Cantidad
+}
+
+class Sustitución {
+  Fecha
+}
+
+class "Configuración de Rotación" as ConfiguracionRotacion {
+  Días de análisis
+  Umbral de alta rotación
+  Umbral de baja rotación
+  Cobertura urgente en meses
+  Cobertura de reposición en meses
+  Cobertura de sobrestock en meses
+  Cobertura objetivo en meses
+}
+
+class "Resultado de Rotación" as ResultadoRotacion {
+  Unidades vendidas
+  Unidades perdidas
+  Socios atendidos
+  Consumo mensual
+  Cobertura en meses
+  {field} Clasificación (Alta / Media / Baja / Sin movimiento)
+  {field} Recomendación (Reponer urgente / Reponer / Mantener / Sobrestock)
+  Cantidad sugerida
+}
+
+Bodega      "1" -down- "0..*" Vino            : produce >
+Vino        "1" -down- "0..*" MovimientoStock : registra movimientos de >
+Socio       "1" -down- "0..*" CajaMensual     : encarga >
+CajaMensual "1" -down- "1..*" CajaVino        : compone >
+Vino        "1" --left-- "0..*" CajaVino        : incluido en >
+CajaVino    "1" -down- "0..*" Sustitución     : reemplazado por >
+Vino        "1" -down- "0..*" Sustitución     : original / reemplazo >
+
+Vino                  "1" -right- "0..*" ResultadoRotacion : es evaluado en >
+ConfiguracionRotacion "1" -down-  "0..*" ResultadoRotacion : parametriza >
+
+note right of ResultadoRotacion
+  Entidad derivada: se calcula en cada análisis
+  para un período (Desde - Hasta) y no se guarda
+  en la base de datos. Las unidades vendidas son
+  las salidas de stock por cajas del período; las
+  perdidas, las salidas por ajuste de inventario.
+end note
+
+note bottom of ConfiguracionRotacion
+  Parámetros vigentes del análisis. Se guardan en un
+  archivo (no en la base de datos) y todo análisis
+  usa los valores que figuran en ese archivo.
+end note
+
+note bottom of MovimientoStock
+  El stock actual de un vino se deriva de sus
+  movimientos. Las salidas que genera el despacho
+  de una caja alimentan las unidades vendidas.
+end note
+
+@enduml

@@ -1,0 +1,35 @@
+@startuml DiagramaCasosDeUso_3_Cajas_Rotacion
+left to right direction
+skinparam shadowing false
+skinparam roundcorner 6
+scale 1.6
+
+actor Usuario
+actor Administrador
+Administrador --|> Usuario
+
+rectangle "Curacion y Armado de Cajas Mensuales" #E8F4E8 {
+  usecase "Armar Caja Mensual" as CU28
+  usecase "Registrar Sustitucion\npor Falta de Stock" as CU29
+  usecase "Actualizar Perfil\nde Socio" as CU30
+  usecase "Despachar Caja" as CU31
+  usecase "Consultar Historial\nde Despachos" as CU32
+}
+
+rectangle "Analisis de Rotacion y Reposicion de Stock" #FFF0E0 {
+  usecase "Configurar Parametros\nde Rotacion" as CU33
+  usecase "Analizar Rotacion y\nReposicion de Stock" as CU34
+  usecase "Consultar Graficos\ndel Analisis" as CU35
+  usecase "Exportar Informe de Rotacion\ny Reposicion en PDF" as CU36
+}
+
+Usuario -- CU28
+Usuario -- CU29
+Usuario -- CU30
+Usuario -- CU31
+Usuario -- CU32
+Usuario -- CU33
+Usuario -- CU34
+Usuario -- CU35
+Usuario -- CU36
+@enduml

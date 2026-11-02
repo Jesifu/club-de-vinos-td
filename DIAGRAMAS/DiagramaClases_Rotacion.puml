@@ -1,0 +1,161 @@
+@startuml DiagramaClases_Rotacion
+
+title Diagrama de Clases — Análisis de Rotación y Reposición de Stock
+
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam linetype ortho
+hide empty members
+left to right direction
+scale 0.8
+
+' ─────────────────────────────────────────
+' CAPA BE
+' ─────────────────────────────────────────
+package "BE" #FEFECE {
+
+  class ConfiguracionRotacion {
+    + DiasAnalisis : int
+    + UmbralAltaRotacion : decimal
+    + UmbralBajaRotacion : decimal
+    + MesesCoberturaUrgente : decimal
+    + MesesCoberturaReposicion : decimal
+    + MesesCoberturaSobrestock : decimal
+    + MesesCoberturaObjetivo : decimal
+    + {static} PorDefecto() : ConfiguracionRotacion
+  }
+
+  class ResultadoRotacion {
+    + VinoId : int
+    + Codigo : string
+    + Nombre : string
+    + BodegaNombre : string
+    + StockMinimo : int
+    + StockActual : int
+    + UnidadesVendidas : int
+    + UnidadesPerdidas : int
+    + SociosAtendidos : int
+    + ConsumoMensual : decimal
+    + MesesCobertura : decimal?
+    + Clasificacion : string
+    + Recomendacion : string
+    + CantidadSugerida : int
+    + Prioridad : int
+  }
+
+  class ClasificacionRotacion <<static>> {
+    + {static} Alta : string
+    + {static} Media : string
+    + {static} Baja : string
+    + {static} SinMovimiento : string
+  }
+
+  class RecomendacionReposicion <<static>> {
+    + {static} Urgente : string
+    + {static} Reponer : string
+    + {static} Mantener : string
+    + {static} Sobrestock : string
+  }
+}
+
+' ─────────────────────────────────────────
+' CAPA DAL
+' ─────────────────────────────────────────
+package "DAL" #E8E8F4 {
+
+  class Acceso <<existente>> {
+    + Leer(sql : string, parametros : List<SqlParameter> = null) : DataTable
+  }
+
+  class RotacionDAL {
+    - _acceso : Acceso
+    + Analizar(desde : DateTime, hasta : DateTime) : List<ResultadoRotacion>
+  }
+
+  RotacionDAL --> Acceso
+}
+
+' ─────────────────────────────────────────
+' CAPA BLL
+' ─────────────────────────────────────────
+package "BLL" #E8F4E8 {
+
+  class RotacionBLL {
+    - _dal : RotacionDAL
+    + Analizar(desde : DateTime, hasta : DateTime, config : ConfiguracionRotacion) : List<ResultadoRotacion>
+    + {static} Validar(c : ConfiguracionRotacion) : void
+    + {static} CantidadDias(desde : DateTime, hasta : DateTime) : int
+    + {static} Evaluar(r : ResultadoRotacion, dias : int, c : ConfiguracionRotacion) : void
+    + {static} TotalUnidadesSugeridas(filas : IEnumerable<ResultadoRotacion>) : int
+    + {static} ResumirPorRecomendacion(filas : IEnumerable<ResultadoRotacion>) : List<KeyValuePair<string, int>>
+  }
+
+  RotacionBLL --> RotacionDAL
+}
+
+' ─────────────────────────────────────────
+' CAPA SeguridadYServicios
+' ─────────────────────────────────────────
+package "SeguridadYServicios" #D5E8D4 {
+
+  interface IObservadorIdioma <<existente>> {
+    + ActualizarIdioma() : void
+  }
+}
+
+' ─────────────────────────────────────────
+' CAPA CAPAS (presentación)
+' ─────────────────────────────────────────
+package "CAPAS" #F4E8E8 {
+
+  class FormBase <<existente>> {
+  }
+  note right of FormBase : Hereda de ReaLTaiizor.Forms.MaterialForm
+
+  class frmAnalisisRotacion {
+    + ActualizarIdioma() : void
+  }
+
+  class ConfiguracionRotacionStore <<static>> {
+    ~ {static} Carpeta : string
+    ~ {static} Ruta : string
+    ~ {static} Cargar(archivoInvalido : out bool) : ConfiguracionRotacion
+    ~ {static} Guardar(config : ConfiguracionRotacion) : void
+  }
+
+  class RotacionGraficos <<static>> {
+    ~ {static} ConsumoVsStock(filas : List<ResultadoRotacion>, o : Opciones) : Chart
+    ~ {static} Distribucion(filas : List<ResultadoRotacion>, o : Opciones) : Chart
+    ~ {static} UnidadesSugeridas(filas : List<ResultadoRotacion>, o : Opciones) : Chart
+    ~ {static} APng(chart : Chart) : byte[]
+  }
+
+  class RotacionReposicionPdf <<static>> {
+    ~ {static} Generar(filas : List<ResultadoRotacion>, desde : DateTime, hasta : DateTime, config : ConfiguracionRotacion, traducir : Func<string,string> = null) : string
+    ~ {static} Abrir(rutaPdf : string) : void
+  }
+
+  FormBase <|-- frmAnalisisRotacion
+  IObservadorIdioma <|.. frmAnalisisRotacion
+
+  frmAnalisisRotacion ..> ConfiguracionRotacionStore
+  frmAnalisisRotacion ..> RotacionGraficos
+  frmAnalisisRotacion ..> RotacionReposicionPdf
+  RotacionReposicionPdf ..> RotacionGraficos
+}
+
+' ─────────────────────────────────────────
+' Relaciones entre capas
+' ─────────────────────────────────────────
+frmAnalisisRotacion --> RotacionBLL
+RotacionDAL ..> ResultadoRotacion
+RotacionBLL ..> ResultadoRotacion
+RotacionBLL ..> ConfiguracionRotacion
+RotacionBLL ..> ClasificacionRotacion
+RotacionBLL ..> RecomendacionReposicion
+ConfiguracionRotacionStore ..> ConfiguracionRotacion
+
+
+@enduml

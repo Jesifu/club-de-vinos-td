@@ -1,0 +1,87 @@
+@startuml DiagramaSecuencia_CU33_ConfigurarParametrosRotacion
+
+title CU-33 — Configurar Parámetros de Rotación — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+actor       ":Usuario"                          as U
+participant ":frmMenu"                          as FM #FEFECE
+participant ":frmAnalisisRotacion"              as FA #FEFECE
+participant ":ConfiguracionRotacionStore"       as CS #FEFECE
+participant ":RotacionBLL"                      as RB #E8F4E8
+participant ":configuracion_rotacion.xml"       as XML #EEEEEE
+
+note over FA
+  Precondición: sesión activa; permiso "Analizar rotación de stock".
+  La configuración se guarda en %LocalAppData%\ClubDeVinos\configuracion_rotacion.xml;
+  este CU no usa DAL ni base de datos.
+end note
+
+U -> FM : menú Catálogo > "Analizar rotación de stock"
+FM -> FA : new frmAnalisisRotacion().ShowDialog()
+activate FA
+note right of FA
+  Load: ConstruirPestanas(), se registra en IdiomaManager,
+  traduce sus controles y agrega el selector de idiomas
+end note
+
+FA -> FA : CargarConfiguracion()
+FA -> CS : Cargar(out archivoInvalido)
+alt 33a. el archivo no existe
+  CS -> CS : ConfiguracionRotacion.PorDefecto()
+  CS -> CS : Guardar(nueva)
+  CS -> XML : serializa a un archivo temporal y lo mueve (File.Move)
+else el archivo existe
+  CS -> XML : XmlDocument.Load(FileStream)
+  XML --> CS : documento XML
+  CS -> CS : XmlSerializer.Deserialize(XmlNodeReader)
+  CS -> RB : Validar(config)
+  alt 33b. el archivo está dañado o los valores son incoherentes (excepción)
+    RB --> CS : throw InvalidOperationException
+    CS -> CS : archivoInvalido = true; config = PorDefecto()
+  end
+end
+CS --> FA : ConfiguracionRotacion (y archivoInvalido)
+FA -> FA : AplicarConfiguracionEnPantalla(config);\nPonerPeriodoPorDefecto(config.DiasAnalisis)
+
+opt 33b. archivoInvalido
+  FA --> U : "El archivo de configuración de rotación estaba dañado o tenía valores inválidos.\nSe usan los valores por defecto hasta que guarde la configuración."\n(título "Atención")
+end
+
+FA --> U : formulario con la configuración vigente y el período propuesto
+
+opt 33c. el usuario cambia "Días de análisis"
+  U -> FA : modifica nudDiasAnalisis
+  FA -> FA : nudDiasAnalisis_ValueChanged → AjustarDesdeSegunDias(dias)\n(Desde = Hasta − (días − 1); RN-19)
+end
+
+U -> FA : modifica los parámetros; click "Guardar configuración" (btnGuardarConfiguracion)
+FA -> FA : LeerConfiguracionDePantalla()
+FA -> RB : Validar(nueva)
+
+break 33d. parámetros incoherentes (RN-25)
+  RB --> FA : throw InvalidOperationException\n(motivo de la regla incumplida)
+  FA --> U : ex.Message\n(título "Atención")
+  note right of FA : no guarda y el formulario sigue abierto
+end
+
+FA -> CS : Guardar(nueva)
+CS -> XML : XmlSerializer.Serialize → archivo temporal (.tmp);\nFile.Replace / File.Move (guardado atómico)
+
+break 33e. no se puede escribir el archivo (excepción de E/S o de permisos)
+  CS --> FA : throw Exception
+  FA --> U : "No se pudo guardar el archivo de configuración.\nVerifique los permisos de la carpeta <Carpeta>."\n(título "Error")
+  note right of FA : el archivo no se modifica
+end
+
+CS --> FA : void
+FA -> FA : _config = nueva
+FA --> U : "Configuración guardada correctamente."\n(título "Configuración")
+deactivate FA
+
+@enduml

@@ -1,0 +1,64 @@
+@startuml DiagramaSecuencia_CU35_ConsultarGraficos
+
+title CU-35 — Consultar Gráficos del Análisis — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+actor       ":Usuario"                  as U
+participant ":frmAnalisisRotacion"      as FA #FEFECE
+participant ":RotacionGraficos"         as RG #FEFECE
+participant ":RotacionBLL"              as RB #E8F4E8
+
+note over FA
+  Precondición: sesión activa; permiso "Analizar rotación de stock"; formulario abierto.
+  Los gráficos se arman con el último análisis en memoria (CU-34) y, si todavía no hubo
+  análisis, quedan vacíos. Este CU es de solo lectura y no usa DAL ni base de datos.
+end note
+
+U -> FA : click en la pestaña "Gráficos" (btnTabGraficos)
+activate FA
+FA -> FA : MostrarPestana(true)
+note right of FA
+  Solo cambia la visibilidad de los paneles:
+  _pnlDetalle.Visible = false, _pnlGraficos.Visible = true.
+  Los tres gráficos ya fueron construidos por ActualizarGraficos(),
+  llamado al terminar el análisis (CU-34) o al cambiar el idioma.
+end note
+
+alt 35a. todavía no hay análisis, o ningún vino alcanza para un gráfico (filas vacías)
+  FA --> U : el gráfico afectado muestra "Sin datos para graficar"
+else hay datos
+  FA --> U : tres gráficos: "Consumo mensual vs stock actual (N de M vinos)",\n"Distribución por recomendación" y "Unidades sugeridas a reponer (N de M vinos)"
+end
+
+opt el usuario se desplaza hacia abajo (scroll de _pnlGraficos)
+  U -> FA : recorre los gráficos
+  FA --> U : gráficos inferiores
+end
+
+opt 35b. el usuario cambia el idioma de la interfaz
+  U -> FA : selecciona otro idioma
+  FA -> FA : ActualizarIdioma() → ActualizarGraficos()
+  FA -> RG : ConsumoVsStock(filas, opciones)
+  RG --> FA : Chart
+  FA -> RG : Distribucion(filas, opciones)
+  RG -> RB : ResumirPorRecomendacion(filas)
+  RB --> RG : List<KeyValuePair<string,int>>
+  RG --> FA : Chart
+  FA -> RG : UnidadesSugeridas(filas, opciones)
+  RG --> FA : Chart
+  FA -> FA : ColocarGrafico(...) × 3 (reemplaza y libera los anteriores)
+  FA --> U : gráficos con los textos del idioma activo
+end
+
+U -> FA : click en la pestaña "Detalle" (btnTabDetalle)
+FA -> FA : MostrarPestana(false)
+FA --> U : grilla de resultados
+deactivate FA
+
+@enduml

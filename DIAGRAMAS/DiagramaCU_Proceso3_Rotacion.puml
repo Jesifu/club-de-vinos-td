@@ -1,0 +1,28 @@
+@startuml DiagramaCU_Proceso3_Rotacion
+left to right direction
+skinparam shadowing false
+skinparam roundcorner 6
+scale 1.6
+
+actor Usuario
+actor Administrador
+Administrador --|> Usuario
+
+rectangle "Analisis de Rotacion y Reposicion de Stock" #E8F4E8 {
+  usecase "Configurar Parametros\nde Rotacion" as CU33
+  usecase "Analizar Rotacion y\nReposicion de Stock" as CU34
+  usecase "Consultar Graficos\ndel Analisis" as CU35
+  usecase "Exportar Informe de Rotacion\ny Reposicion en PDF" as CU36
+}
+
+Usuario -- CU33
+Usuario -- CU34
+Usuario -- CU35
+Usuario -- CU36
+
+note bottom of Usuario
+  Requiere el permiso "Analizar rotacion de stock"
+  (por defecto: Encargado de Compras/Bodega
+  y Administrador).
+end note
+@enduml

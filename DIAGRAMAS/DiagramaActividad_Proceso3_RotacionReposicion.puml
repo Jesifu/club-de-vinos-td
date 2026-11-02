@@ -1,0 +1,63 @@
+@startuml DiagramaActividad_Proceso3_RotacionReposicion
+
+title Proceso de negocio — Análisis de Rotación y Reposición de Stock
+
+skinparam shadowing false
+skinparam roundcorner 6
+' Los documentos de negocio se dibujan como nodos de objeto (rectángulo de esquinas rectas,
+' fondo blanco) con flujos punteados de entrada y salida: estereotipo <<doc>>.
+skinparam roundcorner<<doc>> 0
+skinparam activity {
+  BackgroundColor #FEFECE
+  BorderColor #33342E
+  BackgroundColor<<doc>> #FFFFFF
+  BorderColor<<doc>> #33342E
+}
+skinparam partition {
+  BorderColor #666666
+  FontStyle bold
+}
+scale 0.8
+
+|Encargado de Compras/Bodega|
+start
+-[dashed]->
+:**Movimientos de Stock y Cajas Despachadas**
+[Registrados]; <<doc>>
+note right
+  Insumo de los procesos anteriores:
+  stock y ajustes (Proceso 1, Catálogo y Stock)
+  y despachos de cajas (Proceso 2, Curación
+  y Cajas Mensuales).
+end note
+-[dashed]->
+:Definir Parámetros de Rotación;
+-[dashed]->
+:**Configuración de Parámetros de Rotación**
+[Vigente]; <<doc>>
+-[dashed]->
+:Analizar Rotación de Stock;
+:Revisar Gráficos del Análisis;
+:Exportar Informe de Rotación y Reposición;
+-[dashed]->
+:**Informe de Rotación y Reposición**
+[Emitido]; <<doc>>
+-[dashed]->
+
+|Administrador|
+:Recibir Informe de Rotación y Reposición;
+:Decidir Vinos a No Recomprar;
+if (¿Hay vinos a reponer?) then (sí)
+  :Decidir Vinos a Reponer;
+
+  |Encargado de Depósito|
+  :Registrar Ingreso de Stock;
+  -[dashed]->
+  :**Movimiento de Stock**
+[Entrada registrada]; <<doc>>
+  -[dashed]->
+else (no)
+endif
+stop
+
+@enduml

@@ -1,0 +1,73 @@
+@startuml DiagramaSecuencia_CU36_ExportarInformeRotacionPdf
+
+title CU-36 — Exportar Informe de Rotación y Reposición en PDF — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.8
+
+actor       ":Usuario"                  as U
+participant ":frmAnalisisRotacion"      as FA #FEFECE
+participant ":RotacionReposicionPdf"    as RP #FEFECE
+participant ":RotacionGraficos"         as RG #FEFECE
+participant ":RotacionBLL"              as RB #E8F4E8
+participant ":Informe PDF"              as PDF #EEEEEE
+
+note over FA
+  Precondición: sesión activa; permiso "Analizar rotación de stock"; hay un análisis con al
+  menos un vino (btnExportarPdf habilitado). Exporta el último análisis en memoria, tal como
+  se vio en pantalla: no vuelve a consultar la base de datos (sin DAL).
+end note
+
+U -> FA : click "Exportar a PDF" (btnExportarPdf)
+activate FA
+FA -> FA : traducir = clave → IdiomaManager.Traducir(clave)
+
+alt sin excepciones al generar el informe (try)
+  FA -> RP : Generar(_ultimoResultado, _ultimoDesde, _ultimoHasta,\n_ultimaConfig, traducir)
+  activate RP
+  RP -> RP : Directory.CreateDirectory(Documentos\ClubDeVinos\Informes)
+  RP -> RP : AgregarEncabezado(...)
+  RP -> RB : CantidadDias(desde, hasta)
+  RB --> RP : int días
+  RP -> RP : AgregarResumen(...)
+  RP -> RB : ResumirPorRecomendacion(filas)
+  RB --> RP : List<KeyValuePair<string,int>>
+  RP -> RB : TotalUnidadesSugeridas(filas)
+  RB --> RP : int total
+  RP -> RP : AgregarGraficos(...)
+  RP -> RG : ConsumoVsStock(filas, opciones)
+  RG --> RP : Chart
+  RP -> RG : APng(chart)
+  RG --> RP : PNG
+  RP -> RG : Distribucion(filas, opciones)
+  RG --> RP : Chart
+  RP -> RG : APng(chart)
+  RG --> RP : PNG
+  opt hay vinos con cantidad sugerida
+    RP -> RG : UnidadesSugeridas(filas, opciones)
+    RG --> RP : Chart
+    RP -> RG : APng(chart)
+    RG --> RP : PNG
+  end
+  RP -> RP : AgregarTabla(...); nota de fórmulas (MigraDoc)
+  RP -> PDF : PdfDocumentRenderer.RenderDocument();\nPdfDocument.Save(Rotacion_{yyyyMMdd_HHmmss_fff}.pdf)
+  RP --> FA : ruta
+  deactivate RP
+  FA -> RP : Abrir(ruta)
+  RP -> PDF : Process.Start(ruta)
+  note right of RP
+    36b. Abrir traga su propia excepción (p. ej. no hay lector de PDF):
+    el archivo ya existe y solo falla la apertura; no se muestra ningún error.
+  end note
+  FA --> U : "Informe generado en:\n<ruta>"\n(título "Informe")
+else 36a. falla la generación (catch Exception: carpeta no escribible, etc.)
+  FA --> U : "No se pudo generar el informe en PDF.\nVerifique que la carpeta Documentos sea escribible."\n(título "Error")
+  note right of FA : no se crea el informe y el análisis en pantalla no se altera
+end
+deactivate FA
+
+@enduml

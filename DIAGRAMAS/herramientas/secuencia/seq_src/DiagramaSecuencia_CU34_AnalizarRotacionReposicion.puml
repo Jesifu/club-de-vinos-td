@@ -1,0 +1,125 @@
+@startuml DiagramaSecuencia_CU34_AnalizarRotacionReposicion
+
+title CU-34 — Analizar Rotación y Reposición de Stock — Diagrama de Secuencia
+
+skinparam shadowing false
+skinparam roundcorner 6
+skinparam sequenceArrowThickness 1.2
+skinparam sequenceMessageAlign center
+hide footbox
+scale 0.7
+
+actor       ":Usuario"                          as U
+participant ":frmAnalisisRotacion"              as FA #FEFECE
+participant ":ConfiguracionRotacionStore"       as CS #FEFECE
+participant ":RotacionGraficos"                 as RG #FEFECE
+participant ":RotacionBLL"                      as RB #E8F4E8
+participant ":RotacionDAL"                      as RD #E8E8F4
+database    ":DB"                               as DB #EEEEEE
+participant ":configuracion_rotacion.xml"       as XML #EEEEEE
+
+note over FA
+  Precondición: sesión activa; permiso "Analizar rotación de stock";
+  el formulario está abierto con la configuración y el período cargados (CU-33).
+end note
+
+opt 34a. el usuario cambia "Días de análisis"
+  U -> FA : modifica nudDiasAnalisis
+  FA -> FA : nudDiasAnalisis_ValueChanged → AjustarDesdeSegunDias(dias)\n(Desde = Hasta − (días − 1); RN-19)
+end
+
+opt 34b. el usuario cambia "Hasta"
+  U -> FA : modifica dtpHasta
+  FA -> FA : dtpHasta_ValueChanged → ActualizarAdvertenciaFecha()
+  alt "Hasta" es anterior a hoy (RN-28)
+    FA --> U : aviso (no bloqueante): "Atención: el stock es el del día de hoy;\nla cobertura puede no ser representativa para rangos que terminan antes de hoy."
+  else "Hasta" es hoy o posterior
+    FA -> FA : lblAdvertenciaFecha.Visible = false
+  end
+end
+
+U -> FA : click "Analizar" (btnAnalizar)
+activate FA
+FA -> FA : LeerConfiguracionDePantalla()
+FA -> RB : Validar(enPantalla)
+
+break 34c. parámetros incoherentes (RN-25)
+  RB --> FA : throw InvalidOperationException\n(motivo de la regla incumplida)
+  FA --> U : ex.Message\n(título "Atención")
+  note right of FA : no guarda ni analiza
+end
+
+FA -> CS : Guardar(enPantalla)
+CS -> XML : serializa a un archivo temporal y lo reemplaza (File.Replace / File.Move)
+FA -> CS : Cargar(out archivoInvalido)
+CS -> XML : XmlDocument.Load → XmlSerializer.Deserialize
+XML --> CS : configuración guardada
+CS -> RB : Validar(config)
+CS --> FA : vigente (ConfiguracionRotacion)
+
+break 34d. no se pudo guardar o releer el archivo (RN-26: excepción o archivoInvalido)
+  FA --> U : "No se pudo guardar o leer el archivo de configuración, por lo que no se realizó el análisis.\nVerifique los permisos de la carpeta <Carpeta>."\n(título "Error")
+end
+
+FA -> RB : Analizar(desde, hasta, vigente)
+activate RB
+RB -> RB : Validar(config)
+
+break 34e. "Desde" posterior a "Hasta" (RN-19)
+  RB --> FA : throw InvalidOperationException\n("La fecha desde no puede ser posterior a la fecha hasta.")
+  FA --> U : ex.Message\n(título "Atención")
+  note right of FA : se conserva el resultado anterior, si lo había
+end
+
+RB -> RD : Analizar(desde, hasta)
+RD -> DB : ROTACION_ANALIZAR(@desde, @hasta)
+note right of DB
+  Solo lectura (RN-29). Por cada vino Activo devuelve: stock actual
+  (Σ entradas − Σ salidas), unidades vendidas (salidas CAJA del período),
+  unidades perdidas (salidas AJUSTE) y socios atendidos (cajas Despachadas,
+  con la sustitución vigente si existe).
+end note
+DB --> RD : filas (ID, CODIGO, NOMBRE, BODEGA_NOMBRE, STOCK_MINIMO, STOCK_ACTUAL,\nUNIDADES_VENDIDAS, UNIDADES_PERDIDAS, SOCIOS_ATENDIDOS)
+RD --> RB : List<ResultadoRotacion>
+RB -> RB : CantidadDias(desde, hasta)
+loop por cada vino (fila)
+  RB -> RB : Evaluar(fila, dias, config)\n(consumo mensual, cobertura, clasificación,\nrecomendación y cantidad sugerida; RN-21 a RN-24)
+end
+RB -> RB : ordenar por Prioridad, luego MesesCobertura y luego Nombre
+RB --> FA : List<ResultadoRotacion>
+deactivate RB
+
+FA -> FA : _config, _ultimoResultado, _ultimaConfig,\n_ultimoDesde y _ultimoHasta = análisis actual
+FA -> FA : MostrarResultado(filas)
+FA -> FA : dgvRotacion.DataSource = filas; ocultar VinoId y Prioridad;\nordenar columnas; ActualizarEncabezados()
+FA -> RB : ResumirPorRecomendacion(filas)
+RB --> FA : List<KeyValuePair<string,int>>
+FA -> RB : TotalUnidadesSugeridas(filas)
+RB --> FA : int total
+FA -> FA : lblResumen.Text = cantidad de vinos por recomendación\n+ unidades sugeridas a reponer
+FA -> FA : ActualizarGraficos()
+FA -> RG : ConsumoVsStock(filas, opciones)
+RG --> FA : Chart
+FA -> RG : Distribucion(filas, opciones)
+RG --> FA : Chart
+FA -> RG : UnidadesSugeridas(filas, opciones)
+RG --> FA : Chart
+FA -> FA : btnExportarPdf.Enabled = (filas.Count > 0)
+
+alt 34f. no hay vinos Activos (filas.Count == 0)
+  FA --> U : grilla vacía, resumen con cantidades en cero\ny "Exportar a PDF" deshabilitado
+else hay vinos analizados
+  FA --> U : resumen por recomendación + grilla coloreada por recomendación\n(del más urgente al menos urgente)
+end
+
+opt 34g. falla inesperada (catch Exception de btnAnalizar_Click)
+  FA --> U : "No se pudo realizar el análisis de rotación."\n(título "Error")
+  note right of FA : no se muestra ningún resultado nuevo
+end
+deactivate FA
+
+U -> FA : click "Cerrar" (btnCerrar)
+FA -> FA : Close()
+FA -> FA : frmAnalisisRotacion_FormClosed → IdiomaManager.Desregistrar(this)
+
+@enduml
