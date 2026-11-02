@@ -384,6 +384,7 @@ class Guia:
             ("Versión del documento", "%s (versión final)" % VERSION_DOC),
             ("Fecha de entrega", FECHA_ENTREGA),
             ("Producto", "Club de Vinos, versión %s (instalador MSI)" % VERSION_PRODUCTO),
+            ("Instalador", "El MSI vigente aún no incluye el Pedido de Reposición"),
             ("Idioma", "Español (neutro)"),
         ]
         for k, v in meta:
@@ -563,7 +564,7 @@ class Guia:
 # --------------------------------------------------------------------------------------
 def guia_usuario():
     g = Guia("Guía del Usuario",
-             "Cómo usar el sistema Club de Vinos: catálogo y stock, cajas mensuales y análisis de rotación",
+             "Cómo usar el sistema Club de Vinos: catálogo y stock, cajas mensuales, análisis de rotación y pedidos de reposición",
              "Guia_del_Usuario.docx")
 
     # ---------------- 1 ----------------
@@ -576,8 +577,8 @@ def guia_usuario():
         "(Proceso 1: Catálogo y stock).",
         "**Registrar a los socios del club y preparar su caja mensual**: armarla, reemplazar vinos sin stock, despacharla y "
         "emitir el remito en PDF (Proceso 2: Curación y armado de cajas).",
-        "**Analizar la rotación de los vinos** y obtener recomendaciones de reposición, con un informe en PDF "
-        "(Proceso 3: Análisis de rotación y reposición).",
+        "**Analizar la rotación de los vinos**, obtener recomendaciones de reposición con un informe en PDF y **generar el Pedido de Reposición** "
+        "a la bodega, que luego se autoriza y se recibe en el depósito (Proceso 3: Análisis de rotación y reposición, y sección 7 de esta guía).",
         "**Administrar la seguridad**: usuarios, roles y permisos, idiomas y bitácora de actividad. Estas funciones son "
         "propias del Administrador y se explican en la Guía de Operación.",
     ])
@@ -645,12 +646,15 @@ def guia_usuario():
         ["", "Roles y Permisos", "Roles, jerarquía y permisos de cada rol.", "Gestión de roles"],
         ["", "Gestión de idiomas", "Idiomas y traducciones de la interfaz.", "Gestión de idiomas"],
         ["Catálogo", "Gestionar catálogo de vinos", "Proponer altas, corregir rechazos y solicitar descontinuaciones.", "Gestionar catálogo de vinos"],
-        ["", "Registrar entrada de stock", "Ingreso de mercadería.", "Gestionar catálogo de vinos"],
-        ["", "Registrar ajuste de inventario", "Corrección de stock (roturas, mermas, conteos).", "Gestionar catálogo de vinos"],
-        ["", "Consultar alerta de stock mínimo", "Vinos bajo su stock mínimo.", "Gestionar catálogo de vinos"],
+        ["", "Registrar entrada de stock", "Ingreso de mercadería.", "Gestionar stock de vinos"],
+        ["", "Registrar ajuste de inventario", "Corrección de stock (roturas, mermas, conteos).", "Gestionar stock de vinos"],
+        ["", "Consultar alerta de stock mínimo", "Vinos bajo su stock mínimo.", "Gestionar stock de vinos"],
         ["", "Autorizar alta de vinos", "Autorizar o rechazar altas.", "Autorizar alta de vinos"],
         ["", "Autorizar descontinuación de vinos", "Autorizar o rechazar bajas.", "Autorizar alta de vinos"],
-        ["", "Analizar rotación de stock", "Análisis de rotación y reposición.", "Analizar rotación de stock"],
+        ["", "Analizar rotación de stock", "Análisis de rotación y reposición; con el permiso de gestión de pedidos, también genera el pedido.", "Analizar rotación de stock (y Gestionar pedidos de reposición para generar el pedido)"],
+        ["", "Autorizar pedidos de reposición", "Autorizar o rechazar pedidos pendientes.", "Autorizar pedidos de reposición"],
+        ["", "Registrar recepción de pedido", "Registrar la mercadería recibida de un pedido aprobado.", "Recibir pedidos de reposición"],
+        ["", "Consultar pedidos de reposición", "Consulta de solo lectura de todos los pedidos.", "Cualquiera de los tres permisos de pedidos de reposición"],
         ["Club de Socios", "Gestionar Socios", "Alta y edición de socios y sus varietales preferidos.", "Gestionar socios"],
         ["", "Armar Caja Mensual", "Arma la caja de un socio para un período.", "Armar cajas mensuales"],
         ["", "Picking y Sustituciones", "Revisa cajas armadas y registra reemplazos.", "Registrar picking y sustituciones"],
@@ -660,7 +664,7 @@ def guia_usuario():
     if HAY_AYUDA:
         filas.append(["Ayuda", "Ayuda en línea (F1)", "Abre la ayuda del sistema.", "Todos los usuarios"])
         filas.append(["", "Acerca de", "Muestra el nombre del producto y su versión.", "Todos los usuarios"])
-    g.tabla(["Menú", "Opción", "Para qué sirve", "Permiso requerido"], filas, [2.9, 4.6, 5.6, 3.5], tam=9)
+    g.tabla(["Menú", "Opción", "Para qué sirve", "Permiso requerido"], filas, [2.7, 4.4, 5.3, 4.2], tam=9)
     g.nota("Los menús **Catálogo**, **Club de Socios** y **Administración** aparecen únicamente si usted tiene al menos un "
            "permiso de los que contienen.")
 
@@ -701,6 +705,21 @@ def guia_usuario():
     g.p("Elija **Usuario > Cerrar Sesion**. La sesión termina sin pedir confirmación y vuelve la ventana de inicio de "
         "sesión, desde la cual otra persona puede ingresar. Los datos ya guardados no se pierden.")
 
+    g.h2("Colores de la interfaz")
+    g.p("El sistema no usa una paleta propia: las ventanas, los botones y los campos se muestran con los colores predeterminados de Windows, de modo que el "
+        "aspecto acompaña la configuración de su equipo (la barra de título toma el color de resaltado de Windows). Solo conservan un color propio los elementos "
+        "en los que el color transmite un significado:", mantener=True)
+    g.tabla(["Dónde", "Color", "Qué indica"], [
+        ["Tabla del análisis de rotación (pestaña Detalle)", "Fila en rojo oscuro, ámbar oscuro, verde oscuro o azul grisáceo oscuro, con texto blanco",
+         "Recomendación del vino: Reponer urgente, Reponer, Mantener o Sobrestock / no reponer."],
+        ["Gráficos del análisis e informe PDF", "Rojo, naranja, verde y azul grisáceo", "La misma recomendación en los tres gráficos y en la tabla del PDF."],
+        ["Aviso de fecha en el análisis de rotación", "Ámbar", "El período termina antes de hoy: la cobertura puede no ser representativa."],
+        ["Picking y Despachar caja", "Fila en rosa claro con texto rojo oscuro", "Línea de la caja cuyo stock disponible no alcanza."],
+        ["Armar Caja Mensual", "Total en rojo", "El total supera el presupuesto mensual del socio."],
+        ["Autorizar pedidos de reposición", "Cartel en rojo", "El pedido seleccionado lo generó usted y no puede resolverlo."],
+        ["Cuadros de mensaje", "Ícono verde, naranja, rojo o azul", "Éxito, atención, error, y pregunta o información, respectivamente."],
+    ], [5.4, 5.4, 5.8], tam=9)
+
     # ---------------- 3 ----------------
     g.h1("Roles y funciones")
     g.p("Los permisos se agrupan en **roles**. A cada usuario el administrador le asigna uno o más roles y su conjunto de permisos "
@@ -709,11 +728,12 @@ def guia_usuario():
     g.tabla(["Rol", "Para qué se usa", "Permisos"], [
         ["Administrador", "Administración del sistema y autorización de altas y bajas de vinos.", "Todos"],
         ["Usuario", "Usuario común, sin funciones operativas.", "Cambiar contraseña"],
-        ["Encargado de Compras/Bodega", "Propone vinos y bajas, registra entradas y ajustes de stock, analiza la rotación.",
-         "Gestionar catálogo de vinos; Analizar rotación de stock"],
+        ["Encargado de Compras/Bodega", "Propone vinos y bajas, también puede registrar entradas y ajustes de stock, analiza la rotación y genera los pedidos de reposición.",
+         "Gestionar catálogo de vinos; Gestionar stock de vinos; Analizar rotación de stock; Gestionar pedidos de reposición"],
         ["Atención al Socio", "Mantiene el registro de socios y sus preferencias.", "Gestionar socios"],
         ["Curador de Producto", "Arma las cajas mensuales.", "Armar cajas mensuales"],
-        ["Encargado de Depósito", "Prepara las cajas y registra sustituciones.", "Registrar picking y sustituciones"],
+        ["Encargado de Depósito", "Registra entradas y ajustes de stock, consulta la alerta de stock mínimo, prepara las cajas, registra sustituciones y registra la recepción de los pedidos de reposición. No puede proponer altas ni bajas del catálogo.",
+         "Gestionar stock de vinos; Registrar picking y sustituciones; Recibir pedidos de reposición"],
         ["Logística", "Despacha cajas y consulta despachos.", "Despachar cajas"],
     ], [4.2, 7.4, 5.0])
     g.nota("Esta es la configuración inicial. El administrador puede crear otros roles y cambiar los permisos de cada uno, de modo "
@@ -724,10 +744,14 @@ def guia_usuario():
     g.tabla(["Función", "Adm.", "Usu.", "Comp.", "Dep.", "Cur.", "Aten.", "Log."], [
         ["Iniciar y cerrar sesión, cambiar contraseña e idioma", SI, SI, SI, SI, SI, SI, SI],
         ["Proponer alta, corregir y reproponer, solicitar descontinuación", SI, NO, SI, NO, NO, NO, NO],
-        ["Registrar entradas de stock y ajustes de inventario", SI, NO, SI, NO, NO, NO, NO],
-        ["Consultar la alerta de stock mínimo", SI, NO, SI, NO, NO, NO, NO],
+        ["Registrar entradas de stock y ajustes de inventario", SI, NO, SI, SI, NO, NO, NO],
+        ["Consultar la alerta de stock mínimo", SI, NO, SI, SI, NO, NO, NO],
         ["Autorizar o rechazar altas y descontinuaciones", SI, NO, NO, NO, NO, NO, NO],
         ["Analizar rotación y exportar el informe", SI, NO, SI, NO, NO, NO, NO],
+        ["Generar un pedido de reposición desde el análisis", SI, NO, SI, NO, NO, NO, NO],
+        ["Autorizar o rechazar pedidos de reposición", SI, NO, NO, NO, NO, NO, NO],
+        ["Registrar la recepción de pedidos de reposición", SI, NO, NO, SI, NO, NO, NO],
+        ["Consultar pedidos de reposición", SI, NO, SI, SI, NO, NO, NO],
         ["Gestionar socios", SI, NO, NO, NO, NO, SI, NO],
         ["Armar caja mensual", SI, NO, NO, NO, SI, NO, NO],
         ["Picking y sustituciones", SI, NO, NO, SI, NO, NO, NO],
@@ -745,6 +769,8 @@ def guia_usuario():
          "Los botones **Autorizar** y **Rechazar** aparecen deshabilitados para sus propias solicitudes."],
         ["RN-10", "Quien armó una caja no puede registrar sustituciones sobre ella ni despacharla.",
          "Los botones **Registrar sustitución** y **Despachar caja** aparecen deshabilitados para las cajas que usted armó."],
+        ["RN-33", "Quien generó un pedido de reposición no puede autorizarlo ni rechazarlo.",
+         "Los botones **Autorizar** y **Rechazar** aparecen deshabilitados para los pedidos que usted generó, y el cartel “No puede autorizar ni rechazar un pedido que usted mismo generó.” se muestra en rojo."],
     ], [2.0, 8.0, 6.6])
     g.p("Por este motivo el sistema necesita más de una cuenta con autoridad (por ejemplo, dos administradores) y más de una "
         "persona en el circuito de cajas.")
@@ -812,15 +838,17 @@ def guia_usuario():
         "nueva solicitud, por lo que no podrá resolverla.")
 
     g.h2("Solicitar la descontinuación de un vino (baja)")
-    g.p("Permiso requerido: **Gestionar catálogo de vinos**. Regla RN-15: un vino solo puede descontinuarse con stock cero.", mantener=True)
+    g.p("Permiso requerido: **Gestionar catálogo de vinos**. Regla RN-15: un vino solo puede descontinuarse con stock cero y sin un pedido de reposición abierto (Pendiente o Aprobado).", mantener=True)
     g.pasos([
-        "Si el vino tiene botellas, primero deje el stock en cero con un ajuste de inventario (sección 4.7).",
+        "Si el vino tiene botellas, primero deje el stock en cero con un ajuste de inventario (sección 4.8).",
         "En **Catálogo > Gestionar catálogo de vinos**, seleccione el vino activo.",
         "Presione **Solicitar descontinuación** y confirme “¿Solicitar la descontinuación del vino '…'?”.",
         "El sistema muestra “Descontinuación solicitada, pendiente de autorización.” El vino sigue Activo hasta que se autorice la baja.",
     ])
     g.p("El botón solo está habilitado para un vino Activo que no tenga ya una baja pendiente. Si el vino conserva stock, el sistema muestra: "
-        "“No se puede descontinuar un vino con stock (N botellas). Registre un ajuste de inventario para dejarlo en 0 y luego solicite la baja.”")
+        "“No se puede descontinuar un vino con stock (N botellas). Registre un ajuste de inventario para dejarlo en 0 y luego solicite la baja.” "
+        "Si el vino está en un pedido de reposición abierto, el aviso es: “El vino tiene un pedido de reposición abierto (Nº N). Espere a que se resuelva antes de solicitar su baja.” "
+        "(sección 7.6).")
 
     g.h2("Autorizar o rechazar una descontinuación")
     g.pasos([
@@ -830,11 +858,12 @@ def guia_usuario():
         "Para rechazar, escriba el **Motivo de rechazo** y presione **Rechazar baja**. El sistema muestra “Solicitud de descontinuación rechazada. El vino sigue activo.”",
     ])
     g.nota("Al autorizar, el sistema vuelve a verificar que el stock sea cero, porque pudo ingresar mercadería desde la solicitud. "
-           "Si cambió, se informa “No se pudo autorizar la baja: el vino cambió de estado o de stock…” y el trámite no se completa. "
+           "Si cambió, se informa “No se pudo autorizar la baja: el vino cambió de estado, de stock o de pedido de reposición…” y el trámite no se completa. "
+           "Lo mismo ocurre si el vino entró mientras tanto en un pedido de reposición abierto: “El vino tiene un pedido de reposición abierto (Nº N). Espere a que se resuelva antes de autorizar su baja.” En ese caso solo puede rechazarse la baja. "
            "La regla de separación de funciones (RN-01) también rige para las bajas.")
 
     g.h2("Registrar una entrada de stock")
-    g.p("Permiso requerido: **Gestionar catálogo de vinos**. Solo se pueden registrar entradas para vinos Activos.", mantener=True)
+    g.p("Permiso requerido: **Gestionar stock de vinos** (rol habitual: Encargado de Depósito; también lo tienen Compras/Bodega y el Administrador). Solo se pueden registrar entradas para vinos Activos.", mantener=True)
     g.pasos([
         "Elija **Catálogo > Registrar entrada de stock**.",
         "Seleccione el **Vino**. El sistema muestra el **Stock actual** y, en la tabla, los movimientos del vino (más recientes primero) con fecha y hora, tipo, cantidad, motivo y responsable.",
@@ -844,7 +873,7 @@ def guia_usuario():
     g.p("Mensajes posibles: “La cantidad debe ser mayor a cero.”, “El motivo es obligatorio.” y “El vino debe estar autorizado para registrar movimientos de stock.”")
 
     g.h2("Registrar un ajuste de inventario")
-    g.p("Sirve para corregir diferencias entre el stock del sistema y el real (rotura, merma, conteo físico). Permiso: **Gestionar catálogo de vinos**.",
+    g.p("Sirve para corregir diferencias entre el stock del sistema y el real (rotura, merma, conteo físico). Permiso: **Gestionar stock de vinos**.",
         mantener=True)
     g.pasos([
         "Elija **Catálogo > Registrar ajuste de inventario**.",
@@ -998,6 +1027,9 @@ def guia_usuario():
     g.p("El análisis ayuda a decidir qué vinos reponer y cuáles no. Cruza el stock actual con lo despachado en un período y entrega, para cada vino "
         "activo, su consumo mensual, cuántos meses de cobertura le quedan, una **clasificación** de su rotación y una **recomendación** de reposición. "
         "Permiso requerido: **Analizar rotación de stock** (menú **Catálogo > Analizar rotación de stock**).")
+    g.p("El análisis en sí es una **consulta de lectura**: calcula y muestra, pero no modifica el stock ni crea nada por sí solo. Desde esa misma pantalla, quien tiene el permiso "
+        "**Gestionar pedidos de reposición** puede convertir la sugerencia en un **Pedido de Reposición** a la bodega (sección 7). Los vinos que ya tienen un pedido en curso se "
+        "reconocen en la tabla por las columnas **En camino** y **Pedido abierto**.")
     g.h2("Cómo se calcula")
     g.tabla(["Dato", "Definición"], [
         ["Vendidas", "Unidades despachadas en cajas durante el período (se respetan las sustituciones)."],
@@ -1006,8 +1038,11 @@ def guia_usuario():
         ["Consumo mensual", "Vendidas dividido por (días del período / 30)."],
         ["Cobertura (meses)", "Stock actual dividido por el consumo mensual. Se muestra “—” si no hubo consumo."],
         ["Stock actual", "Stock del día de hoy, no el del final del período analizado."],
-        ["Cantidad sugerida", "Solo para vinos con recomendación Reponer urgente o Reponer: lo que falta para llegar a la cobertura objetivo sin quedar bajo el stock mínimo. "
-                              "Fórmula: máx(consumo mensual × cobertura objetivo; stock mínimo) − stock actual, redondeado hacia arriba, nunca menor a 0 en Reponer y nunca menor a 1 en Reponer urgente. Para Mantener y Sobrestock es 0."],
+        ["En camino", "Unidades de pedidos de reposición **Aprobados** que todavía no se recibieron. Los pedidos Pendientes o Rechazados no cuentan."],
+        ["Pedido abierto", "Estado (Pendiente o Aprobado) del pedido de reposición que ya incluye al vino. Está vacío si el vino no está en ningún pedido abierto."],
+        ["Cantidad sugerida", "Solo para vinos con recomendación Reponer urgente o Reponer: lo que falta para llegar a la cobertura objetivo sin quedar bajo el stock mínimo, **neto de lo que ya está en camino**. "
+                              "Se calcula en dos pasos. Primero la sugerencia calculada: máx(consumo mensual × cobertura objetivo; stock mínimo) − stock actual, redondeado hacia arriba, nunca menor a 0 en Reponer y nunca menor a 1 en Reponer urgente. "
+                              "Luego se descuenta lo en camino: cantidad sugerida = máx(0; sugerencia calculada − en camino). Por eso puede ser 0 aunque la recomendación sea Reponer urgente. Para Mantener y Sobrestock es 0."],
     ], [4.0, 12.6])
     g.h3("Clasificación de la rotación")
     g.tabla(["Clasificación", "Condición", "Umbral inicial"], [
@@ -1054,10 +1089,12 @@ def guia_usuario():
         "Revise el período. Por omisión es **Desde** (hoy menos los días de análisis más uno) y **Hasta** (hoy), de modo que el período incluye el día de hoy. Si cambia **Días de análisis**, la fecha **Desde** se recalcula; también puede editar ambas fechas a mano.",
         "Si lo desea, ajuste los umbrales.",
         "Presione **Analizar**.",
-        "Lea el resumen sobre la tabla (cantidad de vinos por recomendación) y la tabla de resultados. Las filas se colorean según la recomendación: rojo, Reponer urgente; ámbar, Reponer; verde, Mantener; azul, Sobrestock / no reponer.",
+        "Lea el resumen sobre la tabla (cantidad de vinos por recomendación) y la tabla de resultados. Las filas se colorean según la recomendación: rojo oscuro, Reponer urgente; ámbar oscuro, Reponer; verde oscuro, Mantener; azul grisáceo oscuro, Sobrestock / no reponer.",
+        "Si tiene el permiso **Gestionar pedidos de reposición**, marque los vinos a pedir y presione **Generar pedido** (sección 7.2).",
     ])
     g.p("La tabla muestra SKU, nombre, bodega, stock actual, stock mínimo, vendidas, pérdidas, consumo mensual, cobertura, socios atendidos, "
-        "clasificación, recomendación y cantidad sugerida a reponer; el resumen sobre la tabla agrega el total de unidades sugeridas a reponer. Se ordena de la recomendación más urgente a la menos urgente y, dentro de cada una, por menor cobertura. "
+        "clasificación, recomendación, cantidad sugerida a reponer, **En camino** y **Pedido abierto**; el resumen sobre la tabla agrega el total de unidades sugeridas a reponer. "
+        "Con el permiso de gestión de pedidos, la tabla suma al comienzo las columnas **Pedir** y **Cantidad a pedir**. Se ordena de la recomendación más urgente a la menos urgente y, dentro de cada una, por menor cobertura. "
         "Solo se incluyen vinos Activos.")
     g.nota("Si la fecha **Hasta** es anterior a hoy, aparece un aviso: el stock considerado es el de hoy, por lo que la cobertura puede no ser representativa "
            "para períodos pasados. El aviso no impide el análisis.", tipo="Importante")
@@ -1085,10 +1122,117 @@ def guia_usuario():
         "de modo que cada exportación crea un archivo nuevo. Es un documento A4 apaisado que se emite en el idioma de la interfaz activo al exportar (los textos sin traducción salen en español; fechas y números mantienen el formato es-AR) y contiene: el título (en español, “INFORME DE ROTACIÓN Y REPOSICIÓN DE STOCK”), "
         "el período analizado, la fecha de generación, los umbrales usados, un resumen con la cantidad de vinos por recomendación y el total de unidades sugeridas a reponer, "
         "los gráficos (la primera página reúne el encabezado, el resumen y los gráficos de consumo vs stock y de distribución por recomendación; la segunda abre con las unidades sugeridas a reponer), "
-        "la tabla completa con color por recomendación (incluye la columna “A reponer”) y una nota con las fórmulas. Refleja el **último análisis realizado**, no los cambios que haya hecho después en pantalla. "
+        "la tabla completa con color por recomendación (incluye las columnas “En camino” y “A reponer”, esta última neta de lo en camino) y una nota con las fórmulas y otra que aclara ese descuento. Refleja el **último análisis realizado**, no los cambios que haya hecho después en pantalla. "
         "Si no puede generarse, el sistema indica “No se pudo generar el informe en PDF. Verifique que la carpeta Documentos sea escribible.”")
 
     # ---------------- 7 ----------------
+    g.h1("Pedido de reposición")
+    g.h2("Cómo funciona el ciclo")
+    g.p("El Pedido de Reposición convierte la sugerencia del análisis de rotación en una compra concreta a la bodega. Intervienen tres funciones, cada una con su pantalla, "
+        "y el pedido recorre estos estados:", mantener=True)
+    g.codigo("Pendiente --(Autorizar)--------------> Aprobado --(Registrar recepción)--> Recibido\n"
+             "    |\n"
+             "    +------(Rechazar, con motivo)---> Rechazado")
+    g.tabla(["Estado", "Significado", "Qué sigue"], [
+        ["Pendiente", "El pedido fue generado y espera la decisión de un administrador distinto de quien lo generó.", "Se autoriza o se rechaza."],
+        ["Aprobado", "El pedido fue autorizado. Sus unidades figuran como **En camino** en el análisis de rotación.", "Se registra su recepción cuando llega la mercadería."],
+        ["Rechazado", "Un administrador lo rechazó y dejó un motivo. Sus vinos quedan libres para un nuevo pedido.", "Estado final: no se reabre ni se cancela."],
+        ["Recibido", "Se registró la cantidad recibida de cada línea y el stock ya se incrementó.", "Estado final. Lo que no llegó se da por no entregado: los vinos pueden volver a pedirse."],
+    ], [2.6, 8.4, 5.6])
+    g.tabla(["Paso", "Rol habitual", "Permiso", "Pantalla"], [
+        ["1. Generar el pedido", "Encargado de Compras/Bodega (o Administrador)", "Gestionar pedidos de reposición", "Catálogo > Analizar rotación de stock"],
+        ["2. Autorizar o rechazar", "Administrador", "Autorizar pedidos de reposición", "Catálogo > Autorizar pedidos de reposición"],
+        ["3. Registrar la recepción", "Encargado de Depósito (o Administrador)", "Recibir pedidos de reposición", "Catálogo > Registrar recepción de pedido"],
+        ["4. Consultar", "Cualquiera de los anteriores", "Cualquiera de los tres permisos", "Catálogo > Consultar pedidos de reposición"],
+    ], [3.6, 4.6, 4.2, 4.2], tam=9)
+    g.p("Reglas que conviene conocer:", mantener=True)
+    g.bullets([
+        "**RN-31.** Solo se pueden pedir vinos Activos, con una cantidad entera mayor que cero (hasta **100000 unidades por línea**). Todos los vinos de un pedido son de la misma bodega: si elige vinos de varias bodegas, el sistema crea **un pedido por bodega**.",
+        "**RN-32.** Un vino no puede estar en más de un pedido abierto (Pendiente o Aprobado) a la vez.",
+        "**RN-33.** Quien autoriza o rechaza un pedido no puede ser quien lo generó.",
+        "**RN-34.** El rechazo exige un motivo de 1 a 200 caracteres.",
+        "**RN-35.** La recepción solo aplica a pedidos Aprobados: la cantidad recibida de cada línea va de 0 a la cantidad pedida y al menos una debe ser mayor que cero.",
+        "**RN-36.** Cualquier usuario con el permiso de recepción puede registrarla, incluso quien generó o autorizó el pedido.",
+        "**RN-37.** “En camino” son las unidades de los pedidos Aprobados aún no recibidos, y el análisis las descuenta de la cantidad sugerida.",
+    ])
+
+    g.h2("Generar un pedido desde el análisis")
+    g.p("Rol habitual: Encargado de Compras/Bodega. Permisos requeridos: **Analizar rotación de stock** y **Gestionar pedidos de reposición**. Sin el segundo permiso la tabla no muestra la selección ni el botón.", mantener=True)
+    g.pasos([
+        "Elija **Catálogo > Analizar rotación de stock** y presione **Analizar** (sección 6.4).",
+        "En la tabla de resultados, las filas pedibles muestran una casilla en la columna **Pedir** y un valor en **Cantidad a pedir**, que por omisión es la cantidad sugerida. Son pedibles los vinos con recomendación Reponer urgente o Reponer, con cantidad sugerida mayor que cero y sin un pedido abierto. Las demás filas no tienen casilla.",
+        "Marque la casilla de cada vino que quiere pedir. Debajo de la tabla, el sistema cuenta los vinos marcados (“Vinos seleccionados para el pedido: N”) y recién entonces se habilita **Generar pedido**.",
+        "Si lo necesita, corrija la **Cantidad a pedir** de un vino. Debe ser un número entero mayor que cero y no superar las 100000 unidades por línea; si no, el sistema restituye la cantidad sugerida y avisa.",
+        "Presione **Generar pedido** y confirme la pregunta “¿Generar el pedido de reposición con N vino(s) y M unidad(es)? Se crea un pedido por bodega y queda Pendiente de autorización.”",
+        "El sistema muestra “Pedido de reposición generado:” (o “Pedidos de reposición generados (uno por bodega):”) con una línea por pedido: número, bodega, cantidad de líneas y unidades, y cierra con “Quedan Pendientes de autorización.”",
+        "El análisis se vuelve a ejecutar con las mismas fechas y configuración: los vinos pedidos pasan a mostrar su estado en **Pedido abierto** y dejan de tener casilla.",
+    ])
+    g.nota("El pedido guarda, para cada vino, la cantidad sugerida en el momento de generarlo y la cantidad que usted pidió. Generar un pedido no modifica el stock; el stock solo cambia cuando se registra la recepción.")
+    g.nota("Si eligió vinos de varias bodegas y el sistema alcanzó a crear algunos pedidos pero falló otro, el aviso lo informa: “Se creó el pedido Nº X pero falló el de la bodega …: motivo” (o “Se crearon los pedidos Nº X, Y pero falló…”). "
+           "Los pedidos ya creados quedan Pendientes y no se deshacen; el análisis se actualiza para que pueda reintentar solo con lo que falta.", tipo="Importante")
+
+    g.h2("Autorizar o rechazar un pedido")
+    g.p("Rol habitual: Administrador. Permiso requerido: **Autorizar pedidos de reposición**. No puede resolver un pedido que usted mismo generó (RN-33), aunque tenga el permiso: en ese caso necesita que lo resuelva otro administrador.", mantener=True)
+    g.pasos([
+        "Elija **Catálogo > Autorizar pedidos de reposición**. La tabla lista los pedidos Pendientes con número, bodega, quién lo generó, fecha de generación, líneas y unidades pedidas.",
+        "Seleccione un pedido. El panel **Detalle del pedido** muestra la cabecera y sus líneas: SKU, nombre, la cantidad sugerida al generar y la cantidad pedida.",
+        "Para aprobar, presione **Autorizar**. El sistema muestra “Pedido Nº N autorizado correctamente. Queda Aprobado, a la espera de su recepción.” Sus unidades pasan a figurar como **En camino** en el análisis.",
+        "Para rechazar, presione **Rechazar**. Se abre el cuadro “Rechazar pedido Nº N”: escriba el motivo (“Motivo del rechazo (obligatorio, hasta 200 caracteres):”) y presione **Rechazar pedido** (**Cancelar** cierra el cuadro sin rechazar). El sistema muestra “Pedido Nº N rechazado. Sus vinos quedan libres para un nuevo pedido.”",
+    ])
+    g.p("Si el pedido lo generó usted, los botones **Autorizar** y **Rechazar** aparecen deshabilitados. Si otra persona resolvió el mismo pedido antes, el sistema lo informa y actualiza la lista.")
+
+    g.h2("Registrar la recepción de un pedido")
+    g.p("Rol habitual: Encargado de Depósito. Permiso requerido: **Recibir pedidos de reposición**.", mantener=True)
+    g.pasos([
+        "Cuando llegue la mercadería, elija **Catálogo > Registrar recepción de pedido**. La tabla lista los pedidos Aprobados.",
+        "Seleccione el pedido que llegó. El panel **Detalle del pedido** muestra la cabecera y una tabla con las líneas.",
+        "En la columna **Cantidad recibida** de cada línea indique cuántas botellas llegaron realmente. Por omisión figura la cantidad pedida; puede bajarla hasta 0. Es la única columna editable.",
+        "Presione **Registrar recepción** y confirme “¿Registrar la recepción del pedido Nº N? Se generan entradas de stock por M unidad(es) y el pedido queda Recibido; lo no recibido se da por no entregado.”",
+        "El sistema muestra “Recepción del pedido Nº N registrada. Entradas de stock generadas: X línea(s), M unidad(es).” El pedido pasa a Recibido.",
+    ])
+    g.bullets([
+        "**Qué pasa con lo no recibido.** Si de un vino llegó menos de lo pedido (o nada), la diferencia se da por no entregada: el pedido queda cerrado como Recibido y no queda saldo pendiente. Si hace falta el resto, deberá pedirse de nuevo desde un nuevo análisis, porque el vino queda otra vez libre.",
+        "**Stock.** Por cada línea con cantidad recibida mayor que cero se registra una **Entrada** de stock con el motivo “Recepción de pedido de reposición”. Aparece en los movimientos del vino (**Catálogo > Registrar entrada de stock**) y en el stock actual. Las líneas con cero no generan movimiento.",
+        "**Todo o nada.** La recepción se registra en una sola operación: si algo falla, no se registra ninguna entrada y el pedido sigue Aprobado.",
+    ])
+
+    g.h2("Consultar los pedidos")
+    g.p("Permiso requerido: cualquiera de los tres permisos del ciclo. La pantalla es de solo lectura.", mantener=True)
+    g.pasos([
+        "Elija **Catálogo > Consultar pedidos de reposición**. La tabla muestra todos los pedidos.",
+        "En **Estado** elija Todos, Pendiente, Aprobado, Rechazado o Recibido para filtrar la lista.",
+        "Seleccione un pedido para ver en **Detalle del pedido** quién lo generó y cuándo, quién lo resolvió, el motivo de rechazo (si lo hubo), quién lo recibió y las líneas; en un pedido Recibido se muestra además la cantidad recibida de cada línea.",
+    ])
+
+    g.h2("Operar con un vino que tiene un pedido abierto")
+    g.p("Mientras un vino está en un pedido Pendiente o Aprobado:", mantener=True)
+    g.bullets([
+        "No puede incluirse en otro pedido (RN-32). En el análisis su fila muestra el estado en **Pedido abierto** y no tiene casilla.",
+        "**No puede darse de baja** (regla RN-15 extendida): no se puede solicitar ni autorizar su descontinuación, porque la recepción exige un vino Activo y el pedido quedaría sin salida. "
+        "El aviso es: “El vino tiene un pedido de reposición abierto (Nº N). Espere a que se resuelva antes de solicitar su baja.” (al autorizar dice “…antes de autorizar su baja.”). "
+        "Cuando el pedido se rechaza o se recibe, el vino queda libre y la baja puede solicitarse, siempre que además tenga stock cero.",
+        "Su cantidad sugerida en el análisis ya descuenta lo que viene en camino. Un vino con un pedido Pendiente todavía no descuenta nada, porque aún no fue autorizado.",
+    ])
+
+    g.h2("Mensajes frecuentes del pedido de reposición")
+    g.tabla(["Mensaje", "Significado y acción"], [
+        ["“Seleccione al menos un vino para generar el pedido.”", "Presionó **Generar pedido** sin ninguna casilla marcada."],
+        ["“La cantidad a pedir debe ser un número entero mayor a cero.”", "Escribió un valor vacío, decimal, negativo, cero o no numérico en **Cantidad a pedir**. Se restituye la sugerida."],
+        ["“La cantidad a pedir no puede superar las 100000 unidades por línea.”", "Superó el tope por línea."],
+        ["“RN-32: \"…\" ya está en el pedido abierto Nº N (Pendiente).”", "Otro pedido abierto incluye al vino (por ejemplo, lo generó otra persona después de su análisis). Actualice el análisis."],
+        ["“RN-31: solo se pueden pedir vinos Activos (\"…\" no lo está).”", "El vino dejó de estar Activo desde que se hizo el análisis. Vuelva a analizar."],
+        ["“RN-33: no puede autorizar un pedido que usted mismo generó.” (o “…rechazar…”)", "Debe resolverlo otro usuario con el permiso de autorización."],
+        ["“Debe indicar el motivo del rechazo.”", "Presionó **Rechazar pedido** con el motivo vacío."],
+        ["“El pedido ya fue resuelto (estado: …).”", "Otro usuario resolvió el pedido antes. La lista se actualiza."],
+        ["“La cantidad recibida de \"…\" debe estar entre 0 y N.”", "La cantidad recibida es negativa o supera la pedida."],
+        ["“La cantidad recibida debe ser un número entero.”", "El valor escrito en **Cantidad recibida** no es numérico."],
+        ["“Al menos una línea debe tener una cantidad recibida mayor a cero.”", "No puede registrarse una recepción donde no llegó nada."],
+        ["“El vino \"…\" no está activo: no admite entradas de stock.”", "Una línea con cantidad recibida corresponde a un vino que ya no está Activo. Consulte al administrador (Guía de Operación)."],
+        ["“No se pudo registrar la recepción: el pedido cambió de estado o los datos no son válidos. Actualice e intente nuevamente.”", "Otra persona modificó el pedido mientras lo operaba."],
+        ["“No se pudo completar la operación. Intente nuevamente.”", "Error inesperado al consultar o resolver. Reintente y, si persiste, avise al administrador."],
+    ], [7.4, 9.2], tam=9)
+
+    # ---------------- 8 ----------------
     if HAY_AYUDA:
         g.h1("Ayuda dentro del sistema")
         g.p("El sistema incluye una ayuda en línea, disponible para cualquier usuario con sesión iniciada y sin permisos especiales. Explica, por área, qué hace cada función, "
@@ -1099,6 +1243,9 @@ def guia_usuario():
             "Para buscar, escriba una palabra en el cuadro **Buscar**: el árbol muestra solo los temas que la incluyen. Borre el texto para ver todos.",
             "**Ayuda > Acerca de** muestra el nombre del producto y su versión.",
         ])
+        g.p("Los cuatro temas del ciclo de pedidos se abren con **F1** desde su pantalla: “Generar un pedido de reposición” (desde el análisis de rotación, dentro del tema "
+            "“Análisis de rotación y reposición”), “Autorizar o rechazar un pedido de reposición”, “Registrar la recepción de un pedido de reposición” y “Consultar pedidos de reposición”. "
+            "Cada uno detalla el permiso, los pasos, las reglas (RN-31 a RN-37) y los mensajes de esta sección 7.")
         g.p("El contenido de la ayuda está en español aunque cambie el idioma de la interfaz.")
 
     # ---------------- 8 ----------------
@@ -1114,7 +1261,7 @@ def guia_usuario():
         ["Propuse un vino y no lo veo otro compañero.",
          "Un vino Pendiente solo lo ve quien emitió la solicitud. Cuando se aprueba, pasa a Activo y lo ven todos."],
         ["No puedo solicitar la descontinuación de un vino.",
-         "El vino debe estar Activo, sin una baja pendiente y con stock cero. Si tiene botellas, registre antes un ajuste de inventario."],
+         "El vino debe estar Activo, sin una baja pendiente, con stock cero y sin un pedido de reposición abierto. Si tiene botellas, registre antes un ajuste de inventario."],
         ["Un vino no aparece entre los candidatos al armar la caja.",
          "Los candidatos son los vinos Activos con stock mayor que cero. Registre una entrada de stock o verifique que el vino esté aprobado."],
         ["¿Se descuenta el stock al armar la caja?",
@@ -1127,6 +1274,18 @@ def guia_usuario():
          "El remito de despacho siempre se emite en español. El informe de rotación sale en el idioma activo al exportar: cambie el idioma y vuelva a exportar. Los mensajes de aviso del resto del sistema también se muestran en español."],
         ["El análisis de rotación no muestra todos los vinos.",
          "Solo analiza vinos Activos. Los Pendientes, Rechazados y Descontinuados no se incluyen."],
+        ["¿El análisis de rotación genera pedidos por sí solo?",
+         "No. El análisis es una consulta de lectura y solo sugiere. El pedido se genera desde esa misma pantalla, cuando una persona con el permiso Gestionar pedidos de reposición marca los vinos y presiona Generar pedido."],
+        ["Un vino de mi análisis no tiene casilla en la columna Pedir.",
+         "Solo se pueden pedir los vinos con recomendación Reponer urgente o Reponer, con cantidad sugerida mayor que cero y sin un pedido abierto. Si el vino ya figura en Pedido abierto, espere a que ese pedido se resuelva."],
+        ["¿Por qué la cantidad sugerida de un vino dice 0 si necesita reposición?",
+         "Porque ya viene mercadería en camino (pedidos Aprobados sin recibir) que cubre lo que faltaba. La cantidad sugerida es neta de lo en camino."],
+        ["Generé un pedido y no puedo autorizarlo.",
+         "Por la regla RN-33, quien genera un pedido no puede autorizarlo ni rechazarlo, aunque sea administrador. Debe hacerlo otro usuario con el permiso Autorizar pedidos de reposición."],
+        ["Llegó menos mercadería de la pedida. ¿Qué hago?",
+         "Registre la recepción con la cantidad que llegó realmente (de 0 a la pedida). Lo no recibido se da por no entregado y el pedido queda cerrado; si hace falta el resto, genere un nuevo pedido."],
+        ["No puedo dar de baja un vino que ya no tiene stock.",
+         "Si el vino está en un pedido de reposición Pendiente o Aprobado, la baja se bloquea hasta que el pedido se rechace o se reciba (RN-15 extendida)."],
         ["Olvidé mi contraseña.",
          "La aplicación no permite recuperarla. Consulte con el administrador del sistema (Guía de Operación)."],
         ["Mi cuenta está bloqueada.",
@@ -1165,14 +1324,17 @@ def guia_usuario():
         ["Consumo mensual", "Unidades vendidas por mes, calculadas sobre el período analizado."],
         ["Despacho", "Entrega de la caja: descuenta el stock y emite el remito."],
         ["Dígitos verificadores", "Mecanismo con el que el sistema detecta modificaciones de los datos de usuarios hechas fuera de la aplicación."],
+        ["En camino", "Unidades de pedidos de reposición Aprobados que todavía no se recibieron."],
         ["Kardex", "Registro cronológico de entradas y salidas de stock de cada vino."],
         ["Maridaje", "Comidas con las que se recomienda el vino."],
+        ["Pedido abierto", "Pedido de reposición en estado Pendiente o Aprobado. Un vino solo puede estar en uno a la vez."],
+        ["Pedido de reposición", "Pedido de compra a una bodega, generado desde el análisis de rotación. Se autoriza (o se rechaza con motivo) y luego se registra su recepción."],
         ["Permiso", "Autorización para usar una función concreta del sistema."],
         ["Picking", "Preparación física de una caja a partir de su composición."],
         ["Presupuesto mensual", "Tope de gasto de un socio para su caja de cada período."],
         ["Remito", "Documento PDF que acompaña la entrega de una caja."],
         ["Rol", "Conjunto de permisos que se asigna a los usuarios."],
-        ["RN (regla de negocio)", "Regla que el sistema aplica siempre, por ejemplo RN-01 (separación de funciones) o RN-15 (baja solo con stock cero)."],
+        ["RN (regla de negocio)", "Regla que el sistema aplica siempre, por ejemplo RN-01 (separación de funciones) o RN-15 (baja solo con stock cero y sin pedido de reposición abierto)."],
         ["Separación de funciones", "Principio por el cual quien inicia una operación no puede ser quien la autoriza o la completa."],
         ["SKU", "Código único que identifica a un vino en el catálogo."],
         ["Snapshot (dato congelado)", "Copia del nombre y precio de un vino tomada al armar la caja."],
@@ -1243,6 +1405,9 @@ def guia_operacion():
     ], [4.4, 12.2])
     g.nota("La base de datos **nunca se elimina** al desinstalar o actualizar. La carpeta de instalación es de solo lectura para los usuarios comunes, por lo que "
            "la aplicación escribe sus archivos propios en la carpeta del usuario (sección 8).")
+    g.nota("El paquete MSI vigente (versión %s) **no incluye todavía** el ciclo de Pedido de Reposición (CU-37 a CU-40), el permiso `Gestionar stock de vinos` ni los pedidos de demostración: "
+           "el instalador está pendiente de recompilar una vez aprobado el cambio. Esas funciones se describen en estas guías porque ya están en el código fuente; hasta que exista el nuevo paquete, "
+           "para usarlas hay que compilar la solución y ejecutar el `script.sql` actual (Guía de Mantenimiento, secciones 3 y 4). No se anticipa el número de versión del nuevo paquete." % VERSION_PRODUCTO, tipo="Importante")
 
     g.h2("Antes de instalar")
     g.bullets([
@@ -1363,10 +1528,10 @@ def guia_operacion():
     g.h2("Cuentas de prueba")
     g.p("Todas las cuentas de prueba tienen la contraseña **Club2026**, excepto `admin`, que conserva `1234`.", mantener=True)
     g.tabla(["Usuario", "Rol", "Uso previsto"], [
-        ["admin", "Administrador", "Cuenta inicial del sistema (contraseña `1234`)."],
-        ["admin2", "Administrador", "Segundo administrador, necesario por la regla RN-01 (quien emite una solicitud no puede resolverla)."],
-        ["compras / compras2", "Encargado de Compras/Bodega", "Proponen altas y bajas, registran entradas y ajustes, analizan la rotación."],
-        ["deposito", "Encargado de Depósito", "Picking y sustituciones."],
+        ["admin", "Administrador", "Cuenta inicial del sistema (contraseña `1234`). Tiene todos los permisos, igual que `admin2`."],
+        ["admin2", "Administrador", "Segundo administrador, necesario por las reglas RN-01 y RN-33 (quien emite una solicitud o genera un pedido de reposición no puede resolverlo)."],
+        ["compras / compras2", "Encargado de Compras/Bodega", "Proponen altas y bajas, registran entradas y ajustes, analizan la rotación y generan pedidos de reposición."],
+        ["deposito", "Encargado de Depósito", "Entradas y ajustes de stock, alerta de stock mínimo, picking, sustituciones y recepción de pedidos de reposición. No tiene `Gestionar catálogo de vinos`."],
         ["curador", "Curador de Producto", "Armado de cajas mensuales."],
         ["atencion", "Atención al Socio", "Gestión de socios."],
         ["logistica", "Logística", "Despacho de cajas e historial."],
@@ -1379,8 +1544,18 @@ def guia_operacion():
         "**Solicitudes**: una baja pendiente (`DEMO-008`, sin stock) y una baja rechazada (`DEMO-009`, que tiene stock y sirve para ver la regla RN-15).",
         "**Socios**: siete socios base (uno inactivo) y seis más que alimentan el análisis de rotación.",
         "**Cajas**: dos despachadas, tres armadas (una de ellas con una línea sin stock que exige sustitución y otra con la sustitución ya registrada), una cancelada y un socio sin caja para armarla desde cero. Los datos de rotación incluyen cajas despachadas repartidas en unos seis meses.",
+        "**Pedidos de reposición**: cuatro pedidos, uno por estado, con la observación `Demo pedidos de reposición` (tabla siguiente).",
         "**Bitácora** de ejemplo e **historial** de usuarios.",
     ])
+    g.h3("Pedidos de reposición de demostración")
+    g.tabla(["Estado", "Vino", "Detalle"], [
+        ["Pendiente", "`DEMO-006` Norton Torrontés Reserva", "15 unidades pedidas (12 sugeridas al generar), generado por `compras`. Listo para autorizar con `admin` o `admin2`."],
+        ["Aprobado", "`DEMO-001` Catena Malbec", "10 unidades **en camino** (14 sugeridas al generar), generado por `compras` y autorizado por `admin`. Listo para registrar su recepción con `deposito`."],
+        ["Rechazado", "`DEMO-005` Norton Barrel Select Syrah", "10 unidades pedidas, rechazado por `admin2` con un motivo de ejemplo. El vino queda libre para un nuevo pedido."],
+        ["Recibido", "`DEMO-004` Casillero del Diablo Chardonnay", "10 pedidas y 8 recibidas, recibido por `deposito`; su Entrada de 8 unidades figura en el kardex del vino."],
+    ], [2.6, 5.4, 8.6], tam=9)
+    g.p("Los pedidos de demostración no usan `DEMO-007` ni `DEMO-008`, para no bloquear los recorridos de baja (regla RN-15 extendida). La siembra es idempotente: si el vino ya tiene un pedido demo no se vuelve a crear, "
+        "y la versión anterior de estos pedidos se reemplaza solo si nadie la operó.")
     g.h2("Recorridos de prueba sugeridos")
     g.tabla(["Para probar…", "Ingrese como…", "Qué hacer"], [
         ["Autorizar un alta", "admin", "Autorizar `DEMO-010` o `DEMO-011` (emitidos por compras y compras2)."],
@@ -1394,6 +1569,11 @@ def guia_operacion():
         ["Historial de despachos", "logistica", "Regenerar el remito de una caja despachada."],
         ["Análisis de rotación", "compras o admin", "Analizar con 90 días; con los umbrales iniciales aparecen las cuatro clasificaciones y las cuatro recomendaciones."],
         ["Desbloqueo", "admin", "Desbloquear a `bloqueado1`."],
+        ["Entrada y ajuste de stock", "deposito", "Registrar una entrada y un ajuste de inventario. `deposito` ve estas opciones y la alerta de stock mínimo, pero no **Gestionar catálogo de vinos**."],
+        ["Generar un pedido de reposición", "compras", "Analizar con 90 días, marcar `DEMO-007` o `DEMO-008` (Reponer urgente, sin pedido abierto) en **Pedir** y presionar **Generar pedido**."],
+        ["Autorizar o rechazar un pedido", "admin2 (o admin)", "Autorizar el pedido Pendiente de `DEMO-006`. Con un pedido generado por el mismo usuario, comprobar que RN-33 deshabilita los botones."],
+        ["Registrar una recepción", "deposito", "Recibir el pedido Aprobado de `DEMO-001` con una cantidad menor a la pedida y comprobar la Entrada en los movimientos del vino."],
+        ["Consultar pedidos", "compras, deposito o admin", "Filtrar por estado: hay un pedido Pendiente, uno Aprobado, uno Rechazado y uno Recibido."],
     ], [4.2, 3.6, 8.8], tam=9)
     g.nota("Cada ejecución del script **vuelve a crear** los usuarios de prueba que falten (aunque se hayan eliminado desde la aplicación) y vuelve a sembrar sus datos. "
            "Esto ocurre en cada instalación o actualización. En un entorno real, además de cambiar las contraseñas, tenga en cuenta que eliminar esas cuentas no es permanente mientras el script siga formando parte de la instalación. "
@@ -1408,7 +1588,7 @@ def guia_operacion():
         ["Durante la jornada", "Cada persona opera según su rol (Guía del Usuario). El administrador atiende autorizaciones pendientes y desbloqueos de usuarios."],
         ["Al finalizar", "Cerrar sesión (**Usuario > Cerrar Sesion**) y cerrar la ventana de inicio de sesión."],
         ["Periódicamente", "Revisar la bitácora; revisar la alerta de stock mínimo; copiar la carpeta `Documentos\\ClubDeVinos` si se desea conservar remitos e informes; depurar PDF antiguos si fuera necesario."],
-        ["Mensualmente", "Seguir el ciclo de cajas: alta de socios, armado, picking, despacho; y ejecutar el análisis de rotación para planificar compras."],
+        ["Mensualmente", "Seguir el ciclo de cajas: alta de socios, armado, picking, despacho; ejecutar el análisis de rotación y generar los pedidos de reposición (ver la sección siguiente)."],
     ], [3.8, 12.8])
     g.h2("Administrar usuarios")
     g.p("Menú **Administración > Gestión de usuarios** (permiso **Administrar usuarios**). La tabla muestra de a 15 usuarios por página, con un campo **Buscar** (se aplica con el botón o con Enter), "
@@ -1462,9 +1642,13 @@ def guia_operacion():
         ["Administrar usuarios", "Administración > Gestión de usuarios. También habilita la restauración de integridad al iniciar."],
         ["Gestión de roles", "Administración > Roles y Permisos."],
         ["Gestión de idiomas", "Administración > Gestión de idiomas."],
-        ["Gestionar catálogo de vinos", "Gestionar catálogo, entradas, ajustes y alerta de stock mínimo."],
+        ["Gestionar catálogo de vinos", "Catálogo > Gestionar catálogo de vinos: proponer altas, corregir rechazos y solicitar descontinuaciones. Por defecto: Encargado de Compras/Bodega y Administrador (no el Encargado de Depósito)."],
+        ["Gestionar stock de vinos", "Registrar entrada de stock, Registrar ajuste de inventario y Consultar alerta de stock mínimo. Por defecto: Encargado de Depósito, Encargado de Compras/Bodega y Administrador."],
         ["Autorizar alta de vinos", "Autorizar altas y descontinuaciones."],
         ["Analizar rotación de stock", "Catálogo > Analizar rotación de stock."],
+        ["Gestionar pedidos de reposición", "Generar el pedido desde el análisis de rotación (columnas Pedir y Cantidad a pedir, botón Generar pedido) y consultar pedidos. Por defecto: Encargado de Compras/Bodega y Administrador."],
+        ["Autorizar pedidos de reposición", "Catálogo > Autorizar pedidos de reposición (autorizar o rechazar). Por defecto: solo Administrador."],
+        ["Recibir pedidos de reposición", "Catálogo > Registrar recepción de pedido. Por defecto: Encargado de Depósito y Administrador."],
         ["Gestionar socios", "Club de Socios > Gestionar Socios."],
         ["Armar cajas mensuales", "Club de Socios > Armar Caja Mensual."],
         ["Registrar picking y sustituciones", "Club de Socios > Picking y Sustituciones."],
@@ -1501,9 +1685,33 @@ def guia_operacion():
         ["ENTRADA_STOCK:<SKU>:<cantidad>, AJUSTE_STOCK:<SKU>:+/-<cantidad>", "Movimientos de stock manuales."],
         ["ALTA_SOCIO:<apellido>, EDICION_SOCIO:<id>", "Alta y edición de socios."],
         ["ARMADO_CAJA:<período>, SUSTITUCION_CAJA:<id>, DESPACHO_CAJA:<id>", "Armado, sustitución y despacho de cajas."],
+        ["PEDIDO_GENERADO:<id>", "Se genera un pedido de reposición (una entrada por cada pedido creado)."],
+        ["PEDIDO_AUTORIZADO:<id>, PEDIDO_RECHAZADO:<id>", "Un administrador autoriza o rechaza un pedido."],
+        ["PEDIDO_RECIBIDO:<id>", "Se registra la recepción de un pedido."],
     ], [8.4, 8.2], tam=9)
     g.p("Las altas, bajas, bloqueos, cambios de clave, asignaciones de roles y ediciones de **usuarios** no se anotan en la bitácora sino en el **historial del usuario**. "
         "Como la acción incluye el SKU o el identificador, el filtro por acción exacta requiere elegir el valor completo de la lista.")
+
+    g.h2("Ciclo de pedidos de reposición")
+    g.p("El análisis de rotación sigue siendo una consulta de lectura; el pedido se genera desde esa pantalla. El flujo operativo es analizar, generar, autorizar y recibir:", mantener=True)
+    g.tabla(["Cuándo", "Quién", "Tarea"], [
+        ["Una vez por mes (o cuando se planifica la compra)", "Encargado de Compras/Bodega", "Ejecutar **Catálogo > Analizar rotación de stock**, marcar los vinos a reponer en **Pedir**, ajustar **Cantidad a pedir** (hasta 100000 por línea) y presionar **Generar pedido**. Se crea un pedido Pendiente por bodega."],
+        ["Cada día", "Administrador (distinto de quien generó el pedido)", "Revisar **Catálogo > Autorizar pedidos de reposición**: autorizar, o rechazar con motivo (1 a 200 caracteres). Si quien generó el pedido es el único con el permiso, hace falta otra cuenta con él."],
+        ["Cuando llega la mercadería", "Encargado de Depósito", "Registrar en **Catálogo > Registrar recepción de pedido** la cantidad que llegó de cada línea (de 0 a la pedida)."],
+        ["Cuando se necesite saber en qué quedó un pedido", "Cualquiera con un permiso del ciclo", "**Catálogo > Consultar pedidos de reposición**, filtrando por estado."],
+    ], [3.8, 4.4, 8.4], tam=9)
+    g.bullets([
+        "Un pedido **Aprobado** no vence ni se cancela solo: sus unidades figuran **En camino** y descuentan la cantidad sugerida del análisis hasta que se registre la recepción. Conviene revisar periódicamente los pedidos Aprobados antiguos.",
+        "Los pedidos Pendientes no descuentan nada, pero igual impiden pedir de nuevo los mismos vinos (RN-32) y bloquean su baja (RN-15 extendida).",
+        "Las acciones quedan en la bitácora (`PEDIDO_GENERADO`, `PEDIDO_AUTORIZADO`, `PEDIDO_RECHAZADO` y `PEDIDO_RECIBIDO`, con el número de pedido).",
+    ])
+    g.h3("Qué hacer ante un pedido que no se puede recibir")
+    g.tabla(["Situación", "Qué hacer"], [
+        ["“RN-35: solo se puede recibir un pedido Aprobado.” o “No se pudo registrar la recepción: el pedido cambió de estado…”", "Otra persona ya lo resolvió o lo recibió. Actualice la lista y consulte el pedido en **Consultar pedidos de reposición**."],
+        ["“La cantidad recibida de … debe estar entre 0 y N.” o “Al menos una línea debe tener una cantidad recibida mayor a cero.”", "Corrija las cantidades. Si llegó mercadería parcial, registre lo que llegó: lo no recibido se da por no entregado."],
+        ["“El vino … no está activo: no admite entradas de stock.”", "Una línea con cantidad recibida corresponde a un vino que ya no está Activo. La aplicación lo evita con la regla RN-15 extendida, por lo que indica un cambio hecho fuera de ella. Consulte a Mantenimiento."],
+        ["La mercadería **nunca llegará** (la bodega canceló el pedido)", "La aplicación no ofrece cancelar un pedido Aprobado y la recepción exige al menos una línea mayor que cero. No registre una cantidad ficticia: distorsiona el stock. Siga el procedimiento de cierre excepcional de la Guía de Mantenimiento (resolución de problemas), con respaldo previo."],
+    ], [6.4, 10.2], tam=9)
 
     # ---------------- 6 ----------------
     g.h1("Respaldos y restauración")
@@ -1629,7 +1837,9 @@ def guia_operacion():
     ])
     g.p("**Para volver atrás:** desinstale la versión nueva, instale la anterior y restaure el respaldo de la base hecho en el paso 1 (sección 6). Una versión anterior no puede instalarse encima de una más nueva.")
     g.nota("Los permisos de los roles que trae el sistema (Administrador, Usuario y los de Compras, Depósito, Curador, Atención y Logística) se **reponen** si el script los encuentra faltantes; "
-           "si quitó adrede un permiso a uno de esos roles, se volverá a asignar al actualizar.", tipo="Importante")
+           "si quitó adrede un permiso a uno de esos roles, se volverá a asignar al actualizar. Al pasar a una versión con el ciclo de pedidos, el script también crea las tablas de pedidos, "
+           "los permisos `Gestionar stock de vinos`, `Gestionar`, `Autorizar` y `Recibir pedidos de reposición` y los asigna a los roles de fábrica; un rol propio que antes operaba stock con "
+           "`Gestionar catálogo de vinos` debe recibir `Gestionar stock de vinos` a mano.", tipo="Importante")
 
     # ---------------- 9 ----------------
     g.h1("Resolución de problemas")
@@ -1645,6 +1855,10 @@ def guia_operacion():
         ["“No se pudo generar el remito de despacho…” / “No se pudo generar el informe en PDF…”", "La carpeta Documentos del usuario no es escribible o está redirigida a un lugar sin acceso.", "Verifique permisos y espacio de `Documentos\\ClubDeVinos`. El remito puede regenerarse desde el historial."],
         ["“El archivo de configuración de rotación estaba dañado o tenía valores inválidos…”", "El XML de configuración fue editado o dañado.", "Guarde la configuración desde la pantalla (lo reescribe) o borre `configuracion_rotacion.xml`; se recrea con valores iniciales."],
         ["Un usuario no ve opciones del menú.", "Su rol no tiene el permiso.", "Revise roles y permisos (sección 5.3)."],
+        ["El Encargado de Depósito no ve Registrar entrada de stock, Registrar ajuste de inventario o la alerta de stock mínimo.", "Su rol no tiene el permiso `Gestionar stock de vinos`, que gatea esas tres opciones.", "Asigne el permiso al rol en Roles y Permisos. El script lo repone para los roles de fábrica."],
+        ["No aparecen la columna Pedir ni el botón Generar pedido en el análisis.", "El usuario no tiene `Gestionar pedidos de reposición`.", "Asigne el permiso al rol (por defecto, Compras/Bodega y Administrador)."],
+        ["Los botones Autorizar y Rechazar de un pedido están deshabilitados.", "El pedido lo generó el mismo usuario (RN-33).", "Debe resolverlo otro usuario con `Autorizar pedidos de reposición`, por ejemplo `admin2`."],
+        ["No se puede solicitar ni autorizar la baja de un vino: “El vino tiene un pedido de reposición abierto (Nº N)…”.", "El vino está en un pedido Pendiente o Aprobado (RN-15 extendida).", "Rechace o reciba el pedido; ver “Qué hacer ante un pedido que no se puede recibir” (sección 5.6)."],
         ["Un usuario eliminado reaparece tras actualizar.", "Era una cuenta de demostración que el script vuelve a crear.", "Cambie su contraseña o gestione esas cuentas (sección 4)."],
         ["El proceso `CAPAS.exe` sigue en el Administrador de tareas tras cerrar todas las ventanas.", "Por inspección del código, la ventana de acceso original queda oculta al iniciar sesión y la aplicación no invoca una salida explícita (no verificado en ejecución).", "Finalice el proceso desde el Administrador de tareas; avise a Mantenimiento."],
     ], [5.4, 5.2, 6.0], tam=9)
@@ -1700,7 +1914,7 @@ def guia_mantenimiento():
     g.h2("Pila tecnológica")
     g.tabla(["Componente", "Detalle"], [
         ["Lenguaje y plataforma", "C# sobre .NET Framework: la interfaz (`CAPAS`) apunta a 4.8 y las bibliotecas (BE, DAL, BLL, SeguridadYServicios) a 4.7.2."],
-        ["Interfaz", "Windows Forms con ReaLTaiizor 3.8.1.8 (`MaterialForm`), tema oscuro con paleta “Bordó”. `Microsoft.VisualBasic` para los cuadros de entrada de texto (`InputBox`)."],
+        ["Interfaz", "Windows Forms con ReaLTaiizor 3.8.1.8 (`MaterialForm`) y los colores predeterminados de Windows (sección 5.7). `Microsoft.VisualBasic` para los cuadros de entrada de texto (`InputBox`)."],
         ["Base de datos", "SQL Server (autenticación de Windows), base `BDCAPAS`, acceso con `System.Data.SqlClient` y solo procedimientos almacenados."],
         ["PDF", "PDFsharp-MigraDoc 1.50.5147."],
         ["Gráficos", "`System.Windows.Forms.DataVisualization.Charting.Chart` (referencia de framework incluida en .NET Framework 4.x; el instalador no agrega nada). Los arma `CAPAS\\RotacionGraficos`, usada por la pantalla de rotación y por el informe PDF."],
@@ -1731,17 +1945,29 @@ def guia_mantenimiento():
         ["Singleton", "`SessionManager`, `IdiomaManager`", "Instancia única con doble verificación (`double-checked locking`)."],
     ], [2.6, 6.2, 7.8], tam=9)
     g.h2("Modelo de datos")
-    g.p("El esquema (21 tablas creadas por `script.sql`) se documenta en `DIAGRAMAS\\DER.puml` (renderizado en `DER.png`).", mantener=True)
+    g.p("El esquema (23 tablas creadas por `script.sql`) se documenta en `DIAGRAMAS\\DER.puml` (renderizado en `DER.png`).", mantener=True)
     g.tabla(["Área", "Tablas"], [
         ["Seguridad", "`USUARIO`, `USUARIO_PERFIL`, `USUARIO_HISTORIAL`, `ROL`, `PERMISO`, `ROL_PERMISO`, `DIGITO_VERIFICADOR_VERTICAL`, `BITACORA`. `NODO_PERMISO` es un remanente sin uso."],
         ["Idiomas", "`IDIOMA`, `CONTROL_IDIOMA` (claves y texto por defecto), `TRADUCCION`."],
         ["Catálogo y stock", "`BODEGA`, `VINO`, `SOLICITUD_AUTORIZACION`, `MOVIMIENTO_STOCK` (kardex, solo de agregado)."],
         ["Club de socios", "`SOCIO`, `SOCIO_VARIETAL`, `CAJA_MENSUAL`, `CAJA_VINO`, `SUSTITUCION`."],
+        ["Reposición", "`PEDIDO_REPOSICION` (cabecera) y `PEDIDO_REPOSICION_LINEA` (líneas), más los tipos de tabla `PEDIDO_LINEA_TT` y `PEDIDO_RECEPCION_TT`."],
     ], [3.4, 13.2], tam=9)
     g.p("Puntos de diseño relevantes: el estado del vino (`VINO.ESTADO`) solo guarda el ciclo de vida (Pendiente, Activo, Rechazado, Descontinuado); las aprobaciones viven en `SOLICITUD_AUTORIZACION`. "
         "El stock se deriva del kardex (Entrada suma, el resto resta) y nunca se almacena. La composición efectiva de una caja se calcula con `CAJA_VINO` y `SUSTITUCION` (solo de agregado).")
+    g.h3("Pedido de reposición: tablas, restricciones y procedimientos")
+    g.tabla(["Objeto", "Detalle"], [
+        ["`PEDIDO_REPOSICION`", "Cabecera. Columnas clave: `ID`, `BODEGA_ID`, `ESTADO` (`Pendiente`, `Aprobado`, `Rechazado`, `Recibido`; por omisión `Pendiente`), `FECHA_CREACION`, `CREADO_POR`, `RESOLUTOR_ID` y `FECHA_RESOLUCION` (quien autorizó o rechazó), `MOTIVO_RECHAZO`, `RECIBIDO_POR` y `FECHA_RECEPCION`, `OBSERVACION`."],
+        ["Restricciones de la cabecera", "`CK_PEDREP_ESTADO` (los cuatro valores); `CK_PEDREP_RESOLUCION` (Pendiente sin resolutor ni fecha; los demás con ambos); `CK_PEDREP_RN33` (`RESOLUTOR_ID <> CREADO_POR`); `CK_PEDREP_MOTIVO` (motivo de 1 a 200 caracteres solo si es Rechazado); `CK_PEDREP_RECEPCION` (receptor y fecha solo si es Recibido). Índice `IX_PEDREP_ESTADO`."],
+        ["`PEDIDO_REPOSICION_LINEA`", "Líneas. `PEDIDO_ID`, `VINO_ID`, `CANTIDAD_SUGERIDA` (fotografía de la sugerencia del análisis), `CANTIDAD_PEDIDA`, `CANTIDAD_RECIBIDA` (nula hasta la recepción) y `ABIERTO` (1 mientras el pedido está Pendiente o Aprobado; lo apagan `RECHAZAR` y `RECIBIR`)."],
+        ["Restricciones de la línea", "`UQ_PEDREPLIN_PEDIDO_VINO` (un vino una vez por pedido); `CK_PEDREPLIN_SUGERIDA`, `CK_PEDREPLIN_PEDIDA` (mayor que cero) y `CK_PEDREPLIN_RECIBIDA` (entre 0 y la pedida); **`CK_PEDREPLIN_TOPE`** (pedida y recibida de 100000 como máximo, agregada aparte para bases existentes)."],
+        ["**`UX_PEDREPLIN_VINO_ABIERTO`**", "Índice único filtrado `(VINO_ID) WHERE ABIERTO = 1`: sostiene la regla RN-32 aun ante dos usuarios simultáneos (error 2601/2627, que la BLL traduce). Requiere `QUOTED_IDENTIFIER ON` (`-I`)."],
+        ["Tipos de tabla", "`PEDIDO_LINEA_TT (VINO_ID, CANTIDAD_SUGERIDA, CANTIDAD_PEDIDA)` y `PEDIDO_RECEPCION_TT (LINEA_ID, CANTIDAD)`: `PedidoReposicionDAL` los pasa como `SqlDbType.Structured`."],
+        ["SP `PEDIDO_REPOSICION_*`", "`INSERTAR` (cabecera y líneas en una transacción, bloquea `VINO` primero, devuelve el `ID` o 0), `LISTAR` (`@estado` nulo = todos), `OBTENER_POR_ID`, `OBTENER_LINEAS`, `AUTORIZAR`, `RECHAZAR` (libera los vinos en la misma transacción), `RECIBIR` (transaccional: valida las líneas, inserta una Entrada de `MOVIMIENTO_STOCK` por cada línea recibida mayor que cero, apaga `ABIERTO` y marca Recibido) y `ABIERTO_POR_VINO` (Nº del pedido abierto del vino, 0 si no hay). Los de escritura devuelven un único `SELECT` (`FILAS`; 0 = rechazado)."],
+        ["Cambio en `ROTACION_ANALIZAR`", "Además de las columnas de siempre devuelve `BODEGA_ID`, `EN_CAMINO` (unidades de líneas de pedidos Aprobados) y `PEDIDO_ABIERTO_ESTADO` (`Pendiente`, `Aprobado` o nulo). `RotacionBLL.Evaluar` calcula `CantidadSugeridaBruta` (la fórmula de siempre) y `CantidadSugerida` neta = `máx(0; bruta − EnCamino)`; el piso 1 de Reponer urgente (RN-24) se aplica a la bruta, por lo que la neta puede ser 0."],
+    ], [4.6, 12.0], tam=9)
     g.h2("Reglas de negocio y dónde se hacen cumplir")
-    g.p("Las reglas se verifican en varias capas (defensa en profundidad). La numeración RN corresponde a los casos de uso CU-21 a CU-36 (RN-19 a RN-30 pertenecen al Proceso 3, CU-33 a CU-36); el catálogo completo está en el documento de la entrega y en `DIAGRAMAS\\CasosDeUso.docx`.", mantener=True)
+    g.p("Las reglas se verifican en varias capas (defensa en profundidad). La numeración RN corresponde a los casos de uso CU-21 a CU-40 (RN-19 a RN-37 pertenecen al Proceso 3, CU-33 a CU-40); el catálogo completo está en el documento de la entrega y en `DIAGRAMAS\\CasosDeUso.docx`.", mantener=True)
     g.tabla(["Regla", "Contenido", "Dónde se aplica"], [
         ["RN-01", "Quien resuelve una solicitud de alta o baja no puede ser su emisor.", "UI (botones), `VinoBLL.ValidarSeparacionDeFunciones`, `WHERE EMISOR_ID <> @resolutor_id` en el SP y CHECK `CK_SOLAUT_RN01`."],
         ["RN-03", "Ninguna salida deja el stock por debajo de cero.", "BLL (mensaje claro) y SP atómico (inserta solo si alcanza)."],
@@ -1751,7 +1977,7 @@ def guia_mantenimiento():
         ["RN-18", "Un socio no tiene más de una caja no cancelada por período (una cancelada no impide re-armar).", "`CajaMensualBLL` e índice único filtrado `UQ_CAJA_SOCIO_PERIODO`."],
         ["RN-10", "Quien armó la caja no sustituye ni despacha.", "UI, BLL y SP (triple guardia)."],
         ["RN-11 / RN-12", "El remito es best-effort; regenerar sobrescribe `Remito_Caja<id>.pdf`.", "`frmDespacharCaja`, `frmHistorialDespachos`, `RemitoDespachoPdf`."],
-        ["RN-15", "No se descontinúa un vino con stock.", "`VinoBLL.ValidarSinStock` (al solicitar y al autorizar) y SP."],
+        ["RN-15", "No se descontinúa un vino con stock. **Extendida:** tampoco si está en un pedido de reposición abierto (Pendiente o Aprobado).", "`VinoBLL.ValidarSinStock` y `ValidarSinPedidoAbierto` (al solicitar y al autorizar), SP `VINO_SOLICITAR_BAJA` y `SOLICITUD_APROBAR_BAJA`, y `PEDIDO_REPOSICION_ABIERTO_POR_VINO`."],
         ["RN-16", "Una solicitud pendiente por vino y tipo.", "BLL y índice único filtrado `UX_SOLAUT_PENDIENTE`."],
         ["RN-17", "El rechazo exige motivo de 1 a 200 caracteres.", "UI, `VinoBLL.ValidarMotivo`, SP y CHECK `CK_SOLAUT_MOTIVO`."],
         ["RN-19", "Ventana de análisis: período inclusivo, “Desde” no posterior a “Hasta”, días = (Hasta − Desde) + 1; días configurables de 1 a 3650.", "`RotacionBLL.Validar` y `RotacionBLL.CantidadDias`; `frmAnalisisRotacion`."],
@@ -1761,9 +1987,25 @@ def guia_mantenimiento():
         ["RN-25 / RN-26", "Los parámetros deben ser coherentes; el archivo XML serializado prevalece y “Analizar” lo guarda y lo relee antes de analizar.", "`RotacionBLL.Validar`; `ConfiguracionRotacionStore` (guardado atómico, defaults si el archivo está dañado)."],
         ["RN-27", "Solo con el permiso “Analizar rotación de stock” (por defecto Administrador y Encargado de Compras/Bodega).", "`frmMenu.ActualizarVisibilidadMenu`."],
         ["RN-28", "Si “Hasta” es anterior a hoy se avisa que la cobertura puede no ser representativa (aviso no bloqueante, también en el PDF).", "`frmAnalisisRotacion`, `RotacionReposicionPdf`."],
-        ["RN-29", "La sugerencia no es vinculante: el análisis solo lee, no genera pedidos ni modifica datos.", "SP de solo lectura; `RotacionBLL` no registra bitácora."],
+        ["RN-29", "La sugerencia no es vinculante: el análisis en sí es de lectura y no modifica datos ni genera pedidos por su cuenta. El Pedido de Reposición se genera desde esa pantalla, por una acción explícita (RN-31 a RN-37).", "`ROTACION_ANALIZAR` es de solo lectura y `RotacionBLL` no registra bitácora; el pedido lo crea `PedidoReposicionBLL.Generar`."],
         ["RN-30", "Informe PDF A4 apaisado, en el idioma activo, con un archivo nuevo por exportación (nunca se sobrescribe).", "`RotacionReposicionPdf`; carpeta `Documentos\\ClubDeVinos\\Informes`."],
+        ["RN-31", "Solo vinos Activos, cantidad pedida entera mayor que cero y hasta 100000 por línea, todos de la misma bodega, al menos una línea y sin vinos repetidos. `Generar` crea un pedido por bodega.", "`PedidoReposicionBLL.ValidarLinea/Generar`, UI y `CK_PEDREPLIN_TOPE`. Si falla un pedido posterior, `PedidoParcialException` informa los ya creados."],
+        ["RN-32", "Un vino no está en más de un pedido abierto.", "BLL, SP `PEDIDO_REPOSICION_INSERTAR` e índice `UX_PEDREPLIN_VINO_ABIERTO`."],
+        ["RN-33", "Quien autoriza o rechaza un pedido no puede ser quien lo generó.", "UI (botones deshabilitados), `PedidoReposicionBLL`, `WHERE CREADO_POR <> @resolutor_id` de los SP y `CK_PEDREP_RN33`."],
+        ["RN-34", "El rechazo exige un motivo de 1 a 200 caracteres.", "Cuadro de rechazo, `PedidoReposicionBLL.ValidarMotivo`, SP y `CK_PEDREP_MOTIVO`."],
+        ["RN-35", "Solo se recibe un pedido Aprobado; la cantidad recibida de cada línea va de 0 a la pedida, al menos una mayor que cero. Genera una Entrada por línea recibida (motivo `Recepción de pedido de reposición`, referencia `PEDIDO`). Lo no recibido se da por no entregado.", "`PedidoReposicionBLL.Recibir` y SP `PEDIDO_REPOSICION_RECIBIR` (transacción con rollback total)."],
+        ["RN-36", "Recibe cualquiera con el permiso de recepción, sin restricción de identidad.", "UI (permiso `Recibir pedidos de reposición`)."],
+        ["RN-37", "“En camino” son las unidades de pedidos Aprobados sin recibir; el análisis las descuenta de la sugerencia.", "`ROTACION_ANALIZAR` y `RotacionBLL.Evaluar`."],
     ], [2.2, 6.4, 8.0], tam=9)
+    g.h3("Casos de uso del pedido de reposición (CU-37 a CU-40)")
+    g.tabla(["CU", "Nombre", "Permiso", "Pantalla y lógica"], [
+        ["CU-37", "Generar Pedido de Reposición", "Gestionar pedidos de reposición", "`frmAnalisisRotacion` (columnas `Seleccionar` y `CantidadAPedir`, botón `btnGenerarPedido`); `PedidoReposicionBLL.Generar`."],
+        ["CU-38", "Autorizar o Rechazar Pedido de Reposición", "Autorizar pedidos de reposición", "`frmAutorizarPedidoReposicion`, diálogo `FrmMotivoRechazoPedido`; `Autorizar` y `Rechazar`."],
+        ["CU-39", "Registrar Recepción de Pedido de Reposición", "Recibir pedidos de reposición", "`frmRecibirPedidoReposicion`; `Recibir`."],
+        ["CU-40", "Consultar Pedidos de Reposición", "Cualquiera de los tres", "`frmConsultarPedidosReposicion` (filtro `cboEstado`, solo lectura); `Listar`, `Obtener` y `ObtenerLineas`."],
+    ], [1.5, 4.6, 4.0, 6.5], tam=9)
+    g.p("Los tres formularios nuevos y el diálogo de rechazo comparten `CAPAS\\PedidoReposicionUI.cs` (estados traducidos, cabecera de detalle, grillas y fechas). Los permisos se controlan en la interfaz, como en el resto del repositorio. "
+        "El permiso `Gestionar stock de vinos` gatea CU-23 (entrada de stock), CU-26 (alerta de stock mínimo) y CU-27 (ajuste de inventario); `Gestionar catálogo de vinos` quedó solo para altas y bajas (CU-21 y CU-24).")
     g.nota("Los SP de resolución bloquean primero `VINO` (`UPDLOCK, HOLDLOCK`) y recién después actualizan `SOLICITUD_AUTORIZACION`, para evitar interbloqueos entre aprobar/rechazar y proponer/reproponer. Respete este orden en cualquier SP nuevo.")
 
     # ---------------- 3 ----------------
@@ -1790,9 +2032,9 @@ def guia_mantenimiento():
         "Ejecute `CAPAS.exe` (F5 en Visual Studio) e ingrese con `admin` / `1234`, o con las cuentas de prueba (contraseña `Club2026`).",
     ])
     g.h2("Pruebas")
-    g.p("**No hay pruebas automatizadas**: la verificación es manual sobre la aplicación en ejecución. Los datos de demostración del script permiten recorrer los casos de uso CU-21 a CU-36 "
+    g.p("**No hay pruebas automatizadas**: la verificación es manual sobre la aplicación en ejecución. Los datos de demostración del script permiten recorrer los casos de uso CU-21 a CU-40 "
         "(Guía de Operación, sección “Datos de demostración y cuentas de prueba”). Tras un cambio, recorra como mínimo: inicio de sesión y menú por rol; el circuito de alta, autorización y baja de vinos; "
-        "armado, sustitución y despacho de una caja (con remito); el análisis de rotación con su exportación; y el cambio de idioma.")
+        "armado, sustitución y despacho de una caja (con remito); el análisis de rotación con su exportación; el ciclo del pedido de reposición (generar, autorizar o rechazar, recibir y consultar, con dos cuentas Administrador por RN-33); y el cambio de idioma.")
 
     g.h2("Generar el instalador MSI")
     g.p("El instalador vive en `Instalador\\`, deliberadamente fuera de `TP_IS.sln`.", mantener=True)
@@ -1815,6 +2057,7 @@ def guia_mantenimiento():
         "La base de datos nunca se elimina al desinstalar (`DropOnUninstall=\"no\"`) y el script se ejecuta de nuevo en cada instalación o actualización.",
         "El instalador incluye todo el contenido de `CAPAS\\bin\\Release` excepto `.pdb`, `app.publish` y `Remitos`. Si agrega un archivo de datos a la aplicación, verifique que llegue a esa carpeta.",
         "Las acciones personalizadas esperan hasta 20 s por el servicio de SQL Server y hacen 2 intentos de conexión de 5 s; el peor caso en el asistente ronda los 35 s.",
+        "**Estado del instalador.** El MSI vigente (versión %s) fue compilado antes del ciclo de Pedido de Reposición y del permiso `Gestionar stock de vinos`: su `script.sql` embebido no los crea. Está pendiente de recompilar tras la aprobación del cambio; al hacerlo, incremente `Version` en `Package.wxs` y verifique que el nuevo paquete ejecute el `script.sql` actual. No se adelanta aquí el número de la versión nueva." % VERSION_PRODUCTO,
         "Pruebe siempre el MSI en una **máquina virtual**, no en el equipo de desarrollo (casos: sin SQL Server, servicio detenido, lista de instancias ilegible; ver `Instalador\\README.md`).",
     ])
 
@@ -1846,6 +2089,9 @@ def guia_mantenimiento():
     g.h2("Datos de prueba")
     g.p("La sección final del script (“DATOS DE PRUEBA”) siembra bodegas, usuarios, vinos `DEMO-001..017`, solicitudes, kardex, socios y cajas. Cada bloque inserta solo lo que falta y no vuelve a tocar un vino, socio o caja existente; "
         "los datos de rotación (N03) están protegidos por el motivo `Compra a bodega - demo rotación`. Si agrega semillas, mantenga ese criterio de idempotencia.")
+    g.p("**Migración del seed demo de pedidos.** Al final de los datos N03 se siembran cuatro pedidos con la observación `Demo pedidos de reposición` (Pendiente `DEMO-006`, Aprobado `DEMO-001` con 10 unidades en camino, Rechazado `DEMO-005` y Recibido `DEMO-004` con su Entrada de 8 unidades). "
+        "No usan `DEMO-007` ni `DEMO-008` para no bloquear los recorridos de baja (CU-24 y CU-25). La versión anterior del seed usaba `DEMO-008` (Pendiente) y `DEMO-007` (Aprobado): el script elimina esos pedidos viejos solo si siguen en su estado original; si alguien ya los autorizó, rechazó o recibió, no se tocan y esos vinos quedan bloqueados para la baja hasta resolverlos. "
+        "Cada pedido se siembra solo si su vino no tiene ya un pedido demo ni otro pedido abierto.")
 
     # ---------------- 5 ----------------
     g.h1("Cómo extender el sistema")
@@ -1853,7 +2099,7 @@ def guia_mantenimiento():
     g.pasos([
         "Cree el formulario heredando de **`FormBase`** (no de `MaterialForm` ni `Form`) y agregue `using ReaLTaiizor.Manager;`.",
         "Implemente `SeguridadYServicios.IObservadorIdioma` y agregue los campos `Dictionary<string, Control> _controles` y `Dictionary<string, string> _defaults`.",
-        "En el evento `Load`, en este orden: `GuardarDefaults(this.Controls)`; registrar el título (`_controles[this.Name] = this; _defaults[this.Name] = this.Text;`); `IdiomaManager.getInstance().Registrar(this)` y `ActualizarIdioma()`; `IdiomaUIHelper.AgregarSelector(this)`; y **al final** `MaterialSkinManager.Instance.AddFormToManage(this);` seguido de `AppTheme.AplicarTema(this);`.",
+        "En el evento `Load`, en este orden: `GuardarDefaults(this.Controls)`; registrar el título (`_controles[this.Name] = this; _defaults[this.Name] = this.Text;`); `IdiomaManager.getInstance().Registrar(this)` y `ActualizarIdioma()`; `IdiomaUIHelper.AgregarSelector(this)`; y **al final** `MaterialSkinManager.Instance.AddFormToManage(this);`. No asigne colores decorativos (sección 5.7).",
         "En `FormClosed`, `IdiomaManager.getInstance().Desregistrar(this)`.",
         "`ActualizarIdioma()` recorre `_controles` aplicando `Traducir(clave) ?? _defaults[clave]`; si hay `DataGridView`, llame también a `ActualizarEncabezados()`.",
         "En el `.Designer.cs`, ubique **todos los controles con `Location.Y` de 70 o más**: `MaterialForm` dibuja su barra de título (unos 64 px) dentro del área cliente. Aumente `ClientSize.Height` en la misma medida y conecte los eventos `Load` y `FormClosed`.",
@@ -1878,6 +2124,17 @@ def guia_mantenimiento():
         "Encabezados de `DataGridView`: claves `colhdr_*`, traducidas en `ActualizarEncabezados()` (no están en `Controls`). Texto dinámico (nodos de árbol, mensajes armados en tiempo de ejecución): `IdiomaManager.getInstance().Traducir(\"clave\")` directamente.",
         "Los mensajes de `MsgBox` y de las excepciones de BLL son texto fijo en español y **no** pasan por el sistema de traducción.",
     ])
+    g.h2("Claves de idioma y ayuda del pedido de reposición")
+    g.p("El bloque “i18n — N03 Pedido de Reposición” de `script.sql` (idempotente, tres idiomas) registra, con `CONTROL_REGISTRAR` y `TRADUCCION_GUARDAR`, las claves nuevas:", mantener=True)
+    g.bullets([
+        "Menú y formularios: `autorizarPedidoToolStripMenuItem`, `recibirPedidoToolStripMenuItem`, `consultarPedidosToolStripMenuItem`, `frmAutorizarPedidoReposicion`, `frmRecibirPedidoReposicion`, `frmConsultarPedidosReposicion` y los títulos propios `lblTitulo_AutorizarPedido`, `lblTitulo_RecibirPedido` y `lblTitulo_ConsultarPedidos` (por la colisión de `lblTitulo`).",
+        "Controles: `lblDetallePedido`, `lblAyudaPedido`, `lblAyudaRecepcion`, `lblFiltroEstado`, `btnAutorizarPedido`, `btnRechazarPedido`, `btnRegistrarRecepcion` y `btnGenerarPedido`; diálogo de rechazo `ped_Motivo*`; `ped_Seleccionados`.",
+        "Estados: `valped_Todos`, `valped_Pendiente`, `valped_Aprobado`, `valped_Rechazado` y `valped_Recibido` (el valor guardado sigue siendo el del enumerado de BE; solo cambia lo que se ve).",
+        "Encabezados: `colhdr_PedNro`, `colhdr_PedGeneradoPor`, `colhdr_PedFechaGeneracion`, `colhdr_PedLineas`, `colhdr_PedUnidades`, `colhdr_PedCantidadSugerida`, `colhdr_PedCantidadPedida`, `colhdr_PedCantidadRecibida`, `colhdr_PedResueltoPor`, `colhdr_PedRecibidoPor`, `colhdr_PedObservacion`, `colhdr_EnCamino`, `colhdr_PedidoAbierto`, `colhdr_Seleccionar` y `colhdr_CantidadAPedir`.",
+        "PDF y gráficos: `rot_pdf_NotaEnCamino` y el título actualizado `rot_gra_Titulo3` (“netas de lo en camino”). Recuerde que `TRADUCCION.TEXTO` admite 200 caracteres y trunca en silencio.",
+    ])
+    g.p("**Ayuda en línea (F1).** `CAPAS\\Ayuda\\AyudaContexto.cs` asocia `frmAutorizarPedidoReposicion`, `frmRecibirPedidoReposicion` y `frmConsultarPedidosReposicion` con los temas `pedido-autorizar`, `pedido-recibir` y `pedido-consultar` de `ayuda_es.xml`; "
+        "el tema `pedido-generar` cuelga de `rotacion` y el análisis lo abre con F1. El diálogo `FrmMotivoRechazoPedido` desactiva la ayuda (`AyudaHabilitada` falso). Un formulario nuevo sin entrada en `AyudaContexto` abre el tema `inicio`.")
     g.h2("Agregar un permiso")
     g.p("El catálogo de permisos es fijo desde la interfaz: se amplía por script.", mantener=True)
     g.pasos([
@@ -1911,6 +2168,17 @@ def guia_mantenimiento():
         "En `IntegridadBLL`, defina el arreglo canónico de atributos (**el orden no podrá cambiar** una vez almacenados datos) y un método `ExtraerAtributos*`.",
         "Llame a los ayudantes genéricos `VerificarTabla` y `RecalcularTabla` siguiendo el patrón de `USUARIO`, e incluya la nueva entidad en `RecalcularIntegridad()` y `VerificarIntegridad()`.",
         "Recalcule tras cada mutación de la entidad.",
+    ])
+
+    g.h2("Convención de colores de la interfaz")
+    g.p("La paleta de marca (el tema “Bordó”, clase `AppTheme`) se eliminó: los controles usan los colores predeterminados de Windows (`SystemColors.*`) y la barra de título de `MaterialForm` toma `SystemColors.Highlight`. "
+        "`Program.cs` configura una sola vez `MaterialSkinManager` con un `MaterialColorScheme` basado en `SystemColors`. `FormBase.OnPaint` deja que Material dibuje la barra y luego rellena el área de usuario con `SystemColors.Control`; "
+        "`FormBase.OnLoad` restablece los colores de TextBox, ComboBox, NumericUpDown, ListBox, TreeView y RichTextBox, que `MaterialSkinManager` pinta de gris.", mantener=True)
+    g.bullets([
+        "**No asigne** `BackColor`, `ForeColor` ni `FlatAppearance` decorativos en un formulario nuevo ni en el Designer.",
+        "**Colores con significado que se conservan:** las filas de recomendación de la grilla de rotación (rojo, ámbar, verde y azul grisáceo oscuros con texto blanco, en `frmAnalisisRotacion`); la paleta común de los gráficos y del informe PDF (`RotacionGraficos`: Urgente rojo, Reponer naranja, Mantener verde, Sobrestock azul grisáceo); "
+        "las alertas de stock, integridad y error (líneas sin stock en rosa claro con texto rojo oscuro en picking y despacho, total sobre presupuesto en rojo, aviso de fecha en ámbar, cartel de RN-33 en rojo); y los íconos de `MsgBox` por tipo (verde éxito, naranja atención, rojo error, azul pregunta o información).",
+        "Los diseñadores de los formularios ya no fijan colores (commit de limpieza de los `.Designer.cs`): un color nuevo solo se justifica si transmite un estado.",
     ])
 
     # ---------------- 6 ----------------
@@ -1980,10 +2248,11 @@ def guia_mantenimiento():
          "Un servidor remoto o una autenticación SQL requieren modificar `Acceso.cs`. La variable `CLUBVINOS_SQL` no se aplica al **Reintentar** de una sesión ya abierta."],
         ["Sin pruebas automatizadas", "La verificación es manual.", "Riesgo de regresiones. Empezar por pruebas de BLL con una base de prueba."],
         ["Integridad acotada", "Los dígitos verificadores cubren solo `USUARIO` (más sus roles asignados) y se verifican solo al arrancar. `BITACORA`, `ROL`, `PERMISO` y `ROL_PERMISO` no están protegidos. Una mutación posterior acepta como válidos datos ya corrompidos.",
-         "Ampliar la cobertura (sección 5.5) o verificar periódicamente."],
+         "Ampliar la cobertura (sección 5.6) o verificar periódicamente."],
         ["Cuentas de demostración", "El script reinserta usuarios de prueba (contraseña `Club2026`) y el administrador inicial usa `1234`, que incumple la política.", "Separar los datos de prueba del script de instalación o parametrizarlos; forzar cambio de contraseña inicial."],
         ["Política de contraseñas parcial", "`frmNuevoUsuario` y `UsuarioBLL.Crear` solo exigen contraseña no vacía.", "Aplicar `ValidadorContrasena` al crear."],
         ["Sin restablecimiento de contraseña", "No existe una función para que un administrador restablezca la contraseña de otro usuario.", "Agregar un procedimiento controlado con registro en historial."],
+        ["Pedidos de reposición sin cancelación", "Un pedido Aprobado solo se cierra con la recepción, que exige al menos una línea con cantidad mayor que cero; no hay función para cancelar uno que la bodega no entregará. Los permisos del ciclo se controlan solo en la interfaz.", "Agregar la cancelación de un pedido Aprobado (con motivo y bitácora) y, de ser necesario, validar los permisos también en la BLL. Mientras tanto, ver el cierre excepcional en “Resolución de problemas”."],
         ["Cajas sin cancelación en la UI", "`CajaMensualBLL.Cancelar` existe, pero no hay formulario; las cajas canceladas solo vienen de los datos de prueba.", "Agregar la pantalla (con motivo y separación de funciones)."],
         ["Manejo de errores", "`ErrorInicio.Instalar()` registra `ThreadException` y `UnhandledException`: los errores de conexión muestran un aviso propio y el resto un diálogo genérico en español con el detalle. Los textos están fijos en español porque las traducciones viven en la base, que puede no estar disponible.", "Los errores de negocio siguen mostrándose con `MsgBox` en cada formulario; no hay registro de errores en archivo, salvo el de integridad."],
         ["Cierre de la aplicación", "El formulario de login original queda oculto tras iniciar sesión y no se encontró una llamada a `Application.Exit`; por inspección del código, el proceso podría seguir activo tras cerrar el menú (no verificado en ejecución).", "Verificar el comportamiento y cerrar la aplicación al cerrar el menú."],
@@ -2000,7 +2269,7 @@ def guia_mantenimiento():
     g.tabla(["Síntoma", "Causa probable", "Solución"], [
         ["Faltan paquetes o no compila tras clonar.", "No se restauraron los paquetes NuGet.", "Agregar `-restore` a MSBuild o restaurar desde Visual Studio."],
         ["Los controles de un formulario nuevo quedan tapados.", "`Location.Y` menor que unos 70 px (barra de título de `MaterialForm`).", "Desplazar el contenido 70 px o más y ampliar `ClientSize.Height`."],
-        ["Un formulario se ve gris y sin tema.", "No hereda de `FormBase` o falta `AddFormToManage`/`AplicarTema` en `Load`.", "Heredar de `FormBase` y llamar a ambos al final de `Load`."],
+        ["Un formulario se ve gris, o con campos de texto grises.", "No hereda de `FormBase` o falta `AddFormToManage` en `Load` (`FormBase` repinta el área de contenido con el color del sistema y restablece los colores de los campos).", "Heredar de `FormBase` y llamar a `AddFormToManage` al final de `Load`."],
         ["Un texto no se traduce.", "Clave sin `CONTROL_REGISTRAR`, sin traducción en el idioma, colisión de nombres entre formularios, formulario sin `Registrar`, o encabezado de grilla sin `ActualizarEncabezados`.", "Revisar cada punto; ver las secciones 5.1 y 5.2."],
         ["`cannot insert NULL into IDIOMA_ID` o tildes corruptas.", "Script ejecutado sin `-f 65001`.", "Reejecutar con `-I -f 65001`."],
         ["Error 1934 al ejecutar el script.", "Falta `-I`.", "Reejecutar con `-I`."],
@@ -2011,7 +2280,22 @@ def guia_mantenimiento():
         ["Textos con tildes corruptos tras instalar con el MSI.", "`script.sql` guardado sin codificación UTF-8 (la conversión a UTF-16 LE parte de UTF-8) o un `script.utf16.sql` obsoleto.", "Verificar que `script.sql` sea UTF-8 con BOM, borrar `Instalador\\obj` y recompilar."],
         ["Un elemento de menú se muestra pero no hace nada.", "Falta el manejador `Click` o el cableado en el `Designer`.", "Conectar el evento y verificar `ActualizarVisibilidadMenu`."],
         ["El remito o el informe no se generan.", "Documentos no escribible (permisos, redirección).", "Verificar la carpeta; el error se informa por `MsgBox`."],
+        ["Un pedido Aprobado quedó atascado: la mercadería no llegará y la recepción exige al menos una línea mayor que cero.", "No existe la cancelación de pedidos en la aplicación. Sus unidades siguen **En camino** y el vino sigue bloqueado para nuevos pedidos y para la baja.", "Con el pedido real identificado, cierre excepcional con respaldo previo (procedimiento más abajo)."],
+        ["No se puede dar de baja un vino que ya no tiene stock.", "Está en un pedido de reposición Pendiente o Aprobado (RN-15 extendida): `SELECT ISNULL(MAX(p.ID),0) FROM PEDIDO_REPOSICION_LINEA pl JOIN PEDIDO_REPOSICION p ON p.ID = pl.PEDIDO_ID WHERE pl.VINO_ID = <id> AND p.ESTADO IN ('Pendiente','Aprobado')` devuelve el Nº.", "Rechazar o recibir ese pedido. Evite descontinuar vinos con un `UPDATE` directo: la recepción exige un vino Activo."],
+        ["La recepción falla con “El vino … no está activo: no admite entradas de stock.”", "El vino de una línea con cantidad recibida cambió de estado fuera de la aplicación (la baja lo impide mientras el pedido está abierto).", "Devolver el vino a Activo (con respaldo) o registrar esa línea con cantidad 0."],
+        ["“La cantidad a pedir no puede superar las 100000 unidades por línea.” o error por `CK_PEDREPLIN_TOPE`.", "Tope por línea de `PedidoReposicionBLL.CantidadMaximaPorLinea` (100000), respaldado por la restricción de la tabla.", "Divida la cantidad en pedidos distintos. Para subir el tope hay que cambiar la constante, la UI y la restricción a la vez."],
+        ["Aparece el error 2601/2627 o el aviso “RN-32…” al generar un pedido.", "Otro usuario generó antes un pedido con el mismo vino: lo frena `UX_PEDREPLIN_VINO_ABIERTO`.", "Actualizar el análisis: la columna **Pedido abierto** mostrará el pedido."],
     ], [5.0, 5.8, 5.8], tam=9)
+    g.h3("Cierre excepcional de un pedido Aprobado que no llegará")
+    g.p("Último recurso, para un administrador con acceso a la base de datos. Haga antes un respaldo (Guía de Operación, sección 6). El procedimiento se dedujo de las restricciones del script (`CK_PEDREP_*`) "
+        "y **no se ejecutó en una base de prueba al redactar esta guía**: pruébelo primero sobre una copia. Deja el pedido como Rechazado con un motivo explícito y libera sus vinos, sin generar entradas de stock; "
+        "no deja rastro en la bitácora, por lo que conviene anotar el cambio por otro medio. Ejecútelo con `sqlcmd -I`.", mantener=True)
+    g.codigo("BEGIN TRAN;\n"
+             "UPDATE PEDIDO_REPOSICION\n"
+             "SET ESTADO = 'Rechazado', MOTIVO_RECHAZO = 'Cierre excepcional: la bodega no entregó el pedido.'\n"
+             "WHERE ID = <N> AND ESTADO = 'Aprobado';\n"
+             "UPDATE PEDIDO_REPOSICION_LINEA SET ABIERTO = 0 WHERE PEDIDO_ID = <N>;\n"
+             "COMMIT TRAN;")
     return g.guardar()
 
 def main():
@@ -2030,9 +2314,15 @@ def actualizar_con_word(archivos):
     ps1 = r'''
 param([Parameter(ValueFromRemainingArguments=$true)][string[]]$Archivos)
 $ErrorActionPreference = 'Stop'
+$antes = @(Get-Process WINWORD -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
 $w = New-Object -ComObject Word.Application
-$w.Visible = $false
-$w.DisplayAlerts = 0
+Start-Sleep -Milliseconds 800
+$despues = @(Get-Process WINWORD -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+$propios = @($despues | Where-Object { $antes -notcontains $_ })
+# Solo se oculta y se cierra la instancia si es propia: si Word devolvio una instancia ya abierta
+# (con documentos de la usuaria), se trabaja en ella y solo se cierran los documentos que abrio este script.
+$propia = $propios.Count -gt 0
+if ($propia) { $w.Visible = $false; $w.DisplayAlerts = 0 }
 try {
   foreach ($f in $Archivos) {
     $d = $w.Documents.Open($f, $false, $false)
@@ -2049,7 +2339,9 @@ try {
     Remove-Item $pdf -Force
     Write-Output ('PAGINAS|' + [System.IO.Path]::GetFileName($f) + '|' + $paginas)
   }
-} finally { $w.Quit() }
+} finally {
+  if ($propia) { $w.Quit() }
+}
 '''
     try:
         with tempfile.TemporaryDirectory() as tmp:
