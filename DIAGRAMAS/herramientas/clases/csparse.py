@@ -142,7 +142,14 @@ def parse_header(h, tname):
     base = {'mods': mods, 'vis': vis, 'static': ('static' in mods) or ('const' in mods), 'abstract': 'abstract' in mods, 'readonly': 'readonly' in mods or 'const' in mods, 'override': 'override' in mods, 'const': 'const' in mods}
     if ppos >= 0:
         pre = rest[:ppos].strip()
-        close = rest.rfind(')')
+        close = ppos; dd = 0
+        for idx in range(ppos, len(rest)):  # parentesis que cierra la lista de parametros (no el de ': base(...)')
+            if rest[idx] == '(': dd += 1
+            elif rest[idx] == ')':
+                dd -= 1
+                if dd == 0: close = idx; break
+        else:
+            close = rest.rfind(')')
         params = [parse_param(p) for p in split_top(rest[ppos+1:close])]
         # pre = "ret Name" or "Name" (ctor) or "ret Iface.Name"
         pm = re.match(r'^(.*?)\s*([\w\.]+(?:<[^>]*>)?)$', pre)

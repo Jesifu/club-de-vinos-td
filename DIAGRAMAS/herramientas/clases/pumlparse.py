@@ -32,7 +32,8 @@ def parse_puml(path):
                 if not m.group(7):
                     cur = None
                 continue
-            # relationship
+            # relationship ([norank] solo afecta al layout: se ignora al leer)
+            line = line.replace('[norank]', '')
             mr = re.match(r'^\s*(\w+)\s*(?:"([^"]*)")?\s*(<\|--|--\|>|<\|\.\.|\.\.\|>|o--|--o|\*--|--\*|-->|<--|\.\.>|<\.\.|--|\.\.)\s*(?:"([^"]*)")?\s*(\w+)\s*(?::\s*(.*))?$', line)
             if mr and '[hidden]' not in line:
                 rels.append({'a': mr.group(1), 'ma': mr.group(2), 'arrow': mr.group(3), 'mb': mr.group(4), 'b': mr.group(5), 'label': mr.group(6), 'line': ln})

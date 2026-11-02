@@ -179,15 +179,15 @@ package "BE" #FEFECE {
     + Faltante : int
   }
 
-  Vino --> EstadoVino
-  Vino --> TipoSolicitud
-  Vino --> EstadoSolicitud
-  Vino --> Bodega : BodegaId >
-  SolicitudAutorizacion "0..*" --> "1" Vino : Vino >
-  SolicitudAutorizacion --> TipoSolicitud
-  SolicitudAutorizacion --> EstadoSolicitud
-  MovimientoStock --> TipoMovimiento
-  MovimientoStock --> Vino : VinoId >
+  Vino -[norank]-> EstadoVino
+  Vino -[norank]-> TipoSolicitud
+  Vino -[norank]-> EstadoSolicitud
+  Vino -[norank]-> Bodega : BodegaId >
+  SolicitudAutorizacion "0..*" -[norank]-> "1" Vino : Vino >
+  SolicitudAutorizacion -[norank]-> TipoSolicitud
+  SolicitudAutorizacion -[norank]-> EstadoSolicitud
+  MovimientoStock -[norank]-> TipoMovimiento
+  MovimientoStock -[norank]-> Vino : VinoId >
 
   ' ── Dominio: curación y armado de cajas mensuales (curacion-cajas-mensuales) ──
   enum EstadoCaja {
@@ -273,10 +273,107 @@ package "BE" #FEFECE {
     + ToString() : string
   }
 
-  CajaMensual  "0..*" --> "1" Socio : SocioId >
-  CajaMensual  "1" o-- "0..*" CajaVino : Lineas
-  Sustitucion  "0..*" --> "1" CajaVino : CajaVinoId >
-  CajaMensual  --> EstadoCaja
+  CajaMensual  "0..*" -[norank]-> "1" Socio : SocioId >
+  CajaMensual  "1" o-[norank]- "0..*" CajaVino : Lineas
+  Sustitucion  "0..*" -[norank]-> "1" CajaVino : CajaVinoId >
+  CajaMensual  -[norank]-> EstadoCaja
+
+  ' ── Dominio: rotación y pedido de reposición ──
+  enum EstadoPedidoReposicion {
+    Pendiente
+    Aprobado
+    Rechazado
+    Recibido
+  }
+
+  class ConfiguracionRotacion {
+    + DiasAnalisis : int
+    + UmbralAltaRotacion : decimal
+    + UmbralBajaRotacion : decimal
+    + MesesCoberturaUrgente : decimal
+    + MesesCoberturaReposicion : decimal
+    + MesesCoberturaSobrestock : decimal
+    + MesesCoberturaObjetivo : decimal
+    + {static} PorDefecto() : ConfiguracionRotacion
+  }
+
+  class ClasificacionRotacion <<static>> {
+    + {static} Alta : string = "Alta rotación"
+    + {static} Media : string = "Rotación media"
+    + {static} Baja : string = "Baja rotación"
+    + {static} SinMovimiento : string = "Sin movimiento"
+  }
+
+  class RecomendacionReposicion <<static>> {
+    + {static} Urgente : string = "Reponer urgente"
+    + {static} Reponer : string = "Reponer"
+    + {static} Mantener : string = "Mantener"
+    + {static} Sobrestock : string = "Sobrestock / no reponer"
+  }
+
+  class ResultadoRotacion {
+    + VinoId : int
+    + Codigo : string
+    + Nombre : string
+    + BodegaId : int
+    + BodegaNombre : string
+    + StockMinimo : int
+    + StockActual : int
+    + UnidadesVendidas : int
+    + UnidadesPerdidas : int
+    + SociosAtendidos : int
+    + ConsumoMensual : decimal
+    + MesesCobertura : decimal?
+    + Clasificacion : string
+    + Recomendacion : string
+    + EnCamino : int
+    + PedidoAbiertoEstado : string
+    + CantidadSugeridaBruta : int
+    + CantidadSugerida : int
+    + Prioridad : int
+  }
+
+  class PedidoReposicion {
+    + Id : int
+    + BodegaId : int
+    + BodegaNombre : string
+    + Estado : EstadoPedidoReposicion
+    + FechaCreacion : DateTime
+    + CreadoPor : int
+    + CreadoPorLogin : string
+    + ResolutorId : int?
+    + ResolutorLogin : string
+    + FechaResolucion : DateTime?
+    + MotivoRechazo : string
+    + RecibidoPor : int?
+    + RecibidoPorLogin : string
+    + FechaRecepcion : DateTime?
+    + Observacion : string
+    + CantidadLineas : int
+    + UnidadesPedidas : int
+    + Lineas : List<PedidoReposicionLinea>
+  }
+
+  class PedidoReposicionLinea {
+    + Id : int
+    + PedidoId : int
+    + VinoId : int
+    + VinoCodigo : string
+    + VinoNombre : string
+    + CantidadSugerida : int
+    + CantidadPedida : int
+    + CantidadRecibida : int?
+  }
+
+  class ResultadoConexion {
+    + Exitosa : bool
+    + Servidor : string
+    + Motivo : string
+  }
+
+  PedidoReposicion -[norank]-> PedidoReposicionLinea
+  PedidoReposicion -[norank]-> EstadoPedidoReposicion
+  PedidoReposicion "1" o-[norank]- "1..*" PedidoReposicionLinea : Lineas
 
   abstract class NodoPermiso {
     + Id : int
@@ -306,9 +403,9 @@ package "BE" #FEFECE {
     + EsHoja() : bool
   }
 
-  NodoPermiso <|-- Rol
-  NodoPermiso <|-- Permiso
-  Rol "1" o-- "0..*" NodoPermiso : _hijos
+  NodoPermiso <|-[norank]- Rol
+  NodoPermiso <|-[norank]- Permiso
+  Rol "1" o-[norank]- "0..*" NodoPermiso : _hijos
 }
 
 ' ─────────────────────────────────────────
@@ -363,9 +460,7 @@ package "SeguridadYServicios" #D5E8D4 {
     + Traducir(clave : string) : string
   }
 
-  IdiomaManager "1" o-- "0..*" IObservadorIdioma : _observers
-  IdiomaManager --> IDIOMA : IdiomaActivo >
-  SessionManager --> USUARIO : usa >
+  IdiomaManager "1" o-[norank]- "0..*" IObservadorIdioma : _observers
 }
 
 ' ─────────────────────────────────────────
@@ -377,6 +472,8 @@ package "DAL" #DAE8FC {
     - conexion : SqlConnection
     - transaccion : SqlTransaction
     + Abrir() : void
+    ~ {static} Servidor : string
+    ~ {static} CadenaConexionPublica : string
     + Cerrar() : void
     + IniciarTx() : void
     + ConfirmarTX() : void
@@ -505,21 +602,18 @@ package "DAL" #DAE8FC {
     + ObtenerStockActual(vinoId : int) : int
   }
 
-  UsuarioDAL --> Acceso
-  PerfilDAL --> Acceso
-  UsuarioPerfilDAL --> Acceso
-  BitacoraDAL --> Acceso
-  IntegridadDAL --> Acceso
-  IdiomaDAL --> Acceso
-  UsuarioHistorialDAL --> Acceso
-  UsuarioDAL ..> PaginaResultado
-  BitacoraDAL ..> PaginaResultado
-  UsuarioHistorialDAL ..> PaginaResultado
-  VinoDAL --> Acceso
-  SolicitudAutorizacionDAL --> Acceso
-  BodegaDAL --> Acceso
-  MovimientoStockDAL --> Acceso
-  VinoDAL ..> SolicitudAutorizacionDAL : TipoDesdeDb >
+  UsuarioDAL -[norank]-> Acceso
+  PerfilDAL -[norank]-> Acceso
+  UsuarioPerfilDAL -[norank]-> Acceso
+  BitacoraDAL -[norank]-> Acceso
+  IntegridadDAL -[norank]-> Acceso
+  IdiomaDAL -[norank]-> Acceso
+  UsuarioHistorialDAL -[norank]-> Acceso
+  VinoDAL -[norank]-> Acceso
+  SolicitudAutorizacionDAL -[norank]-> Acceso
+  BodegaDAL -[norank]-> Acceso
+  MovimientoStockDAL -[norank]-> Acceso
+  VinoDAL .[norank].> SolicitudAutorizacionDAL : TipoDesdeDb >
 
   ' ── Dominio: curación y armado de cajas mensuales ──
   class SocioDAL {
@@ -547,9 +641,36 @@ package "DAL" #DAE8FC {
     + ListarPorCaja(cajaId : int) : List<Sustitucion>
   }
 
-  SocioDAL --> Acceso
-  CajaMensualDAL --> Acceso
-  SustitucionDAL --> Acceso
+  SocioDAL -[norank]-> Acceso
+  CajaMensualDAL -[norank]-> Acceso
+  SustitucionDAL -[norank]-> Acceso
+
+  ' ── Dominio: rotación y pedido de reposición ──
+  class RotacionDAL {
+    - _acceso : Acceso
+    + Analizar(desde : DateTime, hasta : DateTime) : List<ResultadoRotacion>
+  }
+
+  class PedidoReposicionDAL {
+    - _acceso : Acceso
+    + Insertar(bodegaId : int, creadoPor : int, observacion : string, lineas : IEnumerable<PedidoReposicionLinea>) : int
+    + ObtenerPedidoAbiertoDeVino(vinoId : int) : int
+    + Listar(estado : EstadoPedidoReposicion?) : List<PedidoReposicion>
+    + ObtenerPorId(id : int) : PedidoReposicion
+    + ObtenerLineas(pedidoId : int) : List<PedidoReposicionLinea>
+    + Autorizar(pedidoId : int, resolutorId : int) : int
+    + Rechazar(pedidoId : int, resolutorId : int, motivo : string) : int
+    + Recibir(pedidoId : int, recibidoPor : int, responsableLogin : string, cantidadesPorLinea : IDictionary<int, int>) : int
+  }
+
+  class ConexionDAL {
+    + Probar() : ResultadoConexion
+    + {static} EsErrorDeConexion(ex : Exception) : bool
+  }
+
+  RotacionDAL -[norank]-> Acceso
+  PedidoReposicionDAL -[norank]-> Acceso
+  ConexionDAL -[norank]-> Acceso
 }
 
 ' ─────────────────────────────────────────
@@ -667,6 +788,7 @@ package "BLL" #FFE6CC {
     - _solicitudDal : SolicitudAutorizacionDAL
     - _bodegaDal : BodegaDAL
     - _movimientoDal : MovimientoStockDAL
+    - _pedidoDal : PedidoReposicionDAL
     - _bitacora : BitacoraBLL
     + ListarBodegas() : List<Bodega>
     + ProponerAlta(v : Vino, sesion : USUARIO) : void
@@ -693,49 +815,19 @@ package "BLL" #FFE6CC {
     + ObtenerMovimientos(vinoId : int) : List<MovimientoStock>
   }
 
-  IntegridadBLL --> IntegridadDAL
-  IntegridadBLL --> UsuarioPerfilDAL
-  UsuarioBLL --> UsuarioDAL
-  UsuarioBLL --> BitacoraBLL
-  UsuarioBLL --> IntegridadBLL
-  UsuarioBLL --> UsuarioHistorialBLL
-  LoginBLL --> UsuarioDAL
-  LoginBLL --> BitacoraBLL
-  LoginBLL ..> IdiomaBLL
-  LoginBLL --> UsuarioHistorialBLL
-  LoginBLL --> UsuarioPerfilBLL
-  PerfilBLL --> PerfilDAL
-  UsuarioPerfilBLL --> UsuarioDAL
-  UsuarioPerfilBLL --> UsuarioPerfilDAL
-  UsuarioPerfilBLL --> IntegridadBLL
-  UsuarioPerfilBLL --> UsuarioHistorialBLL
-  BitacoraBLL --> BitacoraDAL
-  IdiomaBLL --> IdiomaDAL
-  UsuarioHistorialBLL --> UsuarioDAL
-  UsuarioHistorialBLL --> UsuarioHistorialDAL
-  UsuarioHistorialBLL --> UsuarioPerfilDAL
-  UsuarioHistorialBLL ..> IntegridadBLL
-  VinoBLL --> BodegaDAL
-  VinoBLL --> MovimientoStockDAL
-  VinoBLL --> SolicitudAutorizacionDAL
-  VinoBLL --> VinoDAL
-  VinoBLL --> BitacoraBLL
-  MovimientoStockBLL --> MovimientoStockDAL
-  MovimientoStockBLL --> VinoDAL
-  MovimientoStockBLL --> BitacoraBLL
-  IntegridadBLL ..> CalculadorDVH
-  UsuarioBLL ..> SessionManager
-  UsuarioBLL ..> Hasher
-  LoginBLL ..> IdiomaManager
-  LoginBLL ..> SessionManager
-  LoginBLL ..> Hasher
-  UsuarioPerfilBLL ..> SessionManager
-  UsuarioHistorialBLL ..> SessionManager
-  IntegridadBLL ..> ResultadoIntegridad
-  LoginBLL ..> LoginResultado
-  UsuarioBLL ..> PaginaResultado
-  BitacoraBLL ..> PaginaResultado
-  UsuarioHistorialBLL ..> PaginaResultado
+  UsuarioBLL -[norank]-> BitacoraBLL
+  UsuarioBLL -[norank]-> IntegridadBLL
+  UsuarioBLL -[norank]-> UsuarioHistorialBLL
+  LoginBLL -[norank]-> BitacoraBLL
+  LoginBLL .[norank].> IdiomaBLL
+  LoginBLL -[norank]-> UsuarioHistorialBLL
+  LoginBLL -[norank]-> UsuarioPerfilBLL
+  UsuarioPerfilBLL -[norank]-> IntegridadBLL
+  UsuarioPerfilBLL -[norank]-> UsuarioHistorialBLL
+  UsuarioHistorialBLL .[norank].> IntegridadBLL
+  VinoBLL -[norank]-> BitacoraBLL
+  MovimientoStockBLL -[norank]-> BitacoraBLL
+  IntegridadBLL .[norank].> ResultadoIntegridad
 
   ' ── Dominio: curación y armado de cajas mensuales ──
   class SocioBLL {
@@ -766,13 +858,51 @@ package "BLL" #FFE6CC {
     + Cancelar(cajaId : int, motivo : string, sesion : USUARIO) : void
   }
 
-  SocioBLL --> SocioDAL
-  SocioBLL --> BitacoraBLL
-  CajaMensualBLL --> CajaMensualDAL
-  CajaMensualBLL --> SocioDAL
-  CajaMensualBLL --> SustitucionDAL
-  CajaMensualBLL --> VinoDAL
-  CajaMensualBLL --> BitacoraBLL
+  SocioBLL -[norank]-> BitacoraBLL
+  CajaMensualBLL -[norank]-> BitacoraBLL
+
+  ' ── Dominio: rotación y pedido de reposición ──
+  class RotacionBLL {
+    - _dal : RotacionDAL
+    + Analizar(desde : DateTime, hasta : DateTime, config : ConfiguracionRotacion) : List<ResultadoRotacion>
+    + {static} Validar(c : ConfiguracionRotacion) : void
+    + {static} CantidadDias(desde : DateTime, hasta : DateTime) : int
+    + {static} Evaluar(r : ResultadoRotacion, dias : int, c : ConfiguracionRotacion) : void
+    + {static} TotalUnidadesSugeridas(filas : IEnumerable<ResultadoRotacion>) : int
+    + {static} ResumirPorRecomendacion(filas : IEnumerable<ResultadoRotacion>) : List<KeyValuePair<string, int>>
+  }
+
+  class PedidoReposicionBLL {
+    + {static} CantidadMaximaPorLinea : int = 100000
+    - _dal : PedidoReposicionDAL
+    - _vinoDal : VinoDAL
+    - _bitacora : BitacoraBLL
+    + Generar(filas : IEnumerable<ResultadoRotacion>, sesion : USUARIO) : List<PedidoReposicion>
+    + Generar(filas : IEnumerable<ResultadoRotacion>, cantidadesPorVino : IDictionary<int, int>, sesion : USUARIO) : List<PedidoReposicion>
+    + GenerarPedido(bodegaId : int, lineas : IList<PedidoReposicionLinea>, observacion : string, sesion : USUARIO) : PedidoReposicion
+    + Listar(estado : EstadoPedidoReposicion?) : List<PedidoReposicion>
+    + Obtener(pedidoId : int) : PedidoReposicion
+    + ObtenerLineas(pedidoId : int) : List<PedidoReposicionLinea>
+    + Autorizar(pedidoId : int, sesion : USUARIO) : void
+    + Rechazar(pedidoId : int, motivo : string, sesion : USUARIO) : void
+    + Recibir(pedidoId : int, cantidadesPorLinea : IDictionary<int, int>, sesion : USUARIO) : void
+  }
+
+  class PedidoParcialException {
+    + Creados : List<PedidoReposicion>
+    + BodegaFallida : string
+    + Motivo : string
+    + PedidoParcialException(creados : List<PedidoReposicion>, bodegaFallida : string, motivo : string, causa : Exception)
+  }
+
+  class ConexionBLL {
+    - _dal : ConexionDAL
+    + ProbarConexion() : ResultadoConexion
+    + {static} EsErrorDeConexion(ex : Exception) : bool
+  }
+
+  PedidoReposicionBLL -[norank]-> BitacoraBLL
+  PedidoReposicionBLL .[norank].> PedidoParcialException
 }
 
 ' ─────────────────────────────────────────
@@ -785,16 +915,15 @@ package "CAPAS" #F8CECC {
   }
 
   class FormBase {
+    # OnLoad(e : EventArgs) : void
+    # AyudaTema : string
+    # AyudaHabilitada : bool
+    # AbrirAyuda() : void
+    # ProcessCmdKey(msg : Message, keyData : Keys) : bool
     # OnPaint(e : PaintEventArgs) : void
   }
 
   note right of FormBase : Hereda de ReaLTaiizor.Forms.MaterialForm
-
-  class AppTheme <<static>> {
-    ~ {static} AplicarTema(form : Form) : void
-    ~ {static} EstilizarMenuStrip(ms : MenuStrip) : void
-    ~ {static} EstilizarStatusStrip(ss : StatusStrip) : void
-  }
 
   class MsgBox <<static>> {
     ~ {static} Show(mensaje : string, titulo : string, botones : Botones = Botones.OK, icono : Icono = Icono.Info) : DialogResult
@@ -917,6 +1046,48 @@ package "CAPAS" #F8CECC {
     + frmRestaurarIntegridad(resultado : ResultadoIntegridad)
   }
 
+  class frmAyuda {
+    - _controles : Dictionary<string, Control>
+    - _defaults : Dictionary<string, string>
+    + frmAyuda()
+    + frmAyuda(temaInicial : string)
+    # AyudaHabilitada : bool
+    + ActualizarIdioma() : void
+  }
+
+  ' ── Utilidades de ayuda y arranque ──
+  class AyudaContexto <<static>> {
+    ~ {static} TemaRaiz : string = "inicio"
+    ~ {static} TemaPara(tipoFormulario : Type) : string
+  }
+
+  class AyudaRepositorio <<static>> {
+    + {static} CodigoIdiomaActivo() : string
+    + {static} Cargar(codigo : string) : List<AyudaTema>
+    + {static} EsRespaldo(codigo : string) : bool
+    + {static} Buscar(temas : IEnumerable<AyudaTema>, id : string) : AyudaTema
+    + {static} Coincide(tema : AyudaTema, texto : string) : bool
+  }
+
+  class AyudaTema {
+    + Id : string
+    + Titulo : string
+    + Resumen : string
+    + Permiso : string
+    + Pasos : List<string>
+    + Reglas : List<string>
+    + Mensajes : List<string>
+    + Hijos : List<AyudaTema>
+    + Padre : AyudaTema
+    + EsArea : bool
+    + TextoCompleto() : string
+  }
+
+  class ErrorInicio <<static>> {
+    ~ {static} Instalar() : void
+    ~ {static} VerificarConexion() : bool
+  }
+
   ' ── Dominio: catálogo y stock de vinos ──
   together {
     class frmCatalogoVinos {
@@ -1016,121 +1187,179 @@ package "CAPAS" #F8CECC {
     }
   }
 
-  FormBase <|-- LogIn
-  FormBase <|-- frmMenu
-  FormBase <|-- frmAdminUsuarios
-  FormBase <|-- frmNuevoUsuario
-  FormBase <|-- frmEditarUsuario
-  FormBase <|-- frmContraseña
-  FormBase <|-- frmHistorialUsuario
-  FormBase <|-- frmBitacora
-  FormBase <|-- frmPerfiles
-  FormBase <|-- frmAsignarPerfiles
-  FormBase <|-- frmIdiomas
-  FormBase <|-- frmRestaurarIntegridad
-  FormBase <|-- frmCatalogoVinos
-  FormBase <|-- frmAutorizarAltaVino
-  FormBase <|-- frmAutorizarBajaVino
-  FormBase <|-- frmRegistrarEntradaStock
-  FormBase <|-- frmRegistrarAjusteInventario
-  FormBase <|-- frmAlertaStockMinimo
-  FormBase <|-- frmSocios
-  FormBase <|-- frmArmarCaja
-  FormBase <|-- frmPickingCaja
-  FormBase <|-- frmDespacharCaja
-  FormBase <|-- frmHistorialDespachos
-  FormBase <|-- FrmMensaje
+  ' ── Dominio: rotación y pedido de reposición ──
+  together {
+    class frmAnalisisRotacion {
+      - _bll : RotacionBLL
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + frmAnalisisRotacion()
+      + ActualizarIdioma() : void
+      - ActualizarEncabezados() : void
+    }
+    class frmAutorizarPedidoReposicion {
+      - _bll : PedidoReposicionBLL
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + frmAutorizarPedidoReposicion()
+      + ActualizarIdioma() : void
+    }
+    class frmRecibirPedidoReposicion {
+      - _bll : PedidoReposicionBLL
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + frmRecibirPedidoReposicion()
+      + ActualizarIdioma() : void
+    }
+    class frmConsultarPedidosReposicion {
+      - _bll : PedidoReposicionBLL
+      - _controles : Dictionary<string, Control>
+      - _defaults : Dictionary<string, string>
+      + frmConsultarPedidosReposicion()
+      + ActualizarIdioma() : void
+    }
+    class FrmMotivoRechazoPedido {
+      ~ Motivo : string
+      # AyudaHabilitada : bool
+      ~ FrmMotivoRechazoPedido(pedidoId : int)
+    }
+  }
 
-  IObservadorIdioma <|.. LogIn
-  IObservadorIdioma <|.. frmMenu
-  IObservadorIdioma <|.. frmAdminUsuarios
-  IObservadorIdioma <|.. frmNuevoUsuario
-  IObservadorIdioma <|.. frmEditarUsuario
-  IObservadorIdioma <|.. frmContraseña
-  IObservadorIdioma <|.. frmHistorialUsuario
-  IObservadorIdioma <|.. frmBitacora
-  IObservadorIdioma <|.. frmPerfiles
-  IObservadorIdioma <|.. frmAsignarPerfiles
-  IObservadorIdioma <|.. frmIdiomas
-  IObservadorIdioma <|.. frmCatalogoVinos
-  IObservadorIdioma <|.. frmAutorizarAltaVino
-  IObservadorIdioma <|.. frmAutorizarBajaVino
-  IObservadorIdioma <|.. frmRegistrarEntradaStock
-  IObservadorIdioma <|.. frmRegistrarAjusteInventario
-  IObservadorIdioma <|.. frmAlertaStockMinimo
-  IObservadorIdioma <|.. frmSocios
-  IObservadorIdioma <|.. frmArmarCaja
-  IObservadorIdioma <|.. frmPickingCaja
-  IObservadorIdioma <|.. frmDespacharCaja
-  IObservadorIdioma <|.. frmHistorialDespachos
+  class PedidoReposicionUI <<static>> {
+    ~ {static} T(clave : string, porDefecto : string) : string
+    ~ {static} Estado(estado : string) : string
+    ~ {static} Estado(estado : EstadoPedidoReposicion) : string
+    ~ {static} Fecha(fecha : DateTime?) : string
+    ~ {static} ArmarCabecera(p : PedidoReposicion) : string
+    ~ {static} ConfigurarGrillaPedidos(dgv : DataGridView, conEstado : bool) : void
+    ~ {static} ActualizarEncabezadosPedidos(dgv : DataGridView) : void
+    ~ {static} FormatearEstado(dgv : DataGridView, e : DataGridViewCellFormattingEventArgs) : void
+    ~ {static} ConfigurarGrillaLineas(dgv : DataGridView, conRecibida : bool) : void
+    ~ {static} ActualizarEncabezadosLineas(dgv : DataGridView) : void
+  }
+
+  class ConfiguracionRotacionStore <<static>> {
+    ~ {static} Carpeta : string
+    ~ {static} Ruta : string
+    ~ {static} Cargar(archivoInvalido : bool) : ConfiguracionRotacion
+    ~ {static} Guardar(config : ConfiguracionRotacion) : void
+  }
+
+  class RotacionGraficos <<static>> {
+    ~ {static} MaxVinos : int = 10
+    ~ {static} ColorDeRecomendacion(recomendacion : string) : Color
+    ~ {static} ConsumoVsStock(filas : List<ResultadoRotacion>, o : Opciones) : Chart
+    ~ {static} Distribucion(filas : List<ResultadoRotacion>, o : Opciones) : Chart
+    ~ {static} UnidadesSugeridas(filas : List<ResultadoRotacion>, o : Opciones) : Chart
+    ~ {static} APng(chart : Chart) : byte[]
+    ~ {static} T(o : Opciones, clave : string, porDefecto : string) : string
+    ~ {static} Formatear(o : Opciones, clave : string, formatoPorDefecto : string, args : object[]) : string
+  }
+
+  class RotacionReposicionPdf <<static>> {
+    ~ {static} Generar(filas : List<ResultadoRotacion>, desde : DateTime, hasta : DateTime, config : ConfiguracionRotacion, traducir : Func<string, string> = null) : string
+    ~ {static} Abrir(rutaPdf : string) : void
+  }
+
+  FormBase <|-[norank]- LogIn
+  FormBase <|-[norank]- frmMenu
+  FormBase <|-[norank]- frmAdminUsuarios
+  FormBase <|-[norank]- frmNuevoUsuario
+  FormBase <|-[norank]- frmEditarUsuario
+  FormBase <|-[norank]- frmContraseña
+  FormBase <|-[norank]- frmHistorialUsuario
+  FormBase <|-[norank]- frmBitacora
+  FormBase <|-[norank]- frmPerfiles
+  FormBase <|-[norank]- frmAsignarPerfiles
+  FormBase <|-[norank]- frmIdiomas
+  FormBase <|-[norank]- frmRestaurarIntegridad
+  FormBase <|-[norank]- frmCatalogoVinos
+  FormBase <|-[norank]- frmAutorizarAltaVino
+  FormBase <|-[norank]- frmAutorizarBajaVino
+  FormBase <|-[norank]- frmRegistrarEntradaStock
+  FormBase <|-[norank]- frmRegistrarAjusteInventario
+  FormBase <|-[norank]- frmAlertaStockMinimo
+  FormBase <|-[norank]- frmSocios
+  FormBase <|-[norank]- frmArmarCaja
+  FormBase <|-[norank]- frmPickingCaja
+  FormBase <|-[norank]- frmDespacharCaja
+  FormBase <|-[norank]- frmHistorialDespachos
+  FormBase <|-[norank]- frmAyuda
+  FormBase <|-[norank]- frmAnalisisRotacion
+  FormBase <|-[norank]- frmAutorizarPedidoReposicion
+  FormBase <|-[norank]- frmRecibirPedidoReposicion
+  FormBase <|-[norank]- frmConsultarPedidosReposicion
+  FormBase <|-[norank]- FrmMotivoRechazoPedido
+  FormBase <|-[norank]- FrmMensaje
+
+  IObservadorIdioma <|.[norank]. LogIn
+  IObservadorIdioma <|.[norank]. frmMenu
+  IObservadorIdioma <|.[norank]. frmAdminUsuarios
+  IObservadorIdioma <|.[norank]. frmNuevoUsuario
+  IObservadorIdioma <|.[norank]. frmEditarUsuario
+  IObservadorIdioma <|.[norank]. frmContraseña
+  IObservadorIdioma <|.[norank]. frmHistorialUsuario
+  IObservadorIdioma <|.[norank]. frmBitacora
+  IObservadorIdioma <|.[norank]. frmPerfiles
+  IObservadorIdioma <|.[norank]. frmAsignarPerfiles
+  IObservadorIdioma <|.[norank]. frmIdiomas
+  IObservadorIdioma <|.[norank]. frmCatalogoVinos
+  IObservadorIdioma <|.[norank]. frmAutorizarAltaVino
+  IObservadorIdioma <|.[norank]. frmAutorizarBajaVino
+  IObservadorIdioma <|.[norank]. frmRegistrarEntradaStock
+  IObservadorIdioma <|.[norank]. frmRegistrarAjusteInventario
+  IObservadorIdioma <|.[norank]. frmAlertaStockMinimo
+  IObservadorIdioma <|.[norank]. frmSocios
+  IObservadorIdioma <|.[norank]. frmArmarCaja
+  IObservadorIdioma <|.[norank]. frmPickingCaja
+  IObservadorIdioma <|.[norank]. frmDespacharCaja
+  IObservadorIdioma <|.[norank]. frmHistorialDespachos
+  IObservadorIdioma <|.[norank]. frmAyuda
+  IObservadorIdioma <|.[norank]. frmAnalisisRotacion
+  IObservadorIdioma <|.[norank]. frmAutorizarPedidoReposicion
+  IObservadorIdioma <|.[norank]. frmRecibirPedidoReposicion
+  IObservadorIdioma <|.[norank]. frmConsultarPedidosReposicion
 }
 
 ' ─────────────────────────────────────────
 ' Dependencias entre capas
 ' ─────────────────────────────────────────
 ' Núcleo / seguridad
-LogIn ..> IntegridadBLL
-LogIn ..> LoginBLL
-LogIn ..> SessionManager
-frmAdminUsuarios --> UsuarioBLL
-frmNuevoUsuario --> PerfilBLL
-frmContraseña ..> UsuarioBLL
-frmContraseña ..> ValidadorContrasena
-frmBitacora --> BitacoraBLL
-frmPerfiles --> PerfilBLL
-frmAsignarPerfiles --> PerfilBLL
-frmAsignarPerfiles --> UsuarioPerfilBLL
-frmIdiomas --> IdiomaBLL
-frmIdiomas ..> IdiomaManager
-frmHistorialUsuario --> UsuarioHistorialBLL
-frmRestaurarIntegridad ..> IntegridadBLL
-frmRestaurarIntegridad --> UsuarioBLL
-frmRestaurarIntegridad --> UsuarioHistorialBLL
-frmMenu ..> BitacoraBLL
-frmMenu ..> IdiomaBLL
-frmMenu ..> UsuarioBLL
-frmMenu ..> SessionManager
-frmMenu ..> IdiomaManager
-IdiomaUIHelper ..> IdiomaBLL
-IdiomaUIHelper ..> UsuarioBLL
-IdiomaUIHelper ..> IdiomaManager
-Program ..> IntegridadBLL
+Program .[norank].> ErrorInicio
 
 ' Dominio: catálogo y stock de vinos
-frmCatalogoVinos --> VinoBLL
-frmAutorizarAltaVino --> VinoBLL
-frmAutorizarBajaVino --> VinoBLL
-frmRegistrarEntradaStock --> MovimientoStockBLL
-frmRegistrarEntradaStock --> VinoBLL
-frmRegistrarAjusteInventario --> MovimientoStockBLL
-frmRegistrarAjusteInventario --> VinoBLL
-frmAlertaStockMinimo --> VinoBLL
 
 ' Dominio: curación y armado de cajas mensuales
-frmSocios --> SocioBLL
-frmArmarCaja --> CajaMensualBLL
-frmArmarCaja --> SocioBLL
-frmPickingCaja --> CajaMensualBLL
-frmDespacharCaja --> CajaMensualBLL
-frmDespacharCaja ..> RemitoDespachoPdf
-frmHistorialDespachos --> CajaMensualBLL
-frmHistorialDespachos ..> RemitoDespachoPdf
+frmDespacharCaja .[norank].> RemitoDespachoPdf
+frmHistorialDespachos .[norank].> RemitoDespachoPdf
+
+' Dominio: rotación y pedido de reposición
+frmAnalisisRotacion .[norank].> ConfiguracionRotacionStore
+frmAnalisisRotacion .[norank].> RotacionGraficos
+frmAnalisisRotacion .[norank].> RotacionReposicionPdf
+frmAutorizarPedidoReposicion .[norank].> PedidoReposicionUI
+frmRecibirPedidoReposicion .[norank].> PedidoReposicionUI
+frmConsultarPedidosReposicion .[norank].> PedidoReposicionUI
+FrmMotivoRechazoPedido .[norank].> PedidoReposicionUI
 
 ' Navegación entre formularios y utilidades de presentación
-Program ..> LogIn
-LogIn ..> frmMenu
-frmMenu ..> LogIn
-frmRestaurarIntegridad --> ResultadoIntegridad
-LogIn ..> frmRestaurarIntegridad
-frmRestaurarIntegridad ..> frmHistorialUsuario
-frmAdminUsuarios ..> frmNuevoUsuario
-frmAdminUsuarios ..> frmEditarUsuario
-frmAdminUsuarios ..> frmHistorialUsuario
-frmAdminUsuarios ..> frmAsignarPerfiles
-Program --> ResultadoIntegridad
-Program ..> AppTheme
-FormBase ..> AppTheme
-MsgBox ..> FrmMensaje
+Program .[norank].> LogIn
+LogIn .[norank].> frmMenu
+frmMenu .[norank].> LogIn
+LogIn .[norank].> frmRestaurarIntegridad
+frmRestaurarIntegridad .[norank].> frmHistorialUsuario
+frmAdminUsuarios .[norank].> frmNuevoUsuario
+frmAdminUsuarios .[norank].> frmEditarUsuario
+frmAdminUsuarios .[norank].> frmHistorialUsuario
+frmAdminUsuarios .[norank].> frmAsignarPerfiles
+Program .[norank].> ErrorInicio
+frmMenu .[norank].> frmAnalisisRotacion
+frmMenu .[norank].> frmAutorizarPedidoReposicion
+frmMenu .[norank].> frmRecibirPedidoReposicion
+frmMenu .[norank].> frmConsultarPedidosReposicion
+frmAutorizarPedidoReposicion .[norank].> FrmMotivoRechazoPedido
+FormBase .[norank].> frmAyuda
+MsgBox .[norank].> FrmMensaje
 note bottom of frmMenu
   Abre con ShowDialog() los formularios de sus ítems de menú
   (contraseña, usuarios, perfiles, idiomas, bitácora, catálogo,
@@ -1139,170 +1368,224 @@ note bottom of frmMenu
   Al cerrar sesión muestra LogIn con Show().
 end note
 
+' ═══ Dependencias entre capas (resumen de las relaciones entre clases de capas distintas) ═══
+CAPAS -down-> SeguridadYServicios : usa
+CAPAS -down-> BLL : usa
+CAPAS -down-> BE : usa
+SeguridadYServicios -down-> BE : usa
+BLL -up-> SeguridadYServicios : usa
+BLL -down-> DAL : usa
+BLL -down-> BE : usa
+DAL -down-> BE : usa
+
 ' ═══ DISPOSICIÓN VERTICAL (solo directivas de layout) ═══
-' Disposición vertical: las capas se apilan de arriba hacia abajo con enlaces
-' ocultos entre paquetes; las clases de cada paquete se acomodan en una grilla
-' de varias filas con enlaces ocultos entre clases (no modifican el modelo).
-skinparam nodesep 20
-skinparam ranksep 30
-SeguridadYServicios -[hidden]down-> CAPAS
-CAPAS -[hidden]down-> BLL
+' Las capas se apilan de arriba hacia abajo (CAPAS, SeguridadYServicios, BLL, DAL, BE)
+' con enlaces ocultos entre paquetes y entre una clase de cada capa; las clases de
+' cada paquete se acomodan en una grilla con enlaces ocultos (no modifican el modelo).
+skinparam nodesep 18
+skinparam ranksep 26
+CAPAS -[hidden]down-> SeguridadYServicios
+AyudaTema -[hidden]down-> Hasher
+AyudaTema -[hidden]down-> Hasher
+AyudaTema -[hidden]down-> Hasher
+SeguridadYServicios -[hidden]down-> BLL
+Hasher -[hidden]down-> ResultadoIntegridad
+Hasher -[hidden]down-> ResultadoIntegridad
+Hasher -[hidden]down-> ResultadoIntegridad
 BLL -[hidden]down-> DAL
+IntegridadBLL -[hidden]down-> UsuarioDAL
+IntegridadBLL -[hidden]down-> UsuarioDAL
+IntegridadBLL -[hidden]down-> UsuarioDAL
 DAL -[hidden]down-> BE
-SessionManager -[hidden]down-> IdiomaUIHelper
-SessionManager -[hidden]down-> IdiomaUIHelper
-SessionManager -[hidden]down-> IdiomaUIHelper
-SessionManager -[hidden]down-> IdiomaUIHelper
-RemitoDespachoPdf -[hidden]down-> ResultadoIntegridad
-RemitoDespachoPdf -[hidden]down-> ResultadoIntegridad
-RemitoDespachoPdf -[hidden]down-> ResultadoIntegridad
-RemitoDespachoPdf -[hidden]down-> ResultadoIntegridad
-IntegridadBLL -[hidden]down-> UsuarioDAL
-IntegridadBLL -[hidden]down-> UsuarioDAL
-IntegridadBLL -[hidden]down-> UsuarioDAL
-IntegridadBLL -[hidden]down-> UsuarioDAL
 CajaMensualDAL -[hidden]down-> LoginResultado
 CajaMensualDAL -[hidden]down-> LoginResultado
 CajaMensualDAL -[hidden]down-> LoginResultado
-CajaMensualDAL -[hidden]down-> LoginResultado
+' Grilla de CAPAS
+IdiomaUIHelper -[hidden]right-> FormBase
+IdiomaUIHelper -[hidden]down-> frmMenu
+FormBase -[hidden]right-> MsgBox
+FormBase -[hidden]down-> frmAdminUsuarios
+MsgBox -[hidden]right-> FrmMensaje
+MsgBox -[hidden]down-> frmNuevoUsuario
+FrmMensaje -[hidden]right-> Program
+FrmMensaje -[hidden]down-> frmEditarUsuario
+Program -[hidden]right-> RemitoDespachoPdf
+Program -[hidden]down-> frmContraseña
+RemitoDespachoPdf -[hidden]right-> LogIn
+RemitoDespachoPdf -[hidden]down-> frmHistorialUsuario
+LogIn -[hidden]down-> frmBitacora
+frmMenu -[hidden]right-> frmAdminUsuarios
+frmMenu -[hidden]down-> frmPerfiles
+frmAdminUsuarios -[hidden]right-> frmNuevoUsuario
+frmAdminUsuarios -[hidden]down-> frmAsignarPerfiles
+frmNuevoUsuario -[hidden]right-> frmEditarUsuario
+frmNuevoUsuario -[hidden]down-> frmIdiomas
+frmEditarUsuario -[hidden]right-> frmContraseña
+frmEditarUsuario -[hidden]down-> frmRestaurarIntegridad
+frmContraseña -[hidden]right-> frmHistorialUsuario
+frmContraseña -[hidden]down-> frmCatalogoVinos
+frmHistorialUsuario -[hidden]right-> frmBitacora
+frmHistorialUsuario -[hidden]down-> frmAutorizarAltaVino
+frmBitacora -[hidden]down-> frmAutorizarBajaVino
+frmPerfiles -[hidden]right-> frmAsignarPerfiles
+frmPerfiles -[hidden]down-> frmRegistrarEntradaStock
+frmAsignarPerfiles -[hidden]right-> frmIdiomas
+frmAsignarPerfiles -[hidden]down-> frmRegistrarAjusteInventario
+frmIdiomas -[hidden]right-> frmRestaurarIntegridad
+frmIdiomas -[hidden]down-> frmAlertaStockMinimo
+frmRestaurarIntegridad -[hidden]right-> frmCatalogoVinos
+frmRestaurarIntegridad -[hidden]down-> frmSocios
+frmCatalogoVinos -[hidden]right-> frmAutorizarAltaVino
+frmCatalogoVinos -[hidden]down-> frmArmarCaja
+frmAutorizarAltaVino -[hidden]right-> frmAutorizarBajaVino
+frmAutorizarAltaVino -[hidden]down-> frmPickingCaja
+frmAutorizarBajaVino -[hidden]down-> frmDespacharCaja
+frmRegistrarEntradaStock -[hidden]right-> frmRegistrarAjusteInventario
+frmRegistrarEntradaStock -[hidden]down-> frmHistorialDespachos
+frmRegistrarAjusteInventario -[hidden]right-> frmAlertaStockMinimo
+frmRegistrarAjusteInventario -[hidden]down-> frmAnalisisRotacion
+frmAlertaStockMinimo -[hidden]right-> frmSocios
+frmAlertaStockMinimo -[hidden]down-> frmAutorizarPedidoReposicion
+frmSocios -[hidden]right-> frmArmarCaja
+frmSocios -[hidden]down-> frmRecibirPedidoReposicion
+frmArmarCaja -[hidden]right-> frmPickingCaja
+frmArmarCaja -[hidden]down-> frmConsultarPedidosReposicion
+frmPickingCaja -[hidden]right-> frmDespacharCaja
+frmPickingCaja -[hidden]down-> FrmMotivoRechazoPedido
+frmDespacharCaja -[hidden]down-> frmAyuda
+frmHistorialDespachos -[hidden]right-> frmAnalisisRotacion
+frmHistorialDespachos -[hidden]down-> PedidoReposicionUI
+frmAnalisisRotacion -[hidden]right-> frmAutorizarPedidoReposicion
+frmAnalisisRotacion -[hidden]down-> ConfiguracionRotacionStore
+frmAutorizarPedidoReposicion -[hidden]right-> frmRecibirPedidoReposicion
+frmAutorizarPedidoReposicion -[hidden]down-> RotacionGraficos
+frmRecibirPedidoReposicion -[hidden]right-> frmConsultarPedidosReposicion
+frmRecibirPedidoReposicion -[hidden]down-> RotacionReposicionPdf
+frmConsultarPedidosReposicion -[hidden]right-> FrmMotivoRechazoPedido
+frmConsultarPedidosReposicion -[hidden]down-> ErrorInicio
+FrmMotivoRechazoPedido -[hidden]right-> frmAyuda
+FrmMotivoRechazoPedido -[hidden]down-> AyudaContexto
+frmAyuda -[hidden]down-> AyudaRepositorio
+PedidoReposicionUI -[hidden]right-> ConfiguracionRotacionStore
+PedidoReposicionUI -[hidden]down-> AyudaTema
+ConfiguracionRotacionStore -[hidden]right-> RotacionGraficos
+RotacionGraficos -[hidden]right-> RotacionReposicionPdf
+RotacionReposicionPdf -[hidden]right-> ErrorInicio
+ErrorInicio -[hidden]right-> AyudaContexto
+AyudaContexto -[hidden]right-> AyudaRepositorio
 ' Grilla de SeguridadYServicios
 Hasher -[hidden]right-> ValidadorContrasena
-Hasher -[hidden]down-> SessionManager
 ValidadorContrasena -[hidden]right-> CalculadorDVH
-ValidadorContrasena -[hidden]down-> IdiomaManager
-CalculadorDVH -[hidden]down-> IObservadorIdioma
+CalculadorDVH -[hidden]right-> SessionManager
 SessionManager -[hidden]right-> IdiomaManager
 IdiomaManager -[hidden]right-> IObservadorIdioma
-' Grilla de CAPAS
-IdiomaUIHelper -[hidden]right-> LogIn
-IdiomaUIHelper -[hidden]down-> FormBase
-LogIn -[hidden]right-> frmMenu
-LogIn -[hidden]down-> frmEditarUsuario
-frmMenu -[hidden]right-> frmAdminUsuarios
-frmMenu -[hidden]down-> frmContraseña
-frmAdminUsuarios -[hidden]right-> frmNuevoUsuario
-frmAdminUsuarios -[hidden]down-> frmHistorialUsuario
-frmNuevoUsuario -[hidden]down-> frmBitacora
-FormBase -[hidden]right-> frmEditarUsuario
-FormBase -[hidden]down-> AppTheme
-frmEditarUsuario -[hidden]right-> frmContraseña
-frmEditarUsuario -[hidden]down-> frmPerfiles
-frmContraseña -[hidden]right-> frmHistorialUsuario
-frmContraseña -[hidden]down-> frmAsignarPerfiles
-frmHistorialUsuario -[hidden]right-> frmBitacora
-frmHistorialUsuario -[hidden]down-> frmIdiomas
-frmBitacora -[hidden]down-> frmRestaurarIntegridad
-AppTheme -[hidden]right-> frmPerfiles
-AppTheme -[hidden]down-> MsgBox
-frmPerfiles -[hidden]right-> frmAsignarPerfiles
-frmPerfiles -[hidden]down-> frmCatalogoVinos
-frmAsignarPerfiles -[hidden]right-> frmIdiomas
-frmAsignarPerfiles -[hidden]down-> frmAutorizarAltaVino
-frmIdiomas -[hidden]right-> frmRestaurarIntegridad
-frmIdiomas -[hidden]down-> frmAutorizarBajaVino
-frmRestaurarIntegridad -[hidden]down-> frmRegistrarEntradaStock
-MsgBox -[hidden]right-> frmCatalogoVinos
-MsgBox -[hidden]down-> FrmMensaje
-frmCatalogoVinos -[hidden]right-> frmAutorizarAltaVino
-frmCatalogoVinos -[hidden]down-> frmRegistrarAjusteInventario
-frmAutorizarAltaVino -[hidden]right-> frmAutorizarBajaVino
-frmAutorizarAltaVino -[hidden]down-> frmAlertaStockMinimo
-frmAutorizarBajaVino -[hidden]right-> frmRegistrarEntradaStock
-frmAutorizarBajaVino -[hidden]down-> frmSocios
-frmRegistrarEntradaStock -[hidden]down-> frmArmarCaja
-FrmMensaje -[hidden]right-> frmRegistrarAjusteInventario
-FrmMensaje -[hidden]down-> Program
-frmRegistrarAjusteInventario -[hidden]right-> frmAlertaStockMinimo
-frmRegistrarAjusteInventario -[hidden]down-> frmPickingCaja
-frmAlertaStockMinimo -[hidden]right-> frmSocios
-frmAlertaStockMinimo -[hidden]down-> frmDespacharCaja
-frmSocios -[hidden]right-> frmArmarCaja
-frmSocios -[hidden]down-> frmHistorialDespachos
-Program -[hidden]right-> frmPickingCaja
-Program -[hidden]down-> RemitoDespachoPdf
-frmPickingCaja -[hidden]right-> frmDespacharCaja
-frmDespacharCaja -[hidden]right-> frmHistorialDespachos
 ' Grilla de BLL
 ResultadoIntegridad -[hidden]right-> UsuarioBLL
-ResultadoIntegridad -[hidden]down-> PerfilBLL
+ResultadoIntegridad -[hidden]down-> UsuarioPerfilBLL
 UsuarioBLL -[hidden]right-> LoginBLL
-UsuarioBLL -[hidden]down-> VinoBLL
-LoginBLL -[hidden]down-> MovimientoStockBLL
+UsuarioBLL -[hidden]down-> BitacoraBLL
+LoginBLL -[hidden]right-> PerfilBLL
+LoginBLL -[hidden]down-> IdiomaBLL
 PerfilBLL -[hidden]right-> VinoBLL
-PerfilBLL -[hidden]down-> UsuarioPerfilBLL
+PerfilBLL -[hidden]down-> UsuarioHistorialBLL
 VinoBLL -[hidden]right-> MovimientoStockBLL
-VinoBLL -[hidden]down-> BitacoraBLL
-MovimientoStockBLL -[hidden]down-> IdiomaBLL
+VinoBLL -[hidden]down-> SocioBLL
+MovimientoStockBLL -[hidden]down-> CajaMensualBLL
 UsuarioPerfilBLL -[hidden]right-> BitacoraBLL
-UsuarioPerfilBLL -[hidden]down-> UsuarioHistorialBLL
+UsuarioPerfilBLL -[hidden]down-> IntegridadBLL
 BitacoraBLL -[hidden]right-> IdiomaBLL
-BitacoraBLL -[hidden]down-> SocioBLL
-IdiomaBLL -[hidden]down-> CajaMensualBLL
+BitacoraBLL -[hidden]down-> RotacionBLL
+IdiomaBLL -[hidden]right-> UsuarioHistorialBLL
+IdiomaBLL -[hidden]down-> PedidoReposicionBLL
 UsuarioHistorialBLL -[hidden]right-> SocioBLL
-UsuarioHistorialBLL -[hidden]down-> IntegridadBLL
+UsuarioHistorialBLL -[hidden]down-> PedidoParcialException
 SocioBLL -[hidden]right-> CajaMensualBLL
+SocioBLL -[hidden]down-> ConexionBLL
+IntegridadBLL -[hidden]right-> RotacionBLL
+RotacionBLL -[hidden]right-> PedidoReposicionBLL
+PedidoReposicionBLL -[hidden]right-> PedidoParcialException
+PedidoParcialException -[hidden]right-> ConexionBLL
 ' Grilla de DAL
 UsuarioDAL -[hidden]right-> PerfilDAL
-UsuarioDAL -[hidden]down-> BitacoraDAL
+UsuarioDAL -[hidden]down-> UsuarioHistorialDAL
 PerfilDAL -[hidden]right-> UsuarioPerfilDAL
-PerfilDAL -[hidden]down-> IntegridadDAL
-UsuarioPerfilDAL -[hidden]down-> IdiomaDAL
+PerfilDAL -[hidden]down-> VinoDAL
+UsuarioPerfilDAL -[hidden]right-> BitacoraDAL
+UsuarioPerfilDAL -[hidden]down-> SolicitudAutorizacionDAL
 BitacoraDAL -[hidden]right-> IntegridadDAL
-BitacoraDAL -[hidden]down-> UsuarioHistorialDAL
+BitacoraDAL -[hidden]down-> BodegaDAL
 IntegridadDAL -[hidden]right-> IdiomaDAL
-IntegridadDAL -[hidden]down-> VinoDAL
-IdiomaDAL -[hidden]down-> SolicitudAutorizacionDAL
+IntegridadDAL -[hidden]down-> MovimientoStockDAL
+IdiomaDAL -[hidden]down-> SocioDAL
 UsuarioHistorialDAL -[hidden]right-> VinoDAL
-UsuarioHistorialDAL -[hidden]down-> BodegaDAL
+UsuarioHistorialDAL -[hidden]down-> CajaMensualDAL
 VinoDAL -[hidden]right-> SolicitudAutorizacionDAL
-VinoDAL -[hidden]down-> MovimientoStockDAL
-SolicitudAutorizacionDAL -[hidden]down-> SocioDAL
+VinoDAL -[hidden]down-> SustitucionDAL
+SolicitudAutorizacionDAL -[hidden]right-> BodegaDAL
+SolicitudAutorizacionDAL -[hidden]down-> RotacionDAL
 BodegaDAL -[hidden]right-> MovimientoStockDAL
-BodegaDAL -[hidden]down-> CajaMensualDAL
+BodegaDAL -[hidden]down-> PedidoReposicionDAL
 MovimientoStockDAL -[hidden]right-> SocioDAL
-MovimientoStockDAL -[hidden]down-> SustitucionDAL
+MovimientoStockDAL -[hidden]down-> ConexionDAL
 SocioDAL -[hidden]down-> Acceso
 CajaMensualDAL -[hidden]right-> SustitucionDAL
-SustitucionDAL -[hidden]right-> Acceso
+SustitucionDAL -[hidden]right-> RotacionDAL
+RotacionDAL -[hidden]right-> PedidoReposicionDAL
+PedidoReposicionDAL -[hidden]right-> ConexionDAL
+ConexionDAL -[hidden]right-> Acceso
 ' Grilla de BE
 LoginResultado -[hidden]right-> USUARIO
-LoginResultado -[hidden]down-> CONTROL_IDIOMA
+LoginResultado -[hidden]down-> MovimientoStock
 USUARIO -[hidden]right-> BITACORA
-USUARIO -[hidden]down-> UsuarioHistorial
+USUARIO -[hidden]down-> Socio
 BITACORA -[hidden]right-> IDIOMA
-BITACORA -[hidden]down-> PaginaResultado
-IDIOMA -[hidden]down-> SolicitudAutorizacion
+BITACORA -[hidden]down-> TipoSolicitud
+IDIOMA -[hidden]right-> CONTROL_IDIOMA
+IDIOMA -[hidden]down-> EstadoSolicitud
 CONTROL_IDIOMA -[hidden]right-> UsuarioHistorial
-CONTROL_IDIOMA -[hidden]down-> MovimientoStock
+CONTROL_IDIOMA -[hidden]down-> TipoMovimiento
 UsuarioHistorial -[hidden]right-> PaginaResultado
-UsuarioHistorial -[hidden]down-> Socio
+UsuarioHistorial -[hidden]down-> Vino
 PaginaResultado -[hidden]right-> SolicitudAutorizacion
-PaginaResultado -[hidden]down-> TipoSolicitud
-SolicitudAutorizacion -[hidden]down-> EstadoSolicitud
+PaginaResultado -[hidden]down-> CajaMensual
+SolicitudAutorizacion -[hidden]down-> EstadoVino
 MovimientoStock -[hidden]right-> Socio
-MovimientoStock -[hidden]down-> TipoMovimiento
+MovimientoStock -[hidden]down-> Bodega
 Socio -[hidden]right-> TipoSolicitud
-Socio -[hidden]down-> Vino
+Socio -[hidden]down-> EstadoCaja
 TipoSolicitud -[hidden]right-> EstadoSolicitud
-TipoSolicitud -[hidden]down-> CajaMensual
-EstadoSolicitud -[hidden]down-> EstadoVino
+TipoSolicitud -[hidden]down-> CajaVino
+EstadoSolicitud -[hidden]right-> TipoMovimiento
+EstadoSolicitud -[hidden]down-> VinoCandidato
 TipoMovimiento -[hidden]right-> Vino
-TipoMovimiento -[hidden]down-> Bodega
+TipoMovimiento -[hidden]down-> AlertaStockMinimo
 Vino -[hidden]right-> CajaMensual
-Vino -[hidden]down-> EstadoCaja
+Vino -[hidden]down-> Sustitucion
 CajaMensual -[hidden]right-> EstadoVino
-CajaMensual -[hidden]down-> CajaVino
-EstadoVino -[hidden]down-> VinoCandidato
+CajaMensual -[hidden]down-> EstadoPedidoReposicion
+EstadoVino -[hidden]down-> ConfiguracionRotacion
 Bodega -[hidden]right-> EstadoCaja
-Bodega -[hidden]down-> AlertaStockMinimo
+Bodega -[hidden]down-> ClasificacionRotacion
 EstadoCaja -[hidden]right-> CajaVino
-EstadoCaja -[hidden]down-> Sustitucion
+EstadoCaja -[hidden]down-> RecomendacionReposicion
 CajaVino -[hidden]right-> VinoCandidato
-CajaVino -[hidden]down-> NodoPermiso
-VinoCandidato -[hidden]down-> Rol
+CajaVino -[hidden]down-> ResultadoRotacion
+VinoCandidato -[hidden]right-> AlertaStockMinimo
+VinoCandidato -[hidden]down-> PedidoReposicion
 AlertaStockMinimo -[hidden]right-> Sustitucion
-AlertaStockMinimo -[hidden]down-> Permiso
-Sustitucion -[hidden]right-> NodoPermiso
+AlertaStockMinimo -[hidden]down-> PedidoReposicionLinea
+Sustitucion -[hidden]right-> EstadoPedidoReposicion
+Sustitucion -[hidden]down-> ResultadoConexion
+EstadoPedidoReposicion -[hidden]right-> ConfiguracionRotacion
+EstadoPedidoReposicion -[hidden]down-> NodoPermiso
+ConfiguracionRotacion -[hidden]down-> Rol
+ClasificacionRotacion -[hidden]right-> RecomendacionReposicion
+ClasificacionRotacion -[hidden]down-> Permiso
+RecomendacionReposicion -[hidden]right-> ResultadoRotacion
+ResultadoRotacion -[hidden]right-> PedidoReposicion
+PedidoReposicion -[hidden]right-> PedidoReposicionLinea
+PedidoReposicionLinea -[hidden]right-> ResultadoConexion
+ResultadoConexion -[hidden]right-> NodoPermiso
 NodoPermiso -[hidden]right-> Rol
 
 @enduml

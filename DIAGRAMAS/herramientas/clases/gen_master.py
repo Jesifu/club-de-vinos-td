@@ -115,7 +115,9 @@ def cls(name, indent='  ', kind=None, stereo='', label=None, extra_note=None):
 STATIC = '<<static>>'
 SPEC_STEREO = {
     'Hasher': STATIC, 'ValidadorContrasena': STATIC, 'CalculadorDVH': STATIC, 'IdiomaUIHelper': STATIC,
-    'AppTheme': STATIC, 'MsgBox': STATIC, 'RemitoDespachoPdf': STATIC, 'Program': STATIC,
+    'MsgBox': STATIC, 'RemitoDespachoPdf': STATIC, 'Program': STATIC,
+    'ClasificacionRotacion': STATIC, 'RecomendacionReposicion': STATIC, 'ErrorInicio': STATIC, 'ConfiguracionRotacionStore': STATIC,
+    'RotacionGraficos': STATIC, 'RotacionReposicionPdf': STATIC, 'PedidoReposicionUI': STATIC, 'AyudaContexto': STATIC, 'AyudaRepositorio': STATIC,
     'SessionManager': '<<singleton>>', 'IdiomaManager': '<<singleton>>', 'Acceso': '<<internal>>',
 }
 
@@ -152,6 +154,20 @@ REL = []   # (a, arrow, b, label)
 def rel(a, arrow, b, label=None):
     assert uses(a, b) or arrow.startswith('<|'), (a, b)
     REL.append((a, arrow, b, label))
+
+def auto_rels(a, targets):
+    out = []
+    for b in targets:
+        if b != a and uses(a, b):
+            out.append(f'{a} {arrow(a, b)} {b}')
+    return out
+
+P3_BE = ['ConfiguracionRotacion', 'ResultadoRotacion', 'ClasificacionRotacion', 'RecomendacionReposicion',
+         'PedidoReposicion', 'PedidoReposicionLinea', 'EstadoPedidoReposicion', 'ResultadoConexion']
+P3_DAL = ['RotacionDAL', 'PedidoReposicionDAL', 'ConexionDAL']
+P3_BLL = ['RotacionBLL', 'PedidoReposicionBLL', 'PedidoParcialException', 'ConexionBLL']
+P3_FORMS = ['frmAnalisisRotacion', 'frmAutorizarPedidoReposicion', 'frmRecibirPedidoReposicion', 'frmConsultarPedidosReposicion', 'FrmMotivoRechazoPedido']
+P3_HELPERS = ['PedidoReposicionUI', 'ConfiguracionRotacionStore', 'RotacionGraficos', 'RotacionReposicionPdf', 'ErrorInicio', 'AyudaContexto', 'AyudaRepositorio', 'AyudaTema']
 
 DALS = [n for n in by if layer(n) == 'DAL' and n != 'Acceso']
 BLLS = [n for n in by if layer(n) == 'BLL' and n != 'ResultadoIntegridad']
@@ -212,6 +228,14 @@ def main(outpath):
   Sustitucion  "0..*" --> "1" CajaVino : CajaVinoId >
   CajaMensual  --> EstadoCaja
 ''')
+    w('  \' ── Dominio: rotación y pedido de reposición ──')
+    w(C('EstadoPedidoReposicion') + '\n')
+    for n in ('ConfiguracionRotacion', 'ClasificacionRotacion', 'RecomendacionReposicion', 'ResultadoRotacion', 'PedidoReposicion', 'PedidoReposicionLinea', 'ResultadoConexion'):
+        w(C(n) + '\n')
+    for a in ('PedidoReposicion', 'PedidoReposicionLinea', 'ResultadoRotacion'):
+        for l in auto_rels(a, P3_BE):
+            w('  ' + l)
+    w('  PedidoReposicion "1" o-- "1..*" PedidoReposicionLinea : Lineas\n')
     w(C('NodoPermiso') + '\n')
     w(C('Rol') + '\n')
     w(C('Permiso') + '\n')
@@ -256,6 +280,14 @@ def main(outpath):
     for n in ('SocioDAL', 'CajaMensualDAL', 'SustitucionDAL'):
         assert uses(n, 'Acceso')
         w(f'  {n} --> Acceso')
+    w('\n  \' ── Dominio: rotación y pedido de reposición ──')
+    for n in P3_DAL:
+        w(C(n) + '\n')
+    for n in P3_DAL:
+        if uses(n, 'Acceso'):
+            w(f'  {n} --> Acceso')
+        for l in auto_rels(n, P3_BE + ['Vino', 'Bodega', 'MovimientoStock']):
+            w('  ' + l)
     w('}\n')
     # ----- BLL
     w(SEP + '\n\' CAPA BLL\n' + SEP)
@@ -266,7 +298,7 @@ def main(outpath):
     for n in ('VinoBLL', 'MovimientoStockBLL'):
         w(C(n) + '\n')
     bll_pairs = []
-    names_bll = ['IntegridadBLL', 'UsuarioBLL', 'LoginBLL', 'PerfilBLL', 'UsuarioPerfilBLL', 'BitacoraBLL', 'IdiomaBLL', 'UsuarioHistorialBLL', 'VinoBLL', 'MovimientoStockBLL', 'SocioBLL', 'CajaMensualBLL']
+    names_bll = ['RotacionBLL', 'PedidoReposicionBLL', 'ConexionBLL', 'IntegridadBLL', 'UsuarioBLL', 'LoginBLL', 'PerfilBLL', 'UsuarioPerfilBLL', 'BitacoraBLL', 'IdiomaBLL', 'UsuarioHistorialBLL', 'VinoBLL', 'MovimientoStockBLL', 'SocioBLL', 'CajaMensualBLL']
     targets = [n for n in DALS] + [n for n in names_bll]
     # Dependencias reales BLL -> DAL/BLL (campos), emitidas en orden de la clase origen
     def bll_rels(a):
@@ -299,6 +331,17 @@ def main(outpath):
     for a in ('SocioBLL', 'CajaMensualBLL'):
         for l in bll_rels(a):
             w(l)
+    w('\n  \' ── Dominio: rotación y pedido de reposición ──')
+    for n in P3_BLL:
+        w(C(n) + '\n')
+    for a in ('RotacionBLL', 'PedidoReposicionBLL', 'ConexionBLL'):
+        for l in bll_rels(a):
+            w(l)
+        for b in ('SessionManager', 'IdiomaManager'):
+            if uses(a, b):
+                w(f'  {a} {arrow(a, b)} {b}')
+        for l in auto_rels(a, P3_BE + ['Vino', 'Bodega', 'PedidoParcialException']):
+            w('  ' + l)
     w('}\n')
     # ----- CAPAS
     w(SEP + '\n\' CAPA CAPAS (presentación)\n' + SEP)
@@ -307,7 +350,7 @@ def main(outpath):
     for n in ('FormBase',):
         w('\n' + C(n))
     w('\n  note right of FormBase : Hereda de ReaLTaiizor.Forms.MaterialForm\n')
-    for n in ('AppTheme', 'MsgBox', 'FrmMensaje', 'Program', 'RemitoDespachoPdf'):
+    for n in ('MsgBox', 'FrmMensaje', 'Program', 'RemitoDespachoPdf'):
         w(C(n) + '\n')
     def tog(names):
         w('  together {')
@@ -317,14 +360,22 @@ def main(outpath):
     tog(['LogIn', 'frmMenu', 'frmAdminUsuarios', 'frmNuevoUsuario', 'frmEditarUsuario', 'frmContraseña'])
     tog(['frmHistorialUsuario', 'frmBitacora', 'frmPerfiles', 'frmAsignarPerfiles', 'frmIdiomas'])
     w(C('frmRestaurarIntegridad') + '\n')
+    w(C('frmAyuda') + '\n')
+    w('  \' ── Utilidades de ayuda y arranque ──')
+    for n in ('AyudaContexto', 'AyudaRepositorio', 'AyudaTema', 'ErrorInicio'):
+        w(C(n) + '\n')
     w('  \' ── Dominio: catálogo y stock de vinos ──')
     tog(['frmCatalogoVinos', 'frmAutorizarAltaVino', 'frmAutorizarBajaVino', 'frmRegistrarEntradaStock', 'frmRegistrarAjusteInventario', 'frmAlertaStockMinimo'])
     w('  \' ── Dominio: curación y armado de cajas mensuales ──')
     tog(['frmSocios', 'frmArmarCaja', 'frmPickingCaja', 'frmDespacharCaja', 'frmHistorialDespachos'])
+    w('  \' ── Dominio: rotación y pedido de reposición ──')
+    tog(P3_FORMS)
+    for n in ('PedidoReposicionUI', 'ConfiguracionRotacionStore', 'RotacionGraficos', 'RotacionReposicionPdf'):
+        w(C(n) + '\n')
     # herencia
     allforms = ['LogIn', 'frmMenu', 'frmAdminUsuarios', 'frmNuevoUsuario', 'frmEditarUsuario', 'frmContraseña', 'frmHistorialUsuario', 'frmBitacora', 'frmPerfiles', 'frmAsignarPerfiles', 'frmIdiomas', 'frmRestaurarIntegridad',
                 'frmCatalogoVinos', 'frmAutorizarAltaVino', 'frmAutorizarBajaVino', 'frmRegistrarEntradaStock', 'frmRegistrarAjusteInventario', 'frmAlertaStockMinimo',
-                'frmSocios', 'frmArmarCaja', 'frmPickingCaja', 'frmDespacharCaja', 'frmHistorialDespachos']
+                'frmSocios', 'frmArmarCaja', 'frmPickingCaja', 'frmDespacharCaja', 'frmHistorialDespachos', 'frmAyuda'] + P3_FORMS
     for n in allforms + ['FrmMensaje']:
         assert 'FormBase' in str(by[n][0]['bases']) or any('FormBase' in str(t['bases']) for t in by[n]), n
         w(f'  FormBase <|-- {n}')
@@ -341,6 +392,7 @@ def main(outpath):
         ('Núcleo / seguridad', ['LogIn', 'frmAdminUsuarios', 'frmNuevoUsuario', 'frmContraseña', 'frmBitacora', 'frmPerfiles', 'frmAsignarPerfiles', 'frmIdiomas', 'frmHistorialUsuario', 'frmRestaurarIntegridad', 'frmMenu', 'IdiomaUIHelper', 'Program']),
         ('Dominio: catálogo y stock de vinos', ['frmCatalogoVinos', 'frmAutorizarAltaVino', 'frmAutorizarBajaVino', 'frmRegistrarEntradaStock', 'frmRegistrarAjusteInventario', 'frmAlertaStockMinimo']),
         ('Dominio: curación y armado de cajas mensuales', ['frmSocios', 'frmArmarCaja', 'frmPickingCaja', 'frmDespacharCaja', 'frmHistorialDespachos']),
+        ('Dominio: rotación y pedido de reposición', P3_FORMS),
     ]
     for title, lst in grp:
         w('\' ' + title)
@@ -356,11 +408,13 @@ def main(outpath):
                 w(f'{a} {arrow(a, "ValidadorContrasena")} ValidadorContrasena')
             if uses(a, 'RemitoDespachoPdf'):
                 w(f'{a} ..> RemitoDespachoPdf')
+            for l in auto_rels(a, P3_HELPERS + P3_BE):
+                w(l)
         w('')
     # navegacion y utilidades de UI
     nav = [('Program', 'LogIn'), ('LogIn', 'frmMenu'), ('frmMenu', 'LogIn'), ('frmRestaurarIntegridad', 'ResultadoIntegridad'), ('LogIn', 'frmRestaurarIntegridad'), ('frmRestaurarIntegridad', 'frmHistorialUsuario'),
            ('frmAdminUsuarios', 'frmNuevoUsuario'), ('frmAdminUsuarios', 'frmEditarUsuario'), ('frmAdminUsuarios', 'frmHistorialUsuario'), ('frmAdminUsuarios', 'frmAsignarPerfiles'),
-           ('Program', 'ResultadoIntegridad'), ('Program', 'AppTheme'), ('FormBase', 'AppTheme'), ('MsgBox', 'FrmMensaje')]
+           ('Program', 'ResultadoIntegridad'), ('Program', 'ErrorInicio'), ('frmMenu', 'frmAnalisisRotacion'), ('frmMenu', 'frmAutorizarPedidoReposicion'), ('frmMenu', 'frmRecibirPedidoReposicion'), ('frmMenu', 'frmConsultarPedidosReposicion'), ('frmAutorizarPedidoReposicion', 'FrmMotivoRechazoPedido'), ('FormBase', 'frmAyuda'), ('MsgBox', 'FrmMensaje')]
     w('\' Navegación entre formularios y utilidades de presentación')
     for a, b in nav:
         assert uses(a, b), (a, b)
@@ -370,7 +424,42 @@ def main(outpath):
     # ----- layout
     w(LAYOUT)
     w('@enduml\n')
-    open(outpath, 'w', encoding='utf-8', newline='\n').write('\n'.join(P))
+    text = layered('\n'.join(P))
+    open(outpath, 'w', encoding='utf-8', newline='\n').write(text)
+
+REL_RE = re.compile(r'^\s*(\w+)\s+(?:"[^"]*"\s+)?(<\|--|<\|\.\.|-->|\.\.>|o--|--\|>)\s+(?:"[^"]*"\s+)?(\w+)')
+NORANK = {'-->': '-[norank]->', '..>': '.[norank].>', 'o--': 'o-[norank]-', '<|--': '<|-[norank]-', '<|..': '<|.[norank].', '--|>': '-[norank]-|>'}
+PKG_ORDER = ['CAPAS', 'SeguridadYServicios', 'BLL', 'DAL', 'BE']
+
+def layered(text):
+    """Las relaciones entre clases de capas distintas se resumen como flechas entre paquetes
+    (asi las capas quedan apiladas); las relaciones dentro de una misma capa se conservan."""
+    out, pairs = [], {}
+    for l in text.split('\n'):
+        m = REL_RE.match(l)
+        if m and m.group(1) in by and m.group(3) in by:
+            la, lb = layer(m.group(1)), layer(m.group(3))
+            if la != lb and m.group(2) == '<|..':
+                # realizacion de IObservadorIdioma (Observer): se conserva entre capas contiguas
+                out.append(l.replace(' <|.. ', ' <|.[norank]. ', 1))
+                continue
+            if la != lb:
+                # herencia/realizacion (<|--): el dependiente es el hijo (segundo operando)
+                src, dst = (lb, la) if m.group(2).startswith('<|') else (la, lb)
+                pairs[(src, dst)] = pairs.get((src, dst), 0) + 1
+                continue
+            # relacion dentro de la capa: no influye en el rango (la grilla de la capa manda)
+            tok = m.group(2)
+            l = l.replace(' ' + tok + ' ', ' ' + NORANK[tok] + ' ', 1)
+        out.append(l)
+    arrows = ["' ═══ Dependencias entre capas (resumen de las relaciones entre clases de capas distintas) ═══"]
+    for (a, b) in sorted(pairs, key=lambda k: (PKG_ORDER.index(k[0]), PKG_ORDER.index(k[1]))):
+        d = 'down' if PKG_ORDER.index(a) < PKG_ORDER.index(b) else 'up'
+        arrows.append('%s -%s-> %s : usa' % (a, d, b))
+    text = '\n'.join(out)
+    marker = "' ═══ DISPOSICIÓN VERTICAL"
+    assert marker in text
+    return text.replace(marker, '\n'.join(arrows) + '\n\n' + marker, 1)
 
 import layout_gen
 LAYOUT = layout_gen.build()

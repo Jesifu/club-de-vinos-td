@@ -42,7 +42,7 @@ Nunca editar a mano los `DiagramaSecuencia_CU*.puml` de `DIAGRAMAS/`: se pisan a
 | `csparse.py` | Lee los `.cs` del repo y arma un índice de tipos y miembros (raíz del repo calculada desde la ubicación del script). |
 | `pumlparse.py` | Lee un `.puml` de clases (clases, miembros, relaciones). |
 | `gen_master.py` | Genera `DiagramaClases.puml` (maestro) desde el código. Los miembros privados ya dibujados se toman del propio `DiagramaClases.puml` vigente. |
-| `layout_gen.py` | Genera el bloque final de disposición vertical (enlaces ocultos); lo usa `gen_master.py`. |
+| `layout_gen.py` | Genera el bloque final de disposición vertical (capas apiladas CAPAS, SeguridadYServicios, BLL, DAL, BE con enlaces ocultos; las relaciones entre capas se resumen como flechas entre paquetes y las internas usan `[norank]`); lo usa `gen_master.py`. |
 | `compare.py` | Compara cada diagrama de clases contra el código y escribe un informe Markdown. |
 | `arrowchk.py` | Verifica que el tipo de flecha (`-->` asociación / `..>` dependencia) coincida con el código. |
 | `render_clases.py` | Renderiza un `.puml` grande a PNG (y SVG opcional). |

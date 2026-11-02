@@ -20,7 +20,7 @@ sp = os.path.join(tmp, 'd.svg'); open(sp, 'wb').write(svg)
 html = os.path.join(tmp, 'd.html')
 open(html, 'w', encoding='utf-8').write('<html><body style="margin:0;background:#fff"><img src="d.svg" width="%d" height="%d"></body></html>' % (w, h))
 edge = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe'
-subprocess.run([edge, '--headless=new', '--disable-gpu', '--hide-scrollbars', '--force-device-scale-factor=%s' % scale,
+subprocess.run([edge, '--headless=new', '--disable-gpu', '--hide-scrollbars', '--virtual-time-budget=20000','--force-device-scale-factor=%s' % scale,
     '--window-size=%d,%d' % (W, H), '--screenshot=' + os.path.abspath(out_png), 'file:///' + pathlib.Path(html).as_posix()], check=True, timeout=300, capture_output=True)
 from PIL import Image
 print(out_png, Image.open(out_png).size)
