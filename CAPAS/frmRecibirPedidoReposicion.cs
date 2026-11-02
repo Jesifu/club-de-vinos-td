@@ -39,7 +39,6 @@ namespace CAPAS
             CargarAprobados();
             IdiomaUIHelper.AgregarSelector(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
         }
 
         private void frmRecibirPedidoReposicion_FormClosed(object sender, FormClosedEventArgs e)

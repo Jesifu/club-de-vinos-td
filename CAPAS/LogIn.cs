@@ -25,7 +25,6 @@ namespace CAPAS
             ActualizarIdioma();
             IdiomaUIHelper.AgregarSelector(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
         }
 
         private void LogIn_FormClosed(object sender, FormClosedEventArgs e)

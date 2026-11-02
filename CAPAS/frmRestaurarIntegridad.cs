@@ -23,7 +23,6 @@ namespace CAPAS
             Program.GuardarLogIntegridad(_resultado.Errores);
             btnRestaurar.Enabled = _resultado.IdsUsuariosAfectados.Count > 0;
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
         }
 
         private void btnRecalcular_Click(object sender, EventArgs e)

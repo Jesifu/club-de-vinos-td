@@ -162,16 +162,13 @@ namespace CAPAS
             MaximizeBox = false;
             MinimizeBox = false;
             ShowInTaskbar = false;
-            BackColor = AppTheme.FondoForm;
-            ForeColor = AppTheme.TextoPrincipal;
             ClientSize = new Size(520, 230);
 
             lblEtiqueta = new Label
             {
                 Location = new Point(20, 80),
                 Size = new Size(480, 44),
-                Font = AppTheme.FontNormal,
-                ForeColor = AppTheme.TextoPrincipal,
+                Font = SystemFonts.MessageBoxFont,
                 Text = PedidoReposicionUI.T("ped_MotivoEtiqueta",
                     "Motivo del rechazo (obligatorio, hasta 200 caracteres):")
             };
@@ -180,10 +177,7 @@ namespace CAPAS
                 Location = new Point(20, 128),
                 Size = new Size(480, 26),
                 MaxLength = 200,
-                BackColor = AppTheme.FondoControl,
-                ForeColor = AppTheme.TextoPrincipal,
-                BorderStyle = BorderStyle.FixedSingle,
-                Font = AppTheme.FontNormal
+                Font = SystemFonts.MessageBoxFont
             };
             btnAceptar = CrearBoton(PedidoReposicionUI.T("ped_MotivoConfirmar", "Rechazar pedido"), 20, 175, 170);
             btnCancelar = CrearBoton(PedidoReposicionUI.T("ped_MotivoCancelar", "Cancelar"), 400, 175, 100);
@@ -198,7 +192,6 @@ namespace CAPAS
             CancelButton = btnCancelar;
 
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
         }
 
         private static Button CrearBoton(string texto, int x, int y, int ancho)
@@ -208,14 +201,8 @@ namespace CAPAS
                 Text = texto,
                 Location = new Point(x, y),
                 Size = new Size(ancho, 38),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = AppTheme.FondoControl,
-                ForeColor = AppTheme.Acento,
-                Cursor = Cursors.Hand,
-                UseVisualStyleBackColor = false
+                UseVisualStyleBackColor = true
             };
-            b.FlatAppearance.BorderColor = AppTheme.Acento;
-            b.FlatAppearance.BorderSize = 1;
             return b;
         }
 

@@ -29,7 +29,6 @@ namespace CAPAS
             ActualizarIdioma();
             IdiomaUIHelper.AgregarSelector(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
         }
 
         private void frmContraseña_FormClosed(object sender, FormClosedEventArgs e)

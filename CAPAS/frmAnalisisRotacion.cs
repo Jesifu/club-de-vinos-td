@@ -75,9 +75,8 @@ namespace CAPAS
             _pnlResultados.Height = panelInferior.Top - _pnlResultados.Top - LogicalToDeviceUnits(4);
 
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
-            EstilizarNumericos();
-            lblAdvertenciaFecha.ForeColor = AppTheme.Acento;
+            // Aviso no bloqueante (rango pasado): color de advertencia con significado, legible sobre el fondo del sistema.
+            lblAdvertenciaFecha.ForeColor = Color.FromArgb(176, 96, 0);
             MostrarPestana(false);
 
             // CU-37: el botón solo existe para quien tiene el permiso de gestionar pedidos.
@@ -217,7 +216,6 @@ namespace CAPAS
                 Text = texto,
                 Size = new Size(LogicalToDeviceUnits(150), LogicalToDeviceUnits(36)),
                 Location = new Point(indice * LogicalToDeviceUnits(156), LogicalToDeviceUnits(3)),
-                FlatStyle = FlatStyle.Flat,
                 TabStop = true
             };
         }
@@ -230,15 +228,21 @@ namespace CAPAS
             EstilizarPestana(_btnTabGraficos, graficos);
         }
 
-        private static void EstilizarPestana(Button boton, bool activa)
+        // Botón estándar del sistema; la pestaña activa se distingue con negrita y un fondo de sistema más claro.
+        private void EstilizarPestana(Button boton, bool activa)
         {
-            boton.FlatStyle = FlatStyle.Flat;
-            boton.BackColor = activa ? AppTheme.Seleccion : AppTheme.FondoHeader;
-            boton.ForeColor = activa ? AppTheme.SeleccionTexto : AppTheme.TextoEncabezado;
-            boton.FlatAppearance.BorderColor = activa ? AppTheme.Acento : AppTheme.Borde;
-            boton.FlatAppearance.BorderSize = activa ? 2 : 1;
-            boton.FlatAppearance.MouseOverBackColor = AppTheme.AcentoHover;
-            boton.FlatAppearance.MouseDownBackColor = AppTheme.Seleccion;
+            boton.FlatStyle = FlatStyle.Standard;
+            boton.Font = new Font(Font, activa ? FontStyle.Bold : FontStyle.Regular);
+            if (activa)
+            {
+                boton.UseVisualStyleBackColor = false;
+                boton.BackColor = SystemColors.ControlLightLight;
+            }
+            else
+            {
+                boton.UseVisualStyleBackColor = true;
+                boton.BackColor = SystemColors.Control;
+            }
         }
 
         // Reconstruye los tres gráficos con el último análisis (o vacíos si todavía no hay) y con
@@ -383,19 +387,6 @@ namespace CAPAS
                     _defaults[c.Name] = c.Text;
                 }
                 if (c.HasChildren) GuardarDefaults(c.Controls);
-            }
-        }
-
-        // NumericUpDown no está contemplado por AppTheme: se le da el mismo estilo que a los TextBox.
-        private void EstilizarNumericos()
-        {
-            foreach (NumericUpDown n in new[] { nudDiasAnalisis, nudUmbralAlta, nudUmbralBaja,
-                                                nudCoberturaUrgente, nudCoberturaReposicion, nudCoberturaSobrestock,
-                                                nudCoberturaObjetivo })
-            {
-                n.BackColor = AppTheme.FondoControl;
-                n.ForeColor = AppTheme.TextoPrincipal;
-                n.BorderStyle = BorderStyle.FixedSingle;
             }
         }
 

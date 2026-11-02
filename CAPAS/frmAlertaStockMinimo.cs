@@ -32,7 +32,6 @@ namespace CAPAS
             CargarAlertas();
             IdiomaUIHelper.AgregarSelector(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
         }
 
         private void frmAlertaStockMinimo_FormClosed(object sender, FormClosedEventArgs e)

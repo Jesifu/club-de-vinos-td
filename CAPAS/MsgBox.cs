@@ -8,8 +8,8 @@ using ReaLTaiizor.Manager;
 namespace CAPAS
 {
     /// <summary>
-    /// Reemplazo estilizado de MessageBox.Show() que usa MaterialForm
-    /// y los colores de AppTheme para mantener consistencia visual.
+    /// Reemplazo de MessageBox.Show() que usa MaterialForm con los colores por defecto del sistema;
+    /// solo el ícono por tipo de mensaje conserva un color con significado.
     /// Uso: MsgBox.Show("mensaje", "título", MsgBox.Botones.OK, MsgBox.Icono.Info);
     /// </summary>
     internal static class MsgBox
@@ -51,8 +51,6 @@ namespace CAPAS
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.ShowInTaskbar = false;
-            this.BackColor = AppTheme.FondoForm;
-            this.ForeColor = AppTheme.TextoPrincipal;
 
             CrearControles();
             AjustarAlto();
@@ -81,8 +79,7 @@ namespace CAPAS
                 Location = new Point(margen + 70, topInicio + 4),
                 MaximumSize = new Size(320, 0),
                 AutoSize = true,
-                Font = AppTheme.FontNormal,
-                ForeColor = AppTheme.TextoPrincipal,
+                Font = SystemFonts.MessageBoxFont,
                 Text = _mensaje
             };
             this.Controls.Add(lblMensaje);
@@ -146,27 +143,7 @@ namespace CAPAS
             {
                 Text = texto,
                 Size = new Size(100, 38),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = AppTheme.FondoControl,
-                ForeColor = AppTheme.Acento,
-                Cursor = Cursors.Hand,
-                Font = AppTheme.FontNormal,
-                UseVisualStyleBackColor = false
-            };
-            btn.FlatAppearance.BorderColor = AppTheme.Acento;
-            btn.FlatAppearance.BorderSize = 1;
-
-            btn.MouseEnter += (s, e) =>
-            {
-                btn.BackColor = AppTheme.FondoHeader;
-                btn.ForeColor = Color.White;
-                btn.FlatAppearance.BorderColor = AppTheme.FondoHeader;
-            };
-            btn.MouseLeave += (s, e) =>
-            {
-                btn.BackColor = AppTheme.FondoControl;
-                btn.ForeColor = AppTheme.Acento;
-                btn.FlatAppearance.BorderColor = AppTheme.Acento;
+                UseVisualStyleBackColor = true
             };
 
             return btn;
@@ -195,11 +172,11 @@ namespace CAPAS
                     simbolo = "✕";
                     break;
                 case MsgBox.Icono.Pregunta:
-                    colorFondo = AppTheme.Acento;               // azul
+                    colorFondo = Color.FromArgb(25, 118, 210);  // azul
                     simbolo = "?";
                     break;
                 default: // Info
-                    colorFondo = AppTheme.Acento;               // azul
+                    colorFondo = Color.FromArgb(25, 118, 210);  // azul
                     simbolo = "i";
                     break;
             }

@@ -51,7 +51,6 @@ namespace CAPAS
 
             IdiomaUIHelper.AgregarSelector(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
             EstilizarContenido();
             if (_actual != null) MostrarTema(_actual);
         }
@@ -101,11 +100,11 @@ namespace CAPAS
             _raiz = AyudaRepositorio.Cargar(_codigoIdioma);
         }
 
-        // El RichTextBox no lo estiliza AppTheme (no es un TextBox): colores de la paleta a mano.
+        // Un RichTextBox de solo lectura toma el color de formulario: se fija el de ventana del sistema.
         private void EstilizarContenido()
         {
-            rtbContenido.BackColor = AppTheme.FondoControl;
-            rtbContenido.ForeColor = AppTheme.TextoPrincipal;
+            rtbContenido.BackColor = SystemColors.Window;
+            rtbContenido.ForeColor = SystemColors.WindowText;
             rtbContenido.DetectUrls = false;
         }
 
@@ -193,7 +192,7 @@ namespace CAPAS
             rtbContenido.Clear();
             using (var f = new Font("Segoe UI", 10.5f, FontStyle.Italic))
                 Escribir(Traducir("ayuda_sinResultados", "No se encontraron temas para la búsqueda."),
-                    f, AppTheme.TextoSecundario);
+                    f, SystemColors.GrayText);
         }
 
         private void MostrarTema(AyudaTema tema)
@@ -206,11 +205,11 @@ namespace CAPAS
             using (var fTexto = new Font("Segoe UI", 10.5f, FontStyle.Regular))
             using (var fNota = new Font("Segoe UI", 9.5f, FontStyle.Italic))
             {
-                Escribir(tema.Titulo + "\n", fTitulo, AppTheme.Acento);
+                Escribir(tema.Titulo + "\n", fTitulo, SystemColors.WindowText);
 
                 if (AyudaRepositorio.EsRespaldo(_codigoIdioma))
                     Escribir(Traducir("ayuda_contenidoSoloEs",
-                        "El contenido de la ayuda está disponible en español.") + "\n", fNota, AppTheme.TextoSecundario);
+                        "El contenido de la ayuda está disponible en español.") + "\n", fNota, SystemColors.GrayText);
 
                 Seccion("ayuda_sec_Resumen", "Qué es", tema.Resumen, fSeccion, fTexto);
                 Seccion("ayuda_sec_Permiso", "Quién puede usarlo", tema.Permiso, fSeccion, fTexto);
@@ -236,7 +235,7 @@ namespace CAPAS
             if (string.IsNullOrEmpty(texto)) return;
             Encabezado(clave, porDefecto, fSeccion);
             Sangria(0, 0);
-            Escribir(texto + "\n", fTexto, AppTheme.TextoPrincipal);
+            Escribir(texto + "\n", fTexto, SystemColors.WindowText);
         }
 
         private void Lista(string clave, string porDefecto, List<string> items, bool numerada,
@@ -248,7 +247,7 @@ namespace CAPAS
             {
                 Sangria(0, 22);
                 string marca = numerada ? (i + 1) + ". " : "• ";
-                Escribir(marca + items[i] + "\n", fTexto, AppTheme.TextoPrincipal);
+                Escribir(marca + items[i] + "\n", fTexto, SystemColors.WindowText);
             }
             Sangria(0, 0);
         }
@@ -256,7 +255,7 @@ namespace CAPAS
         private void Encabezado(string clave, string porDefecto, Font fSeccion)
         {
             Sangria(0, 0);
-            Escribir("\n" + Traducir(clave, porDefecto) + "\n", fSeccion, AppTheme.TextoEncabezado);
+            Escribir("\n" + Traducir(clave, porDefecto) + "\n", fSeccion, SystemColors.WindowText);
         }
 
         private void Sangria(int izquierda, int colgante)

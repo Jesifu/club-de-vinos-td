@@ -37,7 +37,6 @@ namespace CAPAS
             CargarArbolRoles();
             MarcarRolesAsignados();
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
         }
 
         private void frmAsignarPerfiles_FormClosed(object sender, FormClosedEventArgs e)

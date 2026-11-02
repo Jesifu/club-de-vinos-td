@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using System.Collections.Generic;
 using System.Windows.Forms;
 using ReaLTaiizor.Manager;
@@ -37,7 +38,6 @@ namespace CAPAS
             CargarPendientes();
             IdiomaUIHelper.AgregarSelector(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
         }
 
         private void frmAutorizarPedidoReposicion_FormClosed(object sender, FormClosedEventArgs e)
@@ -148,7 +148,7 @@ namespace CAPAS
             bool puedeResolver = p != null && !esPropio;
             btnAutorizarPedido.Enabled = puedeResolver;
             btnRechazarPedido.Enabled = puedeResolver;
-            lblAyudaPedido.ForeColor = esPropio ? AppTheme.Acento : AppTheme.TextoPrincipal;
+            lblAyudaPedido.ForeColor = esPropio ? Color.Firebrick : SystemColors.ControlText;
         }
 
         private void btnAutorizarPedido_Click(object sender, EventArgs e)

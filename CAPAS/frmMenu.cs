@@ -104,7 +104,6 @@ namespace CAPAS
             CargarIdiomas();
             SeguridadYServicios.IdiomaManager.getInstance().Registrar(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
         }
 
         public void ActualizarVisibilidadMenu()

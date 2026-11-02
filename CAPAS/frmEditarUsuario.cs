@@ -38,7 +38,6 @@ namespace CAPAS
             ActualizarIdioma();
             IdiomaUIHelper.AgregarSelector(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
         }
 
         private void frmEditarUsuario_FormClosed(object sender, FormClosedEventArgs e)

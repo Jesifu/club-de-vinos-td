@@ -36,7 +36,6 @@ namespace CAPAS
             CargarPendientes();
             IdiomaUIHelper.AgregarSelector(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
         }
 
         private void frmAutorizarAltaVino_FormClosed(object sender, FormClosedEventArgs e)

@@ -33,7 +33,6 @@ namespace CAPAS
             CargarCajasDespachadas();
             IdiomaUIHelper.AgregarSelector(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
         }
 
         private void frmHistorialDespachos_FormClosed(object sender, FormClosedEventArgs e)

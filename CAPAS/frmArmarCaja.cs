@@ -54,7 +54,6 @@ namespace CAPAS
             CargarSocios();
             IdiomaUIHelper.AgregarSelector(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
             ActualizarTotales();
         }
 
@@ -165,7 +164,6 @@ namespace CAPAS
             if (e.Value is bool preferido && preferido)
             {
                 e.CellStyle.Font = new Font(dgvCandidatos.Font, FontStyle.Bold);
-                e.CellStyle.BackColor = AppTheme.Acento;
             }
         }
 
@@ -248,7 +246,7 @@ namespace CAPAS
             decimal total = _bll.CalcularTotal(_lineas);
             lblPresupuestoValor.Text = _presupuestoSocio.ToString("C2");
             lblTotalValor.Text = total.ToString("C2");
-            lblTotalValor.ForeColor = total > _presupuestoSocio ? Color.IndianRed : AppTheme.TextoPrincipal;
+            lblTotalValor.ForeColor = total > _presupuestoSocio ? Color.Firebrick : SystemColors.ControlText;
 
             btnConfirmarArmado.Enabled = cboSocio.SelectedItem is BE.Socio
                 && _lineas.Count > 0

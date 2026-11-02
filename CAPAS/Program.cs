@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 using ReaLTaiizor.Colors;
@@ -18,14 +19,15 @@ namespace CAPAS
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
+            // Esquema neutro con los colores del sistema: la barra de título Material usa el color de
+            // selección de Windows y el resto de la interfaz queda con los controles por defecto.
             var skin = MaterialSkinManager.Instance;
-            skin.Theme = MaterialSkinManager.Themes.DARK;
-            // Barra de título y controles Material con la misma paleta bordó de AppTheme.
+            skin.Theme = MaterialSkinManager.Themes.LIGHT;
             skin.ColorScheme = new MaterialColorScheme(
-                AppTheme.FondoHeader,
-                AppTheme.FondoForm,
-                AppTheme.Borde,
-                AppTheme.Acento,
+                SystemColors.Highlight,
+                SystemColors.HotTrack,
+                SystemColors.ControlLight,
+                SystemColors.Highlight,
                 MaterialTextShade.WHITE
             );
 

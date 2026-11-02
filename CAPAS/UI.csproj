@@ -220,7 +220,6 @@
     <Compile Include="LogIn.Designer.cs">
       <DependentUpon>LogIn.cs</DependentUpon>
     </Compile>
-    <Compile Include="AppTheme.cs" />
     <Compile Include="FormBase.cs">
       <SubType>Form</SubType>
     </Compile>

@@ -44,7 +44,6 @@ namespace CAPAS
             CargarHistorial();
             IdiomaUIHelper.AgregarSelector(this);
             MaterialSkinManager.Instance.AddFormToManage(this);
-            AppTheme.AplicarTema(this);
             ReposicionarLayout();
         }
 
