@@ -6261,19 +6261,24 @@ DECLARE @v005 INT = (SELECT ID FROM VINO WHERE CODIGO = 'DEMO-005' AND ESTADO = 
 DECLARE @v004 INT = (SELECT ID FROM VINO WHERE CODIGO = 'DEMO-004' AND ESTADO = 'Activo')
 DECLARE @pid INT
 
--- Migración de la versión anterior (DEMO-008 Pendiente / DEMO-007 Aprobado), solo si no fueron operados.
-DECLARE @viejos TABLE (ID INT)
-INSERT INTO @viejos (ID)
-SELECT p.ID FROM PEDIDO_REPOSICION p
-WHERE p.OBSERVACION = @obsPed
-  AND EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA pl JOIN VINO v ON v.ID = pl.VINO_ID
-              WHERE pl.PEDIDO_ID = p.ID
-                AND ((v.CODIGO = 'DEMO-008' AND p.ESTADO = 'Pendiente') OR (v.CODIGO = 'DEMO-007' AND p.ESTADO = 'Aprobado')))
-DELETE FROM PEDIDO_REPOSICION_LINEA WHERE PEDIDO_ID IN (SELECT ID FROM @viejos)
-DELETE FROM PEDIDO_REPOSICION WHERE ID IN (SELECT ID FROM @viejos)
-
 IF @comprasPed IS NOT NULL AND @adminPed IS NOT NULL AND @admin2Ped IS NOT NULL AND @depositoPed IS NOT NULL
+   AND @v006 IS NOT NULL AND @v001 IS NOT NULL AND @v005 IS NOT NULL AND @v004 IS NOT NULL
 BEGIN
+    -- Migración de la versión anterior (DEMO-008 Pendiente / DEMO-007 Aprobado). Está dentro del IF de
+    -- prerrequisitos: si falta un usuario o un vino demo no se borra nada. Si la usuaria ya autorizó, rechazó o
+    -- recibió esos pedidos viejos, NO se tocan (y DEMO-007/008 podrían quedar bloqueados para la baja, RN-15
+    -- extendida, hasta resolverlos). Nota: un vino con baja Pendiente al que luego se le genera un pedido no puede
+    -- autorizarse hasta resolver el pedido (solo rechazarse).
+    DECLARE @viejos TABLE (ID INT)
+    INSERT INTO @viejos (ID)
+    SELECT p.ID FROM PEDIDO_REPOSICION p
+    WHERE p.OBSERVACION = @obsPed
+      AND EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA pl JOIN VINO v ON v.ID = pl.VINO_ID
+                  WHERE pl.PEDIDO_ID = p.ID
+                    AND ((v.CODIGO = 'DEMO-008' AND p.ESTADO = 'Pendiente') OR (v.CODIGO = 'DEMO-007' AND p.ESTADO = 'Aprobado')))
+    DELETE FROM PEDIDO_REPOSICION_LINEA WHERE PEDIDO_ID IN (SELECT ID FROM @viejos)
+    DELETE FROM PEDIDO_REPOSICION WHERE ID IN (SELECT ID FROM @viejos)
+
     -- Pendiente
     IF @v006 IS NOT NULL
        AND NOT EXISTS (SELECT 1 FROM PEDIDO_REPOSICION_LINEA pl JOIN PEDIDO_REPOSICION p ON p.ID = pl.PEDIDO_ID

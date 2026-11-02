@@ -194,7 +194,7 @@ namespace BLL
                 throw new InvalidOperationException(MensajeBajaYaPendiente);
             }
             if (filas == 0)
-                throw new InvalidOperationException("No se pudo solicitar la baja: el estado o el stock del vino cambiaron. Actualice e intente nuevamente.");
+                throw new InvalidOperationException("No se pudo solicitar la baja: el vino cambió de estado, de stock o de pedido de reposición. Actualice e intente nuevamente.");
 
             _bitacora.RegistrarAccion(sesion.Usuario, "BAJA_SOLICITADA_VINO:" + v.Codigo);
         }
