@@ -414,7 +414,6 @@ namespace CAPAS
             //
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.BackColor = System.Drawing.SystemColors.ActiveCaption;
             this.ClientSize = new System.Drawing.Size(1130, 730);
             this.Controls.Add(this.panelInferior);
             this.Controls.Add(this.dgvRotacion);

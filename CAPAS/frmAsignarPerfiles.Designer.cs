@@ -50,7 +50,6 @@ namespace CAPAS
             this.btnCerrar.Click += new System.EventHandler(this.btnCerrar_Click);
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.BackColor = System.Drawing.SystemColors.ActiveCaption;
             this.ClientSize = new System.Drawing.Size(404, 524);
             this.MinimumSize = new System.Drawing.Size(320, 320);
             this.Controls.Add(this.lblUsuario);

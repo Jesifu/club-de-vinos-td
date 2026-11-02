@@ -113,7 +113,6 @@ namespace CAPAS
             //
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.BackColor = System.Drawing.SystemColors.ActiveCaption;
             this.CancelButton = this.btnCerrar;
             this.ClientSize = new System.Drawing.Size(910, 550);
             this.Controls.Add(this.rtbContenido);
