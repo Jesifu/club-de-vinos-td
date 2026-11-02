@@ -241,8 +241,17 @@
     <EmbeddedResource Include="frmArmarCaja.resx">
       <DependentUpon>frmArmarCaja.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="frmAutorizarPedidoReposicion.resx">
+      <DependentUpon>frmAutorizarPedidoReposicion.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="frmAyuda.resx">
+      <DependentUpon>frmAyuda.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="frmBitacora.resx">
       <DependentUpon>frmBitacora.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="frmCatalogoVinos.resx">
+      <DependentUpon>frmCatalogoVinos.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="frmContraseña.resx">
       <DependentUpon>frmContraseña.cs</DependentUpon>
@@ -273,6 +282,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="frmPickingCaja.resx">
       <DependentUpon>frmPickingCaja.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="frmRecibirPedidoReposicion.resx">
+      <DependentUpon>frmRecibirPedidoReposicion.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="LogIn.resx">
       <DependentUpon>LogIn.cs</DependentUpon>

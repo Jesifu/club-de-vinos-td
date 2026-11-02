@@ -13,6 +13,7 @@ namespace CAPAS
 
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmAyuda));
             this.rtbContenido = new System.Windows.Forms.RichTextBox();
             this.panelIzquierdo = new System.Windows.Forms.Panel();
             this.treeTemas = new System.Windows.Forms.TreeView();
@@ -25,82 +26,83 @@ namespace CAPAS
             this.panelBuscar.SuspendLayout();
             this.panelInferior.SuspendLayout();
             this.SuspendLayout();
-            //
+            // 
             // rtbContenido
-            //
+            // 
             this.rtbContenido.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.rtbContenido.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.rtbContenido.Location = new System.Drawing.Point(303, 64);
+            this.rtbContenido.Location = new System.Drawing.Point(439, 64);
             this.rtbContenido.Name = "rtbContenido";
             this.rtbContenido.ReadOnly = true;
-            this.rtbContenido.Size = new System.Drawing.Size(605, 418);
+            this.rtbContenido.Size = new System.Drawing.Size(469, 418);
             this.rtbContenido.TabIndex = 1;
             this.rtbContenido.TabStop = false;
             this.rtbContenido.Text = "";
-            //
+            // 
             // panelIzquierdo
-            //
+            // 
             this.panelIzquierdo.Controls.Add(this.treeTemas);
             this.panelIzquierdo.Controls.Add(this.panelBuscar);
             this.panelIzquierdo.Dock = System.Windows.Forms.DockStyle.Left;
             this.panelIzquierdo.Location = new System.Drawing.Point(3, 64);
             this.panelIzquierdo.Name = "panelIzquierdo";
             this.panelIzquierdo.Padding = new System.Windows.Forms.Padding(0, 0, 8, 0);
-            this.panelIzquierdo.Size = new System.Drawing.Size(300, 418);
+            this.panelIzquierdo.Size = new System.Drawing.Size(436, 418);
             this.panelIzquierdo.TabIndex = 0;
-            //
+            // 
             // treeTemas
-            //
+            // 
             this.treeTemas.Dock = System.Windows.Forms.DockStyle.Fill;
             this.treeTemas.HideSelection = false;
             this.treeTemas.Location = new System.Drawing.Point(0, 70);
             this.treeTemas.Name = "treeTemas";
             this.treeTemas.ShowNodeToolTips = true;
-            this.treeTemas.Size = new System.Drawing.Size(292, 348);
+            this.treeTemas.Size = new System.Drawing.Size(428, 348);
             this.treeTemas.TabIndex = 1;
             this.treeTemas.AfterSelect += new System.Windows.Forms.TreeViewEventHandler(this.treeTemas_AfterSelect);
-            //
+            // 
             // panelBuscar
-            //
+            // 
             this.panelBuscar.Controls.Add(this.txtBuscar);
             this.panelBuscar.Controls.Add(this.lblBuscarAyuda);
             this.panelBuscar.Dock = System.Windows.Forms.DockStyle.Top;
             this.panelBuscar.Location = new System.Drawing.Point(0, 0);
             this.panelBuscar.Name = "panelBuscar";
-            this.panelBuscar.Size = new System.Drawing.Size(292, 70);
+            this.panelBuscar.Size = new System.Drawing.Size(428, 70);
             this.panelBuscar.TabIndex = 0;
-            //
+            // 
             // txtBuscar
-            //
-            this.txtBuscar.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left)
+            // 
+            this.txtBuscar.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.txtBuscar.Location = new System.Drawing.Point(0, 32);
             this.txtBuscar.Name = "txtBuscar";
-            this.txtBuscar.Size = new System.Drawing.Size(292, 26);
+            this.txtBuscar.Size = new System.Drawing.Size(425, 26);
             this.txtBuscar.TabIndex = 1;
             this.txtBuscar.TextChanged += new System.EventHandler(this.txtBuscar_TextChanged);
-            //
+            // 
             // lblBuscarAyuda
-            //
+            // 
             this.lblBuscarAyuda.AutoSize = true;
             this.lblBuscarAyuda.Location = new System.Drawing.Point(0, 8);
             this.lblBuscarAyuda.Name = "lblBuscarAyuda";
-            this.lblBuscarAyuda.Size = new System.Drawing.Size(60, 20);
+            this.lblBuscarAyuda.Size = new System.Drawing.Size(63, 20);
             this.lblBuscarAyuda.TabIndex = 0;
             this.lblBuscarAyuda.Text = "Buscar:";
-            //
+            // 
             // panelInferior
-            //
+            // 
             this.panelInferior.Controls.Add(this.btnCerrar);
             this.panelInferior.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.panelInferior.Location = new System.Drawing.Point(3, 482);
             this.panelInferior.Name = "panelInferior";
             this.panelInferior.Size = new System.Drawing.Size(905, 66);
             this.panelInferior.TabIndex = 2;
-            //
+            // 
             // btnCerrar
-            //
+            // 
             this.btnCerrar.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnCerrar.DialogResult = System.Windows.Forms.DialogResult.Cancel;
             this.btnCerrar.Location = new System.Drawing.Point(797, 14);
             this.btnCerrar.Name = "btnCerrar";
             this.btnCerrar.Size = new System.Drawing.Size(100, 38);
@@ -108,9 +110,9 @@ namespace CAPAS
             this.btnCerrar.Text = "Cerrar";
             this.btnCerrar.UseVisualStyleBackColor = true;
             this.btnCerrar.Click += new System.EventHandler(this.btnCerrar_Click);
-            //
+            // 
             // frmAyuda
-            //
+            // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(9F, 20F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.btnCerrar;
@@ -118,6 +120,7 @@ namespace CAPAS
             this.Controls.Add(this.rtbContenido);
             this.Controls.Add(this.panelIzquierdo);
             this.Controls.Add(this.panelInferior);
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MinimumSize = new System.Drawing.Size(760, 480);
             this.Name = "frmAyuda";
             this.Padding = new System.Windows.Forms.Padding(3, 64, 2, 2);
