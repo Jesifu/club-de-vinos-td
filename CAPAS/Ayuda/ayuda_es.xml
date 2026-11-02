@@ -509,13 +509,14 @@
   </Tema>
 
   <Tema id="rotacion" titulo="Análisis de rotación y reposición">
-    <Resumen>Herramienta de apoyo a la decisión de compra: para cada vino Activo calcula cuánto se consume por mes, para cuántos meses alcanza el stock actual, lo clasifica por rotación y recomienda si conviene reponer. Sugiere; no ejecuta ninguna compra ni modifica el stock.</Resumen>
+    <Resumen>Herramienta de apoyo a la decisión de compra: para cada vino Activo calcula cuánto se consume por mes, para cuántos meses alcanza el stock actual, lo clasifica por rotación y recomienda si conviene reponer. El análisis en sí no modifica el stock: sugiere, y con el permiso correspondiente permite generar un Pedido de Reposición con los vinos elegidos (tema "Generar un pedido de reposición"), que luego se autoriza, se recibe y se consulta.</Resumen>
     <Permiso>Analizar rotación de stock (menú Catálogo > Analizar rotación de stock). Por defecto, el rol Encargado de Compras/Bodega y el Administrador.</Permiso>
     <Pasos>
       <Paso>Abra Catálogo > Analizar rotación de stock. El período propuesto son los últimos días configurados, con hoy incluido.</Paso>
       <Paso>Ajuste el rango con Desde y Hasta si lo necesita. Al cambiar Días de análisis en la configuración, Desde se recalcula; las fechas que edite a mano se respetan.</Paso>
       <Paso>Revise la configuración de umbrales (tema siguiente) y presione Analizar.</Paso>
       <Paso>Lea la grilla de resultados (pestaña Detalle): los vinos más urgentes aparecen primero. La pestaña Gráficos los resume visualmente (tema "Gráficos del análisis").</Paso>
+      <Paso>Si tiene el permiso Gestionar pedidos de reposición, marque los vinos a pedir y presione Generar pedido (tema "Generar un pedido de reposición").</Paso>
       <Paso>Presione Exportar a PDF para obtener el informe (tema "Informe PDF de rotación").</Paso>
     </Pasos>
     <Reglas>
@@ -565,7 +566,8 @@
       </Pasos>
       <Reglas>
         <Regla>El orden de la grilla es por urgencia: Reponer urgente, Reponer, Mantener, Sobrestock; dentro de cada grupo, de menor a mayor cobertura.</Regla>
-        <Regla>Cantidad sugerida: solo para Reponer urgente y Reponer. Es lo que falta para tener, después de reponer, la cobertura objetivo de consumo sin quedar bajo el stock mínimo: máx(consumo mensual × cobertura objetivo; stock mínimo) − stock actual, redondeado hacia arriba, nunca menor a 0 en Reponer y nunca menor a 1 en Reponer urgente. Para Mantener y Sobrestock es 0. El resumen muestra el total de unidades sugeridas a reponer; es una sugerencia para decidir la compra, no genera ningún pedido.</Regla>
+        <Regla>Cantidad sugerida: solo para Reponer urgente y Reponer. Es lo que falta para tener, después de reponer, la cobertura objetivo de consumo sin quedar bajo el stock mínimo: máx(consumo mensual × cobertura objetivo; stock mínimo) − stock actual, redondeado hacia arriba, nunca menor a 0 en Reponer y nunca menor a 1 en Reponer urgente. Para Mantener y Sobrestock es 0. El resumen muestra el total de unidades sugeridas a reponer. Es una sugerencia para decidir la compra; recién se convierte en pedido si usted lo genera desde esta pantalla.</Regla>
+        <Regla>La cantidad sugerida es neta de lo que ya viene en camino: En camino son las unidades de pedidos de reposición Aprobados que todavía no se recibieron. Cantidad sugerida = máx(0; sugerencia calculada − en camino), por lo que puede ser 0. La columna Pedido abierto muestra el estado (Pendiente o Aprobado) del pedido que ya incluye al vino.</Regla>
         <Regla>Un vino sin consumo no tiene cobertura calculable (se muestra una raya).</Regla>
         <Regla>Un vino de alta rotación con poca cobertura es el caso típico de reposición urgente.</Regla>
       </Reglas>
@@ -598,6 +600,86 @@
       <Reglas>
         <Regla>Cada exportación genera un archivo nuevo (el nombre incluye fecha, hora y milisegundos); no se sobrescribe ninguno.</Regla>
         <Regla>Si el rango termina antes de hoy, el informe incluye la nota de que el stock es el actual.</Regla>
+      </Reglas>
+    </Tema>
+
+    <Tema id="pedido-generar" titulo="Generar un pedido de reposición">
+      <Resumen>Desde el análisis de rotación se eligen los vinos a reponer y se genera un Pedido de Reposición: se crea un pedido por bodega, en estado Pendiente de autorización.</Resumen>
+      <Permiso>Gestionar pedidos de reposición (por defecto, Encargado de Compras/Bodega y Administrador). Sin este permiso no se ven la columna de selección ni el botón.</Permiso>
+      <Pasos>
+        <Paso>Presione Analizar. Las filas con recomendación Reponer urgente o Reponer, cantidad sugerida mayor a cero y sin pedido abierto muestran una casilla en la columna Pedir y la Cantidad a pedir (por defecto, la sugerida).</Paso>
+        <Paso>Marque los vinos a pedir y, si hace falta, corrija la Cantidad a pedir (entero mayor a cero). Debajo de la grilla se cuentan los vinos seleccionados.</Paso>
+        <Paso>Presione Generar pedido y confirme.</Paso>
+        <Paso>El sistema muestra los pedidos creados (uno por bodega) con su número y actualiza el análisis: los vinos pedidos pasan a mostrar su pedido abierto.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>RN-31: solo vinos Activos, cantidad pedida mayor a cero y todos los vinos de un pedido de la misma bodega (si elige vinos de varias bodegas se crea un pedido por cada una).</Regla>
+        <Regla>RN-32: un vino no puede estar en más de un pedido abierto (Pendiente o Aprobado); por eso sus filas no tienen casilla.</Regla>
+        <Regla>El pedido guarda la cantidad sugerida del momento y la cantidad pedida de cada vino.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Seleccione al menos un vino para generar el pedido."</Mensaje>
+        <Mensaje>"La cantidad a pedir debe ser un número entero mayor a cero."</Mensaje>
+        <Mensaje>"¿Generar el pedido de reposición con N vino(s) y M unidad(es)? Se crea un pedido por bodega y queda Pendiente de autorización."</Mensaje>
+        <Mensaje>"Pedido de reposición generado: Nº ..." / "Pedidos de reposición generados (uno por bodega): ..."</Mensaje>
+        <Mensaje>"RN-32: ... ya está en el pedido abierto Nº ..." - otro pedido incluye al vino; actualice el análisis.</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="pedido-autorizar" titulo="Autorizar o rechazar un pedido de reposición">
+      <Resumen>Lista los pedidos Pendientes. Quien autoriza revisa el detalle (cabecera y líneas) y aprueba el pedido (queda Aprobado, a la espera de su recepción) o lo rechaza con un motivo.</Resumen>
+      <Permiso>Autorizar pedidos de reposición (menú Catálogo > Autorizar pedidos de reposición). Por defecto, el rol Administrador.</Permiso>
+      <Pasos>
+        <Paso>Abra Catálogo > Autorizar pedidos de reposición y seleccione un pedido; el panel muestra su detalle y sus líneas (vino, cantidad pedida y sugerida al generar).</Paso>
+        <Paso>Para aprobar, presione Autorizar. El pedido queda Aprobado y sus unidades pasan a figurar En camino en el análisis.</Paso>
+        <Paso>Para rechazar, presione Rechazar, escriba el motivo en el cuadro y presione Rechazar pedido. Sus vinos quedan libres para un nuevo pedido.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>RN-33: no puede autorizar ni rechazar un pedido que usted mismo generó; los botones se deshabilitan en ese caso.</Regla>
+        <Regla>RN-34: el motivo de rechazo es obligatorio y admite entre 1 y 200 caracteres.</Regla>
+        <Regla>Un pedido ya resuelto no puede resolverse de nuevo.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"Seleccione un pedido pendiente."</Mensaje>
+        <Mensaje>"Debe indicar el motivo del rechazo."</Mensaje>
+        <Mensaje>"RN-33: no puede autorizar (o rechazar) un pedido que usted mismo generó."</Mensaje>
+        <Mensaje>"El pedido ya fue resuelto (estado: ...)." - otro usuario lo resolvió antes; la lista se actualiza.</Mensaje>
+        <Mensaje>"Pedido Nº ... autorizado correctamente. Queda Aprobado, a la espera de su recepción." / "Pedido Nº ... rechazado. Sus vinos quedan libres para un nuevo pedido."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="pedido-recibir" titulo="Registrar la recepción de un pedido de reposición">
+      <Resumen>Lista los pedidos Aprobados. Al llegar la mercadería se informa la cantidad recibida de cada línea; se generan las entradas de stock y el pedido queda Recibido.</Resumen>
+      <Permiso>Recibir pedidos de reposición (menú Catálogo > Registrar recepción de pedido). Por defecto, Encargado de Depósito y Administrador.</Permiso>
+      <Pasos>
+        <Paso>Abra Catálogo > Registrar recepción de pedido y seleccione un pedido aprobado.</Paso>
+        <Paso>En la grilla de líneas, ajuste la columna Cantidad recibida de cada vino (por defecto, igual a la pedida; puede ser de 0 a la pedida).</Paso>
+        <Paso>Presione Registrar recepción y confirme.</Paso>
+        <Paso>El sistema informa las entradas de stock generadas y el pedido pasa a Recibido.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>RN-35: la cantidad recibida de cada línea va de 0 a la cantidad pedida y al menos una línea debe tener más de cero. Lo no recibido se da por no entregado: el pedido queda cerrado y los vinos pueden volver a pedirse.</Regla>
+        <Regla>Se registra una Entrada de stock (motivo "Recepción de pedido de reposición") por cada línea con cantidad recibida mayor a cero, todo en una misma operación: si algo falla, no se registra nada.</Regla>
+        <Regla>RN-36: puede recibir cualquier usuario con el permiso de recepción.</Regla>
+      </Reglas>
+      <Mensajes>
+        <Mensaje>"La cantidad recibida de ... debe estar entre 0 y N."</Mensaje>
+        <Mensaje>"Al menos una línea debe tener una cantidad recibida mayor a cero."</Mensaje>
+        <Mensaje>"Recepción del pedido Nº ... registrada. Entradas de stock generadas: N línea(s), M unidad(es)."</Mensaje>
+      </Mensajes>
+    </Tema>
+
+    <Tema id="pedido-consultar" titulo="Consultar pedidos de reposición">
+      <Resumen>Pantalla de solo lectura con todos los pedidos de reposición, filtrables por estado, y el detalle de cada uno: responsables, fechas, motivo de rechazo y líneas.</Resumen>
+      <Permiso>Cualquiera de los permisos del ciclo: Gestionar, Autorizar o Recibir pedidos de reposición (menú Catálogo > Consultar pedidos de reposición).</Permiso>
+      <Pasos>
+        <Paso>Abra Catálogo > Consultar pedidos de reposición.</Paso>
+        <Paso>Elija un Estado (Todos, Pendiente, Aprobado, Rechazado o Recibido) para filtrar la lista.</Paso>
+        <Paso>Seleccione un pedido para ver quién lo generó y resolvió, las fechas, el motivo de rechazo (si lo hubo) y sus líneas; en un pedido Recibido se muestra también la cantidad recibida.</Paso>
+      </Pasos>
+      <Reglas>
+        <Regla>Ciclo del pedido: Pendiente > Aprobado o Rechazado; Aprobado > Recibido. Rechazado y Recibido son estados finales.</Regla>
+        <Regla>Esta pantalla no modifica nada.</Regla>
       </Reglas>
     </Tema>
   </Tema>

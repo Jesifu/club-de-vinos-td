@@ -6590,3 +6590,95 @@ EXEC TRADUCCION_GUARDAR @espIdRot5, @cidRot5, 'No se pudo generar el informe en 
 EXEC TRADUCCION_GUARDAR @ingIdRot5, @cidRot5, 'The PDF report could not be generated. Check that the Documents folder is writable.'
 EXEC TRADUCCION_GUARDAR @ptIdRot5, @cidRot5, 'Não foi possível gerar o relatório em PDF. Verifique se a pasta Documentos permite gravação.'
 GO
+
+-- ============================================================
+-- i18n — N03 Pedido de Reposición (CU-37..CU-40): ítems de menú, formularios nuevos
+-- (frmAutorizarPedidoReposicion, frmRecibirPedidoReposicion, frmConsultarPedidosReposicion),
+-- diálogo de motivo de rechazo, estados, encabezados de grillas y columnas nuevas del análisis
+-- (En camino, Pedido abierto, selección y cantidad a pedir). Controles ya registrados que se
+-- reutilizan: btnCerrar, colhdr_Estado, colhdr_Bodega, colhdr_Codigo, colhdr_NombreVino,
+-- colhdr_MotivoRechazo. Todos los textos entran en cp1252 (TRADUCCION.TEXTO es VARCHAR(200)).
+-- Idempotente: CONTROL_REGISTRAR y TRADUCCION_GUARDAR son upserts.
+-- ============================================================
+DECLARE @espIdPed INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Español')
+DECLARE @ingIdPed INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Inglés')
+DECLARE @ptIdPed  INT = (SELECT ID FROM IDIOMA WHERE NOMBRE = 'Portugues')
+
+DECLARE @tPed TABLE (CLAVE VARCHAR(100), ES VARCHAR(200), EN_ VARCHAR(200), PT VARCHAR(200))
+INSERT INTO @tPed (CLAVE, ES, EN_, PT) VALUES
+    -- menú
+    ('autorizarPedidoToolStripMenuItem', 'Autorizar pedidos de reposición', 'Authorize replenishment orders', 'Autorizar pedidos de reposição'),
+    ('recibirPedidoToolStripMenuItem', 'Registrar recepción de pedido', 'Record order receipt', 'Registrar recebimento de pedido'),
+    ('consultarPedidosToolStripMenuItem', 'Consultar pedidos de reposición', 'View replenishment orders', 'Consultar pedidos de reposição'),
+    -- CU-38 autorizar / rechazar
+    ('frmAutorizarPedidoReposicion', 'Autorizar pedidos de reposición', 'Authorize replenishment orders', 'Autorizar pedidos de reposição'),
+    ('lblTitulo_AutorizarPedido', 'Autorizar pedidos de reposición', 'Authorize replenishment orders', 'Autorizar pedidos de reposição'),
+    ('lblDetallePedido', 'Detalle del pedido', 'Order details', 'Detalhes do pedido'),
+    ('lblAyudaPedido', 'No puede autorizar ni rechazar un pedido que usted mismo generó.', 'You cannot authorize or reject an order that you generated yourself.', 'Você não pode autorizar nem rejeitar um pedido que você mesmo gerou.'),
+    ('btnAutorizarPedido', 'Autorizar', 'Authorize', 'Autorizar'),
+    ('btnRechazarPedido', 'Rechazar', 'Reject', 'Rejeitar'),
+    ('ped_MotivoTitulo', 'Rechazar pedido', 'Reject order', 'Rejeitar pedido'),
+    ('ped_MotivoEtiqueta', 'Motivo del rechazo (obligatorio, hasta 200 caracteres):', 'Reason for rejection (required, up to 200 characters):', 'Motivo da rejeição (obrigatório, até 200 caracteres):'),
+    ('ped_MotivoConfirmar', 'Rechazar pedido', 'Reject order', 'Rejeitar pedido'),
+    ('ped_MotivoCancelar', 'Cancelar', 'Cancel', 'Cancelar'),
+    -- CU-39 recepción
+    ('frmRecibirPedidoReposicion', 'Registrar recepción de pedido de reposición', 'Record replenishment order receipt', 'Registrar recebimento de pedido de reposição'),
+    ('lblTitulo_RecibirPedido', 'Registrar recepción de pedido de reposición', 'Record replenishment order receipt', 'Registrar recebimento de pedido de reposição'),
+    ('lblAyudaRecepcion', 'Indique la cantidad recibida de cada línea (de 0 a la cantidad pedida). Lo no recibido se da por no entregado.', 'Enter the quantity received for each line (from 0 to the quantity ordered). Anything not received is treated as undelivered.', 'Informe a quantidade recebida de cada linha (de 0 até a quantidade pedida). O que não for recebido é considerado não entregue.'),
+    ('btnRegistrarRecepcion', 'Registrar recepción', 'Record receipt', 'Registrar recebimento'),
+    -- CU-40 consulta
+    ('frmConsultarPedidosReposicion', 'Consultar pedidos de reposición', 'View replenishment orders', 'Consultar pedidos de reposição'),
+    ('lblTitulo_ConsultarPedidos', 'Consultar pedidos de reposición', 'View replenishment orders', 'Consultar pedidos de reposição'),
+    ('lblFiltroEstado', 'Estado:', 'Status:', 'Situação:'),
+    -- estados del pedido (el valor guardado sigue siendo el del enum de BE)
+    ('valped_Todos', 'Todos', 'All', 'Todos'),
+    ('valped_Pendiente', 'Pendiente', 'Pending', 'Pendente'),
+    ('valped_Aprobado', 'Aprobado', 'Approved', 'Aprovado'),
+    ('valped_Rechazado', 'Rechazado', 'Rejected', 'Rejeitado'),
+    ('valped_Recibido', 'Recibido', 'Received', 'Recebido'),
+    -- encabezados de las grillas de pedidos y líneas
+    ('colhdr_PedNro', 'Nº pedido', 'Order no.', 'Nº do pedido'),
+    ('colhdr_PedGeneradoPor', 'Generado por', 'Created by', 'Gerado por'),
+    ('colhdr_PedFechaGeneracion', 'Fecha de generación', 'Creation date', 'Data de geração'),
+    ('colhdr_PedLineas', 'Líneas', 'Lines', 'Linhas'),
+    ('colhdr_PedUnidades', 'Unidades pedidas', 'Units ordered', 'Unidades pedidas'),
+    ('colhdr_PedCantidadSugerida', 'Sugerida al generar', 'Suggested when created', 'Sugerida ao gerar'),
+    ('colhdr_PedCantidadPedida', 'Cantidad pedida', 'Quantity ordered', 'Quantidade pedida'),
+    ('colhdr_PedCantidadRecibida', 'Cantidad recibida', 'Quantity received', 'Quantidade recebida'),
+    ('colhdr_PedResueltoPor', 'Resuelto por', 'Resolved by', 'Resolvido por'),
+    ('colhdr_PedRecibidoPor', 'Recibido por', 'Received by', 'Recebido por'),
+    ('colhdr_PedObservacion', 'Observación', 'Note', 'Observação'),
+    -- CU-37 análisis: columnas nuevas, selección y botón
+    ('colhdr_EnCamino', 'En camino', 'On the way', 'A caminho'),
+    ('colhdr_PedidoAbierto', 'Pedido abierto', 'Open order', 'Pedido aberto'),
+    ('colhdr_Seleccionar', 'Pedir', 'Order', 'Pedir'),
+    ('colhdr_CantidadAPedir', 'Cantidad a pedir', 'Quantity to order', 'Quantidade a pedir'),
+    ('btnGenerarPedido', 'Generar pedido', 'Create order', 'Gerar pedido'),
+    ('ped_Seleccionados', 'Vinos seleccionados para el pedido: {0}', 'Wines selected for the order: {0}', 'Vinhos selecionados para o pedido: {0}'),
+    -- informe PDF
+    ('rot_pdf_NotaEnCamino', 'A reponer es neto de las unidades en camino (pedidos de reposición aprobados y aún no recibidos).', 'To replenish is net of units on the way (approved replenishment orders not yet received).', 'A repor é líquido das unidades a caminho (pedidos de reposição aprovados e ainda não recebidos).')
+
+DECLARE @clavePed VARCHAR(100), @esPed VARCHAR(200), @enPed VARCHAR(200), @ptPed VARCHAR(200), @cidPed INT
+DECLARE curPed CURSOR LOCAL FAST_FORWARD FOR SELECT CLAVE, ES, EN_, PT FROM @tPed
+OPEN curPed
+FETCH NEXT FROM curPed INTO @clavePed, @esPed, @enPed, @ptPed
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    EXEC CONTROL_REGISTRAR @clavePed, @esPed
+    SET @cidPed = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = @clavePed)
+    EXEC TRADUCCION_GUARDAR @espIdPed, @cidPed, @esPed
+    EXEC TRADUCCION_GUARDAR @ingIdPed, @cidPed, @enPed
+    EXEC TRADUCCION_GUARDAR @ptIdPed, @cidPed, @ptPed
+    FETCH NEXT FROM curPed INTO @clavePed, @esPed, @enPed, @ptPed
+END
+CLOSE curPed
+DEALLOCATE curPed
+
+-- El título del tercer gráfico ahora aclara que la cantidad sugerida es neta de lo en camino
+-- (CONTROL_REGISTRAR solo inserta: se actualiza el default y las tres traducciones).
+UPDATE CONTROL_IDIOMA SET TEXTO_DEFAULT = 'Unidades sugeridas a reponer, netas de lo en camino ({0} de {1} vinos)' WHERE CLAVE = 'rot_gra_Titulo3'
+SET @cidPed = (SELECT ID FROM CONTROL_IDIOMA WHERE CLAVE = 'rot_gra_Titulo3')
+EXEC TRADUCCION_GUARDAR @espIdPed, @cidPed, 'Unidades sugeridas a reponer, netas de lo en camino ({0} de {1} vinos)'
+EXEC TRADUCCION_GUARDAR @ingIdPed, @cidPed, 'Suggested units to replenish, net of units on the way ({0} of {1} wines)'
+EXEC TRADUCCION_GUARDAR @ptIdPed, @cidPed, 'Unidades sugeridas para repor, líquidas do que está a caminho ({0} de {1} vinhos)'
+GO
